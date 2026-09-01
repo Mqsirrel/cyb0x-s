@@ -700,6 +700,50 @@ def failure_cmd_cli(
 
 
 # -----------------------------------------------------------------------------
+# Offline Cheat Sheet & Playbook Lookup
+# -----------------------------------------------------------------------------
+
+@cli.command("ref")
+@click.argument("query", default="")
+@click.option("--target", "-t", default=None, help="Target IP for dynamic syntax substitution")
+@click.option("--copy", "-c", is_flag=True, help="Copy first matching command to clipboard")
+@click.pass_context
+def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
+    """Search offline eJPTv2 cheat sheet and command references (e.g. cyb0x-s ref winrm)."""
+    from cyb0x_s.reference import search_reference
+
+    store = _get_store(ctx)
+    t = store.resolve_target(target)
+    target_ip = t.ip if t else (target or "")
+
+    results = search_reference(query, target_ip=target_ip)
+    if not results:
+        console.print(f"[yellow]No reference commands found matching '{query}'. Try 'smb', 'winrm', 'sql', 'privesc'...[/yellow]")
+        return
+
+    console.print(f"[bold cyan]─── eJPTv2 Reference Playbook: '{query}' ───[/bold cyan]\n" if query else "[bold cyan]─── eJPTv2 Reference Playbook ───[/bold cyan]\n")
+
+    for item in results:
+        console.print(f"[bold magenta][{item['category']}][/bold magenta] [bold white]{item['title']}[/bold white]")
+        console.print(f"  [bold yellow]❯ {item['command']}[/bold yellow]")
+        console.print(f"  [dim]ℹ {item['desc']}[/dim]\n")
+
+    if copy and results:
+        first_cmd = results[0]["command"]
+        copy_to_clipboard(first_cmd)
+        console.print(f"[dim]→ Copied top command to clipboard: {first_cmd}[/dim]")
+
+
+@cli.command("cheat", hidden=True)
+@click.argument("query", default="")
+@click.option("--target", "-t", default=None)
+@click.option("--copy", "-c", is_flag=True)
+@click.pass_context
+def cheat_alias(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
+    ctx.invoke(ref_cmd, query=query, target=target, copy=copy)
+
+
+# -----------------------------------------------------------------------------
 # Interactive TUI launcher
 # -----------------------------------------------------------------------------
 

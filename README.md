@@ -166,6 +166,24 @@ cyb0x-s checklist list
 
 *(In the TUI, press **`m`** to open the interactive template picker)*
 
+### Offline eJPTv2 Cheat Sheet & Command Reference
+Instant, offline playbook lookup with dynamic target IP substitution:
+
+```bash
+# Lookup WinRM commands for active target:
+cyb0x-s ref winrm
+
+# Lookup SMB commands and copy top syntax to clipboard:
+cyb0x-s ref smb --copy
+
+# Lookup PrivEsc, Pivoting, or Database commands:
+cyb0x-s ref privesc
+cyb0x-s ref mssql
+cyb0x-s ref mimikatz
+```
+
+*(In the TUI, press **`r`** or type `:ref <keyword>` to open the interactive Cheat Sheet modal)*
+
 ### Search Across Everything
 ```bash
 cyb0x-s search "backup"
@@ -206,6 +224,7 @@ cyb0x-s tui
 | `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or toggle password reveal |
 | `z` | **Toggle Fullscreen Zoom** on focused panel |
 | `g` | **Record Captured Flags** (`user.txt` and `root.txt`) for active target |
+| `r` | **Open eJPTv2 Cheat Sheet & Command Reference** (Offline Playbook) |
 | `/` or `Ctrl+F` | Open global search modal |
 | `t` | Add target |
 | `s` | Add service to active target (with Access Potential & Next Action) |
