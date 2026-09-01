@@ -12,10 +12,12 @@ from textual.widgets import Input, ListView
 
 from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.tui.app import CyboxSafeApp
+from cyb0x_s.tui.theme import current_palette
 from cyb0x_s.tui.widgets import (
     ConfirmModal,
-    GuidanceDrawer,
+    ConsoleBar,
     LootAndFlagsWidget,
+    MachineStatusStrip,
     SearchModal,
     TargetTreeWidget,
     WorksheetHeader,
@@ -44,7 +46,7 @@ async def test_active_tab_label_is_visible(seeded_store: NotebookStore) -> None:
         active = active_tabs[0]
         assert active.size.height >= 1
         assert active.render().plain.strip(), "active tab label rendered empty"
-        assert "Field Worksheet" in active.render().plain
+        assert "Cockpit" in active.render().plain
         # The underline is the only other "you are here" indicator.
         underline = app.query_one("Underline")
         assert underline.styles.display != "none"
@@ -60,10 +62,10 @@ async def test_highlighting_a_service_updates_drawer(seeded_store: NotebookStore
         await pilot.press("down")
         await pilot.pause()
 
-        drawer = app.query_one("#guidance-box", GuidanceDrawer)
-        text = drawer.render().plain
+        console = app.query_one("#guidance-box", ConsoleBar)
+        text = console.query_one("#console-cmd").render().plain
         assert "10.10.10.20" in text, "target IP should be substituted into the command"
-        assert drawer.size.height >= 1
+        assert console.size.height >= 1
 
 
 @pytest.mark.asyncio
@@ -74,8 +76,8 @@ async def test_tree_navigation_updates_drawer(seeded_store: NotebookStore) -> No
         tree.focus()
         await pilot.press("down")
         await pilot.pause()
-        drawer = app.query_one("#guidance-box", GuidanceDrawer)
-        assert drawer.render().plain
+        console = app.query_one("#guidance-box", ConsoleBar)
+        assert console.query_one("#console-cmd").render().plain
 
 
 @pytest.mark.asyncio
@@ -104,13 +106,13 @@ async def test_zoom_expands_panel_and_restores(seeded_store: NotebookStore) -> N
         await pilot.pause()
 
         assert panel.size.width > width_before, "zoomed panel should span the workbench"
-        assert app.query_one("#col-right").styles.display == "none"
-        assert app.query_one("#main-container").has_class("zoomed-mode")
+        assert app.query_one("#lower-band").styles.display == "none"
+        assert app.query_one("#cockpit").has_class("zoomed-mode")
 
         app.action_toggle_zoom()
         await pilot.pause()
-        assert not app.query_one("#main-container").has_class("zoomed-mode")
-        assert app.query_one("#col-right").styles.display == "block"
+        assert not app.query_one("#cockpit").has_class("zoomed-mode")
+        assert app.query_one("#lower-band").styles.display == "block"
 
 
 @pytest.mark.asyncio
@@ -192,7 +194,20 @@ async def test_header_reports_workspace_and_counts(seeded_store: NotebookStore) 
         text = header.render().plain
         assert "default" in text or "Lab" in text
         assert "targets 1" in text
-        assert "ports 2" in text
+
+
+@pytest.mark.asyncio
+async def test_status_strip_shows_machine_and_next_step(seeded_store: NotebookStore) -> None:
+    """The exam-speed strip: target, scope, loot and what to do next."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)):
+        strip = app.query_one(MachineStatusStrip)
+        text = strip.render().plain
+        assert "10.10.10.20" in text
+        assert "IN-SCOPE" in text
+        assert "NEXT" in text
+        assert "SMB enumeration" in text  # first TODO checklist item
+        assert "2 ports" in text
 
 
 @pytest.mark.asyncio
@@ -207,3 +222,97 @@ async def test_command_bar_still_captures_shortcuts(seeded_store: NotebookStore)
             await pilot.pause()
         assert cmd.value == ":njk"
         assert not any(isinstance(s, ConfirmModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_console_shows_command_for_highlighted_row(seeded_store: NotebookStore) -> None:
+    """The bottom console is the single place commands are previewed."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        console = app.query_one("#guidance-box", ConsoleBar)
+        # idle state is a hint, never a blank row
+        assert console.query_one("#console-cmd").render().plain.strip()
+
+        checklist = app.query_one("#list-checklist", ListView)
+        checklist.focus()
+        await pilot.press("down")
+        await pilot.pause()
+        assert console.query_one("#console-cmd").render().plain.strip()
+
+        assert console.size.width > 100, "console spans the terminal width"
+
+
+@pytest.mark.asyncio
+async def test_cockpit_panels_are_all_visible(seeded_store: NotebookStore) -> None:
+    """Station 1 shows attack surface, services, methodology and notes at once."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)):
+        for panel in ("#panel-surface", "#panel-creds", "#panel-services", "#panel-checklist", "#panel-notes"):
+            widget = app.query_one(panel)
+            assert widget.size.height > 0, f"{panel} has no height"
+            assert widget.size.width > 0, f"{panel} has no width"
+        # services is the widest panel: full workbench width, not a half column
+        services = app.query_one("#panel-services")
+        assert services.size.width > app.query_one("#panel-checklist").size.width
+
+
+@pytest.mark.asyncio
+async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert app.theme_name == "slate"
+        before = current_palette().accent
+
+        app.apply_theme("warm")
+        await pilot.pause()
+        assert app.theme_name == "warm"
+        assert current_palette().accent != before
+        assert app.theme == "cyb0x-warm"
+
+        app.action_cycle_theme()
+        await pilot.pause()
+        assert app.theme_name == "slate"
+        assert current_palette().accent == before
+
+        # rows follow the palette
+        app.query_one("#list-services", ListView).focus()
+        await pilot.pause()
+        app.apply_theme("warm")
+        await pilot.pause()
+        item = app.query_one("#list-services", ListView).children[0]
+        assert item.display_text.plain.strip()
+
+
+@pytest.mark.asyncio
+async def test_theme_command_bar(seeded_store: NotebookStore) -> None:
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        from textual.widgets import Input
+
+        cmd = app.query_one("#cmd-input", Input)
+        cmd.focus()
+        cmd.value = ":theme warm"
+        await cmd.action_submit()
+        await pilot.pause()
+        assert app.theme_name == "warm"
+
+        cmd.value = ":theme nope"
+        await cmd.action_submit()
+        await pilot.pause()
+        assert app.theme_name == "warm"
+
+
+@pytest.mark.asyncio
+async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
+    """Guard against stylesheet typos in screens the smoke test never opens."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        for key in ("?", "/", "r", "m", "g", "t", "s", "f", "c", "n", "K"):
+            await pilot.press(key)
+            await pilot.pause()
+            assert len(app.screen_stack) > 1, f"{key!r} did not open a modal"
+            await pilot.pause(0.2)
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+            assert len(app.screen_stack) == 1, f"{key!r} modal did not close"

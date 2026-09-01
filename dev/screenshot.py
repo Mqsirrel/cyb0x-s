@@ -25,15 +25,24 @@ from demo_seed import seed_demo  # noqa: E402
 
 from cyb0x_s.db.store import NotebookStore  # noqa: E402
 from cyb0x_s.tui.app import CyboxSafeApp  # noqa: E402
+from cyb0x_s.tui.theme import current_palette  # noqa: E402
 
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
 FONT_REGULAR = str(FONT_DIR / "DejaVuSansMono.ttf")
 FONT_BOLD = str(FONT_DIR / "DejaVuSansMono-Bold.ttf")
 
-DEFAULT_FG = (237, 230, 218)
-DEFAULT_BG = (33, 30, 27)
-
 FONT_SIZE = 17
+
+
+def _defaults() -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    """Read the background/foreground from the active palette."""
+    pal = current_palette()
+
+    def rgb(value: str) -> tuple[int, int, int]:
+        value = value.lstrip("#")
+        return (int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16))
+
+    return rgb(pal.text), rgb(pal.bg)
 LINE_PAD = 1
 
 
@@ -56,6 +65,7 @@ def _rgb(color, default: tuple[int, int, int]) -> tuple[int, int, int]:
 
 
 def render_strips(strips: Sequence, size) -> Image.Image:
+    DEFAULT_FG, DEFAULT_BG = _defaults()
     regular, bold = _load_fonts()
     cell_w = int(round(regular.getlength("M")))
     cell_h = FONT_SIZE + LINE_PAD * 2
@@ -109,11 +119,11 @@ def render_strips(strips: Sequence, size) -> Image.Image:
 
 
 async def capture(
-    out_dir: Path, shots: Iterable[tuple[str, Sequence[str], str]], size=(160, 44)
+    out_dir: Path, shots: Iterable[tuple[str, Sequence[str], str]], size=(160, 44), theme: str = "slate"
 ) -> None:
     store = NotebookStore(":memory:")
     seed_demo(store)
-    app = CyboxSafeApp(store=store)
+    app = CyboxSafeApp(store=store, theme=theme)
 
     async with app.run_test(size=size) as pilot:
         for name, keys, note in shots:
@@ -144,8 +154,9 @@ SHOTS = [
 
 def main() -> None:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".arena/shots")
+    theme = sys.argv[2] if len(sys.argv) > 2 else "slate"
     out_dir.mkdir(parents=True, exist_ok=True)
-    asyncio.run(capture(out_dir, SHOTS))
+    asyncio.run(capture(out_dir, SHOTS, theme=theme))
 
 
 if __name__ == "__main__":
