@@ -31,6 +31,7 @@ from cyb0x_s.tui.widgets import (
     HelpModal,
     SearchModal,
     TargetInfoPanel,
+    TemplateSelectionModal,
     WorksheetHeader,
 )
 
@@ -617,27 +618,18 @@ class CyboxSafeApp(App):
     def action_apply_template(self) -> None:
         active = self.store.get_active_target()
         target_id = active.id if active else None
-        avail = ", ".join(get_available_templates())
 
-        def on_result(data: Optional[dict]) -> None:
-            if data and data.get("template"):
-                tmpl_name = data["template"].strip().lower()
+        def on_template_selected(template_name: Optional[str]) -> None:
+            if template_name:
                 try:
-                    items = apply_template_to_store(self.store, tmpl_name, target_id=target_id)
+                    items = apply_template_to_store(self.store, template_name, target_id=target_id)
                     self.refresh_all()
-                    self.notify(f"Applied template '{tmpl_name}' ({len(items)} items)")
+                    t_name = template_name.upper()
+                    self.notify(f"Applied {t_name} checklist ({len(items)} items)")
                 except ValueError as e:
                     self.notify(str(e), severity="error")
 
-        self.push_screen(
-            FastInputModal(
-                title=f"Apply Static Methodology Template ({avail})",
-                fields=[
-                    ("template", f"Template Name ({avail})", "linux"),
-                ],
-            ),
-            callback=on_result,
-        )
+        self.push_screen(TemplateSelectionModal(), callback=on_template_selected)
 
     # -------------------------------------------------------------------------
     # Quick Command Line Input Handling

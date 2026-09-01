@@ -319,3 +319,75 @@ Press [bold]Esc[/bold] or [bold]q[/bold] to return to worksheet.
     def on_key(self, event: Any) -> None:
         if event.key in ("escape", "q", "enter"):
             self.dismiss(None)
+
+
+class TemplateSelectionModal(ModalScreen[Optional[str]]):
+    """Interactive selector for eJPTv2 & standard penetration testing methodology templates."""
+
+    DEFAULT_CSS = """
+    TemplateSelectionModal {
+        align: center middle;
+    }
+    #template-box {
+        width: 80%;
+        height: 80%;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    #template-list {
+        height: 1fr;
+        border: solid $secondary 40%;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    #btn-bar {
+        height: 3;
+        layout: horizontal;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="template-box"):
+            yield Label("[bold cyan]METHODOLOGY CHECKLIST TEMPLATES[/bold cyan] [dim](eJPTv2 & Reddit Curated)[/dim]")
+            yield Label("[dim]Select a template using ↑ / ↓ and press Enter (or click Apply)[/dim]")
+            yield ListView(id="template-list")
+            with Horizontal(id="btn-bar"):
+                yield Button("Apply Template (Enter)", variant="primary", id="btn-apply")
+                yield Button("Cancel (Esc)", variant="default", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        from cyb0x_s.templates import STATIC_TEMPLATES
+
+        t_list = self.query_one("#template-list", ListView)
+        for key, tmpl in STATIC_TEMPLATES.items():
+            txt = Text()
+            txt.append(f"{key.upper():<16} ", style="bold cyan")
+            txt.append(f"({len(tmpl['items'])} items)  ", style="bold yellow")
+            txt.append(f"{tmpl['description']}", style="dim")
+            t_list.append(DataListItem(data_obj=key, display_text=txt))
+        t_list.focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-apply":
+            self._select_current()
+        else:
+            self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if isinstance(event.item, DataListItem):
+            self.dismiss(event.item.data_obj)
+
+    def _select_current(self) -> None:
+        t_list = self.query_one("#template-list", ListView)
+        if t_list.highlighted_child and isinstance(t_list.highlighted_child, DataListItem):
+            self.dismiss(t_list.highlighted_child.data_obj)
+        else:
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "enter":
+            self._select_current()
+
