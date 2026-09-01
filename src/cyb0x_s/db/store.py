@@ -298,6 +298,64 @@ class NotebookStore:
                     self.conn.execute("DELETE FROM settings WHERE key = 'active_target'")
             return deleted
 
+    def ingest_scan_results(
+        self, parsed_targets: List[Dict[str, Any]], workspace_id: Optional[int] = None
+    ) -> tuple[int, int]:
+        """Ingest parsed targets and services into the active workspace.
+
+        Returns:
+            (targets_added, services_added)
+        """
+        ws_id = workspace_id or self.get_active_workspace().id
+        targets_added = 0
+        services_added = 0
+
+        for pt in parsed_targets:
+            ip = pt.get("ip", "").strip()
+            if not ip:
+                continue
+
+            target = self.get_target_by_ip(ip, workspace_id=ws_id)
+            if not target:
+                target = self.add_target(
+                    ip=ip,
+                    hostname=pt.get("hostname", ""),
+                    os_name=pt.get("os", "Unknown"),
+                    workspace_id=ws_id,
+                )
+                targets_added += 1
+            else:
+                # Update hostname/OS if previously unknown
+                if pt.get("hostname") and not target.hostname:
+                    self.update_target_details(target.id, hostname=pt["hostname"])
+                if pt.get("os") and pt["os"] != "Unknown" and target.os_name == "Unknown":
+                    self.update_target_details(target.id, os_name=pt["os"])
+
+            existing_services = {
+                (s.port, s.protocol.lower()): s for s in self.list_services(target.id)
+            }
+
+            for s in pt.get("services", []):
+                port = int(s.get("port", 0))
+                proto = s.get("protocol", "tcp").lower()
+                if port <= 0:
+                    continue
+
+                if (port, proto) not in existing_services:
+                    self.add_service(
+                        target_id=target.id,
+                        port=port,
+                        protocol=proto,
+                        service=s.get("name", "unknown"),
+                        version=s.get("version", ""),
+                        access_potential=s.get("access_potential", "MED"),
+                        next_action=s.get("next_action", ""),
+                        status=ServiceStatus.CHECKED,
+                    )
+                    services_added += 1
+
+        return targets_added, services_added
+
     # -------------------------------------------------------------------------
     # Services
     # -------------------------------------------------------------------------

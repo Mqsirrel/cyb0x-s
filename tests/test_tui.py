@@ -73,8 +73,21 @@ async def test_tui_lifecycle_and_navigation() -> None:
         await pilot.pause()
         assert tabbed.active == "tab-worksheet"
 
+        # Test tree population
+        tree = app.query_one("#target-tree")
+        assert tree is not None
+        assert len(tree.root.children) == 1
+
+        # Test scope toggle action
+        app.action_toggle_scope()
+        await pilot.pause()
+        updated_target = store.get_target(target.id)
+        assert updated_target is not None
+        assert updated_target.is_in_scope is False
+
         # Quit app
         app.exit()
 
     store.close()
+
 
