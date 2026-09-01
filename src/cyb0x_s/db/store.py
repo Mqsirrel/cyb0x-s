@@ -105,7 +105,7 @@ class NotebookStore:
             ("targets", "user_flag", "TEXT DEFAULT ''"),
             ("targets", "root_flag", "TEXT DEFAULT ''"),
             ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
-            ("services", "access_potential", "TEXT DEFAULT 'MED'"),
+            ("services", "access_potential", "TEXT DEFAULT ''"),
             ("services", "next_action", "TEXT DEFAULT ''"),
         ]
         for tbl, col, ctype in migration_cols:
@@ -348,7 +348,7 @@ class NotebookStore:
                         protocol=proto,
                         service=s.get("name", "unknown"),
                         version=s.get("version", ""),
-                        access_potential=s.get("access_potential", "MED"),
+                        access_potential=s.get("access_potential", ""),
                         next_action=s.get("next_action", ""),
                         status=ServiceStatus.CHECKED,
                     )
@@ -367,7 +367,7 @@ class NotebookStore:
         protocol: str = "tcp",
         service: str = "unknown",
         version: str = "",
-        access_potential: str = "MED",
+        access_potential: str = "",
         next_action: str = "",
         status: Union[str, ServiceStatus] = ServiceStatus.CHECKED,
         notes: str = "",
@@ -387,7 +387,9 @@ class NotebookStore:
             svc_id = row["id"]
             new_service = service if service != "unknown" else row["service"]
             new_version = version if version else row["version"]
-            new_pot = access_potential if access_potential != "MED" or not row.get("access_potential") else row["access_potential"]
+            # Blank means "not rated": keep any existing rating unless the caller
+            # explicitly supplies a new (non-empty) one.
+            new_pot = access_potential or (row.get("access_potential") or "")
             new_act = next_action if next_action else (row["next_action"] if "next_action" in row.keys() else "")
             new_notes = notes if notes else row["notes"]
             with self.conn:
