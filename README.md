@@ -1,15 +1,15 @@
-# CYB0X-S — SAFE FIELD NOTEBOOK
+# CYB0X-S — SAFE FIELD WORKSHEET
 
-**Conservative, passive, human-controlled pentesting and lab field notebook.**
+**Conservative, passive, human-controlled pentesting and lab field worksheet.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ CYB0X-S                              MODE: SAFE             │
-│ Passive field notebook               Human-controlled       │
+│ CYB0X-S WORKSHEET                    MODE: SAFE             │
+│ Passive field worksheet              Human-controlled       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-CYB0X-S is the conservative, passive companion to CYB0X. Its purpose is to provide a fast, local terminal/TUI field notebook for recording information that the human operator has personally discovered during cybersecurity labs, CTFs, and security assessments.
+CYB0X-S is the conservative, passive companion to CYB0X. Its purpose is to provide a fast, local terminal/TUI field worksheet for recording information that the human operator has personally discovered during cybersecurity labs, CTFs, and security assessments.
 
 ---
 

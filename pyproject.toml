@@ -1,7 +1,7 @@
 [project]
 name = "cyb0x-s"
 version = "0.1.0"
-description = "CYB0X-S — Conservative, passive, human-controlled pentesting and lab field notebook"
+description = "CYB0X-S — Conservative, passive, human-controlled pentesting and lab field worksheet"
 readme = "README.md"
 authors = [
     { name = "CYB0X-S Contributors" }

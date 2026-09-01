@@ -38,8 +38,8 @@ from cyb0x_s.tui.widgets import (
 class CyboxSafeApp(App):
     """CYB0X-S Terminal Field Notebook Application."""
 
-    TITLE = "CYB0X-S — SAFE FIELD NOTEBOOK"
-    SUB_TITLE = "Human-controlled • Passive recording"
+    TITLE = "CYB0X-S Worksheet"
+    SUB_TITLE = "Safe Field Worksheet • Human-controlled • Passive recording"
 
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),

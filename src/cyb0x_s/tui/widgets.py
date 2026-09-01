@@ -39,11 +39,11 @@ class SafeHeader(Static):
 
     def render(self) -> Text:
         t = Text()
-        t.append("CYB0X-S", style="bold cyan")
-        t.append("                                            ")
+        t.append("CYB0X-S WORKSHEET", style="bold cyan")
+        t.append("                                  ")
         t.append("MODE: SAFE\n", style="bold green reverse")
-        t.append("Passive field notebook", style="dim")
-        t.append("                     ")
+        t.append("Passive field worksheet", style="dim")
+        t.append("                  ")
         t.append("Human-controlled • Passive recording", style="italic")
         return t
 
