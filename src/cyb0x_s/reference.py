@@ -1,7 +1,6 @@
-"""Static offensive security cheat sheet & command reference for CYB0X-S.
+"""Static penetration testing cheat sheet & command reference manual for CYB0X-S.
 
-Curated from eJPTv2 community notes (dev-angelist/eJPTv2-Notes, r/eJPT, OSCP).
-Provides instant, offline command lookup with target IP substitution.
+Provides instant, offline command syntax lookup and standard methodology recipes with target IP substitution.
 Strictly passive reference database: human decides and executes all commands.
 """
 
