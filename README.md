@@ -205,7 +205,7 @@ cyb0x-s export --format txt
 
 ## 7. Terminal User Interface (TUI)
 
-Launch the interactive field notebook by running:
+Launch the interactive field worksheet by running:
 
 ```bash
 cyb0x-s
@@ -213,58 +213,100 @@ cyb0x-s
 cyb0x-s tui
 ```
 
-### TUI Keyboard Shortcuts & Station Tabs
+### The cockpit (station 1)
+
+```
+┌─ CYB0X-S  worksheet · Lab-01 ───────────────────────────────────── targets 1 ─┐
+│ ◆ 10.10.10.20  target.local  Linux   [IN-SCOPE]  🏁 —  👑 —   3 ports 1 cred   │
+│ NEXT ▸ SMB null session check   ██████░░░░  50% (2/4)              no blockers │
+│  1 ⌂ Cockpit    2 ▸ Playbooks    3 ▸ Credentials    4 ▸ Loot & Flags          │
+├──────────────────┬────────────────────────────────────────────────────────────┤
+│ ATTACK SURFACE   │ SERVICES & PORTS                                  3 ports  │
+│ ▾ 10.10.10.20    │  22/tcp   ssh     OpenSSH 8.2p1   ▸ hydra -l …             │
+│   22 ssh         │  80/tcp   http    Apache 2.4.41   ▸ feroxbuster …          │
+│   445 smb        │  445/tcp  smb     Samba 4.3       ▸ smbmap -H …            │
+│                  ├────────────────────────────┬───────────────────────────────┤
+│ CREDENTIALS      │ METHODOLOGY    ████░░ 50%  │ NOTES & FINDINGS     6 entries│
+│ 🔑 admin : ••••  │ ✓ TCP enumeration          │ ⚠ SMB anonymous access [HIGH]│
+├──────────────────┴────────────────────────────┴───────────────────────────────┤
+│ ❯ smbmap -H 10.10.10.20 -u guest -p ''                        [Enter]=copy    │
+│   Null session lists shares without auth — check every share for backups.     │
+│ ▸ :s 445/tcp smb   :c admin:pw   :n note   :uflag <hash>   :ref winrm   ? help │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+Station 1 answers the four questions you keep asking under time pressure:
+
+| Zone | Question |
+|---|---|
+| Status strip | Which box am I on, and what have I captured? |
+| `NEXT ▸` row | What should I try next? How far through the methodology am I? |
+| Services panel | What is exposed, and what is the command for it? |
+| Bottom console | What can I copy right now — and where do I type new findings? |
+
+The remaining stations are deep dives: **2** offline playbooks, **3** the full
+credential vault, **4** flags / foothold / rabbit-hole log.
+
+### Themes
+
+Two palettes ship with the app and can be swapped live:
+
+| Name | Look | Command |
+|---|---|---|
+| `slate` | graphite chrome, cyan/mint data, amber warnings — **default** | `:theme slate` |
+| `warm` | the original charcoal / terracotta / kraft identity | `:theme warm` |
+
+Press **`T`** to cycle, or use `:theme <name>` in the command bar.
+Below 110 columns the workbench stacks into a single column so rows stay readable.
+
+### TUI Keyboard Shortcuts
 
 | Key | Action |
 |---|---|
-| `1` | **Switch to 1. Field Worksheet** (Services, Creds, Methodology Roadmap, Notes) |
-| `2` | **Switch to 2. Playbooks & Cheatsheet** (Full-screen interactive playbook browser) |
-| `3` | **Switch to 3. Credential Matrix** (Full-screen credential vault & hashes table) |
-| `4` | **Switch to 4. Flags & Failure Log** (Captured user/root flags, foothold proof, rabbit hole log) |
+| `1` | **Cockpit** — attack surface, services, methodology, notes |
+| `2` | **Playbooks** — full-screen interactive playbook browser |
+| `3` | **Credentials** — full-screen credential vault & spray matrix |
+| `4` | **Loot & Flags** — user/root flags, foothold proof, rabbit-hole log |
 | `Tab` / `Shift+Tab` | Cycle focus between panels |
-| `j` / `k` or `↑` / `↓` | Navigate items in list (updates Live Guidance Drawer dynamically) |
-| `Enter` | **Copy ready-to-paste command** for highlighted service / checklist item to clipboard |
-| `y` | Copy selected item (Next Action, IP:port, secret, note text) to clipboard |
-| `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or toggle password reveal |
-| `z` | **Toggle Fullscreen Zoom** on focused panel |
-| `g` | **Record Captured Flags** (`user.txt` and `root.txt`) for active target |
-| `r` | **Open Quick Cheat Sheet Modal** with search & 1-key copying |
-| `/` or `Ctrl+F` | Open global search modal |
-| `t` | Add target |
-| `s` | Add service to active target (with Access Potential & Next Action) |
-| `f` | Record finding |
-| `c` | Record credential |
-| `n` | Add field note |
-| `k` | Add custom checklist item |
-| `m` | Open interactive template picker (eJPTv2, pivoting, web, smb, privesc) |
-| `d` | Delete highlighted item |
-| `?` | View help and shortcut reference |
+| `j` / `k` (or `↑` / `↓`) | Move down / up inside the focused list or tree |
+| `Enter` | **Copy the command** shown in the console for the highlighted row |
+| `y` | Copy the value (IP, `IP:port`, secret, note text) |
+| `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or reveal a credential |
+| `z` | Zoom the focused panel to the whole cockpit (press again to restore) |
+| `g` | Record captured flags (`user.txt`, `root.txt`) |
+| `r` | Quick cheat-sheet modal |
+| `o` | Toggle the active target in-scope / out-of-scope |
+| `/` or `Ctrl+F` | Global search (type, `Enter` copies the top hit) |
+| `t` / `s` / `f` / `c` / `n` | Add target / service / finding / credential / note |
+| `K` (`Shift+k`) | Add custom checklist item (`k` is list navigation) |
+| `m` | Methodology template picker |
+| `d` | Delete highlighted item (asks for confirmation) |
+| `T` | Cycle theme |
+| `?` | Help and shortcut reference |
 | `q` | Exit CYB0X-S |
 
+The footer only shows the five keys you need to get going (`q ? / y Space`);
+press `?` for the complete reference.
+
 ### Quick Command Bar (Bottom of TUI)
-* `:1`, `:2`, `:3`, `:4` — Instant station tab switching
-* `:uflag <hash>` / `:rflag <hash>` — Save captured exam flags
-* `:foothold <vuln>` — Record initial access vulnerability
-* `:privesc <vector>` — Record privilege escalation vector
-* `:stuck <why>` — Log a rabbit hole dead end (Notion Section 06)
-* `:clue <breakthrough>` — Log the breakthrough clue that unlocked progress
-* `:ref <term>` — Pop up offline cheat sheet for any service (e.g. `:ref winrm`)
-* `:s 445/tcp smb` — Quick service entry
-* `:c admin:password123` — Quick credential entry
-* `:n <text>` — Quick field note entry
-You can also type single-line commands into the bottom input field:
-* `:uflag <hash>` — Record user flag (`user.txt`)
-* `:rflag <hash>` — Record root flag (`root.txt`)
-* `:foothold <vuln>` — Record initial access vulnerability
-* `:privesc <vector>` — Record privilege escalation vector
-* `:stuck <reason>` — Record rabbit hole / dead end (Failure Log)
-* `:clue <breakthrough>` — Record breakthrough finding that unlocked the machine
-* `:s <port/proto> <service>` — Record a service
-* `:n <text>` — Record a field note
-* `:f <text>` — Record a finding
-* `:c <user:pass>` — Record a credential
-* `:t <ip>` — Record a new target
-* `:q` — Quit
+
+* `:1` … `:4` — instant station switching
+* `:t <ip>` — add a target
+* `:s <port/proto> <service>` — quick service entry (e.g. `:s 445/tcp smb`)
+* `:c <user:pass>` — quick credential entry
+* `:n <text>` — quick field note
+* `:f <text>` — quick finding
+* `:uflag <hash>` / `:rflag <hash>` — save captured exam flags
+* `:foothold <vuln>` — record initial access vulnerability
+* `:privesc <vector>` — record privilege escalation vector
+* `:stuck <why>` — log a rabbit hole dead end
+* `:clue <breakthrough>` — log the breakthrough clue that unlocked progress
+* `:ev <path>` — log evidence
+* `:ref <term>` — pop up the offline cheat sheet (e.g. `:ref winrm`)
+* `:theme <name>` — switch palette (`slate`, `warm`); `:theme` alone cycles
+* `:q` — quit
+
+Anything else you type is recorded as a field note, so the bar never blocks you.
 
 ---
 
