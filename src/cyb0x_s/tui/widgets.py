@@ -22,21 +22,48 @@ from cyb0x_s.models import (
     Target,
 )
 from cyb0x_s.search import SearchMatch, search_notebook
+from cyb0x_s.templates import get_template_guidance_for_title
+from cyb0x_s.tui.theme import (
+    BACKGROUND,
+    CREAM,
+    DANGER,
+    INFO,
+    MUTED,
+    NOTE,
+    OK,
+    SURFACE,
+    SURFACE_RAISED,
+    TERRACOTTA,
+    WARN,
+)
+
+
+def substitute_command_placeholders(command: str, target_ip: str = "") -> str:
+    """Fill the static command templates with the active target context.
+
+    Purely mechanical string substitution on human-curated reference text:
+    no command is ever generated, inferred or suggested.
+    """
+    if not command or not target_ip:
+        return command
+    subnet = f"{target_ip.rsplit('.', 1)[0]}.0/24" if "." in target_ip else ""
+    return command.replace("<TARGET_IP>", target_ip).replace("<TARGET_SUBNET>", subnet)
 
 
 class TargetTreeWidget(Tree):
     """Sidebar Tree displaying targets and their listening services."""
 
-    DEFAULT_CSS = """
-    TargetTreeWidget {
-        background: #161b22;
+    DEFAULT_CSS = f"""
+    TargetTreeWidget {{
+        background: {SURFACE};
         padding: 0 1;
         height: 1fr;
-        border: round #30363d;
-    }
-    TargetTreeWidget:focus {
-        border: round #58a6ff;
-    }
+        border: round {SURFACE_RAISED};
+        color: {CREAM};
+    }}
+    TargetTreeWidget:focus {{
+        border: round {TERRACOTTA};
+    }}
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -60,19 +87,23 @@ class TargetTreeWidget(Tree):
             target_svcs = svc_map.get(target.id or 0, [])
             icon = "✔" if target.root_flag else ("★" if target.initial_access_vuln or target.user_flag else "○")
             safe_ip = target.ip
-            safe_host = f" ({target.hostname})" if target.hostname else ""
-            label = f"{icon} [bold]{safe_ip}[/bold]{safe_host} [dim]({len(target_svcs)} ports)[/dim]"
+            # Sidebar is narrow: keep hostnames short so IPs never scroll away.
+            host = target.hostname or ""
+            if len(host) > 12:
+                host = host[:11] + "…"
+            safe_host = f" ({host})" if host else ""
+            label = f"{icon} [bold]{safe_ip}[/bold]{safe_host} [#A8A099]({len(target_svcs)})[/]"
             if not target.is_in_scope:
-                label = f"[dim strike]{label} ⃠ OUT-OF-SCOPE[/dim strike]"
+                label = f"[#A8A099 strike]{label} ⃠[/]"
 
             target_node = root.add(label, data={"type": "target", "id": target.id, "target": target})
 
             for svc in target_svcs:
                 svc_icon = "✓" if svc.status.value == "CHECKED" else ("✗" if svc.status.value == "DEAD-END" else "→")
-                pot_badge = f" [bold red][{svc.access_potential}][/bold red]" if svc.access_potential in ("HIGH", "CRITICAL") else ""
-                svc_label = f"  {svc_icon} [bold magenta]{svc.port}/{svc.protocol}[/bold magenta] [bold white]{svc.service}[/bold white]{pot_badge}"
+                pot_badge = f" [bold #E5846B][{svc.access_potential}][/bold #E5846B]" if svc.access_potential in ("HIGH", "CRITICAL") else ""
+                svc_label = f"  {svc_icon} [bold #D4A27F]{svc.port}/{svc.protocol}[/bold #D4A27F] [bold #EDE6DA]{svc.service}[/bold #EDE6DA]{pot_badge}"
                 if svc.version:
-                    svc_label += f" [dim]{svc.version[:20]}[/dim]"
+                    svc_label += f" [#A8A099]{svc.version[:20]}[/]"
                 target_node.add_leaf(
                     svc_label,
                     data={"type": "service", "id": svc.id, "target_id": target.id, "service": svc, "target": target},
@@ -82,41 +113,78 @@ class TargetTreeWidget(Tree):
 
 
 class WorksheetHeader(Static):
-    """Clean, high-density terminal header without loud safe-mode labels."""
+    """High-density header: identity on the left, live counters on the right."""
 
-    DEFAULT_CSS = """
-    WorksheetHeader {
+    DEFAULT_CSS = f"""
+    WorksheetHeader {{
         height: 2;
-        background: $surface-darken-2;
-        color: $text;
-        border-bottom: solid $primary 30%;
+        background: {BACKGROUND};
+        color: {CREAM};
+        border-bottom: solid {TERRACOTTA} 30%;
         padding: 0 2;
-    }
+    }}
     """
 
     def __init__(self, workspace_name: str = "default", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.workspace_name = workspace_name
+        self.counts: dict[str, int] = {}
+        self.active_ip: str = ""
+
+    def update_status(
+        self,
+        workspace_name: str = "",
+        counts: Optional[dict[str, int]] = None,
+        active_ip: str = "",
+    ) -> None:
+        """Refresh the header meta information (workspace, counters, target)."""
+        if workspace_name:
+            self.workspace_name = workspace_name
+        if counts is not None:
+            self.counts = counts
+        self.active_ip = active_ip
+        self.refresh()
 
     def render(self) -> Text:
         t = Text()
-        t.append("CYB0X-S ", style="bold cyan")
-        t.append("WORKSHEET", style="bold white")
-        t.append("  │  ", style="dim")
-        t.append("Field Notes & Methodology", style="dim italic")
+        t.append("CYB0X-S ", style=f"bold {TERRACOTTA}")
+        t.append("WORKSHEET", style=f"bold {CREAM}")
+        t.append("  │  ", style=NOTE)
+        t.append(self.workspace_name, style=f"bold {INFO}")
+
+        if not (self.counts or self.active_ip):
+            return t
+
+        counter_text = "  ".join(f"{k} {v}" for k, v in self.counts.items())
+        # Degrade gracefully on narrow terminals: counters first, then just
+        # the active target, then nothing at all.
+        candidates = [
+            f"▸ {self.active_ip}   {counter_text}".rstrip() if self.active_ip else counter_text,
+            f"▸ {self.active_ip}" if self.active_ip else "",
+        ]
+        width = max(self.size.width - 2, 1)
+        for meta in candidates:
+            if not meta:
+                break
+            padding = width - len(t.plain) - len(meta)
+            if padding > 1:
+                t.append(" " * padding)
+                t.append(meta, style=NOTE)
+                break
         return t
 
 
 class TargetInfoPanel(Static):
     """Displays compact, clean status for the currently active target."""
 
-    DEFAULT_CSS = """
-    TargetInfoPanel {
+    DEFAULT_CSS = f"""
+    TargetInfoPanel {{
         height: 2;
-        border-bottom: solid $secondary 25%;
+        border-bottom: solid {SURFACE_RAISED};
         padding: 0 2;
-        background: $surface-darken-1;
-    }
+        background: {SURFACE};
+        color: {CREAM};
+    }}
     """
 
     target: Optional[Target] = None
@@ -125,93 +193,160 @@ class TargetInfoPanel(Static):
         self.target = target
         self.refresh()
 
+    @staticmethod
+    def _elide(value: str, width: int) -> str:
+        if width <= 1:
+            return ""
+        if len(value) <= width:
+            return value
+        return value[: max(width - 1, 1)] + "…"
+
     def render(self) -> Text:
         t = Text()
-        if self.target:
-            t.append("● ", style="bold green")
-            scope_style = "bold green" if self.target.is_in_scope else "bold red"
-            scope_txt = "[IN-SCOPE] " if self.target.is_in_scope else "[OUT-OF-SCOPE] "
-            t.append(scope_txt, style=scope_style)
-            t.append("TARGET: ", style="bold magenta")
-            t.append(self.target.ip, style="bold white")
-            if self.target.hostname:
-                t.append(f" ({self.target.hostname})", style="cyan")
-            if self.target.os and self.target.os != "Unknown":
-                t.append(f" [{self.target.os}]", style="dim")
-
-            # Flags indicators
-            t.append("  │  ", style="dim")
-            if self.target.user_flag:
-                t.append("🏁 User: ", style="bold green")
-                t.append(self.target.user_flag[:15] + ("..." if len(self.target.user_flag) > 15 else "") + " ", style="white")
-            else:
-                t.append("🏁 User: [ ] ", style="dim")
-
-            if self.target.root_flag:
-                t.append("👑 Root: ", style="bold yellow")
-                t.append(self.target.root_flag[:15] + ("..." if len(self.target.root_flag) > 15 else "") + " ", style="bold white")
-            else:
-                t.append("👑 Root: [ ] ", style="dim")
-
-            if self.target.initial_access_vuln:
-                t.append(f" │ ⚡ {self.target.initial_access_vuln}", style="bold cyan")
-        else:
+        if not self.target:
             t.append("○ ", style="dim yellow")
-            t.append("TARGET: ", style="bold yellow")
-            t.append("No active target selected", style="yellow")
-            t.append("  (Press 't' to add target or type ':t <ip>' in command bar)", style="dim")
+            t.append("TARGET: ", style=f"bold {WARN}")
+            t.append("No active target selected", style=f"bold {WARN}")
+            t.append("  (Press 't' to add target or type ':t <ip>')", style=NOTE)
+            return t
+
+        t.append("● ", style=f"bold {OK}")
+        scope_style = OK if self.target.is_in_scope else DANGER
+        scope_txt = "[IN-SCOPE] " if self.target.is_in_scope else "[OUT-OF-SCOPE] "
+        t.append(scope_txt, style=scope_style)
+        t.append("TARGET: ", style=f"bold {WARN}")
+        t.append(self.target.ip, style=f"bold {CREAM}")
+        if self.target.hostname:
+            t.append(f" ({self.target.hostname})", style=f"bold {INFO}")
+        if self.target.os and self.target.os != "Unknown":
+            t.append(f" [{self.target.os}]", style=NOTE)
+
+        # Flags are elided to whatever room is left so the row never overflows.
+        remaining = max(self.size.width - 2 - len(t.plain) - 2, 0)
+        t.append("  │  ", style=NOTE)
+        remaining -= 5
+        for label, flag, style in (
+            ("🏁 User: ", self.target.user_flag, OK),
+            ("👑 Root: ", self.target.root_flag, WARN),
+        ):
+            if remaining <= 0:
+                break
+            t.append(label, style=style)
+            if flag:
+                room = max(remaining - len(label) - 1, 4)
+                t.append(self._elide(flag, room), style=f"bold {CREAM}")
+                remaining -= len(label) + len(self._elide(flag, room)) + 1
+            else:
+                t.append("[ ] ", style=NOTE)
+                remaining -= len(label) + 4
+
+        if self.target.initial_access_vuln and remaining > 12:
+            t.append(" │ ⚡ ", style=NOTE)
+            t.append(self._elide(self.target.initial_access_vuln, remaining - 6), style=f"bold {INFO}")
         return t
 
 
 class GuidanceDrawer(Static):
-    """Dynamic command & methodology tips inspector for active checklist item."""
+    """Dynamic command & methodology tips inspector.
 
-    DEFAULT_CSS = """
-    GuidanceDrawer {
+    Shows the static reference command + tip for whatever the operator has
+    highlighted (checklist step or discovered service). Everything shown here
+    comes from the bundled static playbooks — nothing is inferred.
+    """
+
+    DEFAULT_CSS = f"""
+    GuidanceDrawer {{
         height: 4;
-        border: solid #30363d;
-        background: #0d1117;
+        border: solid {SURFACE_RAISED};
+        background: {BACKGROUND};
         padding: 0 1;
         margin-top: 1;
-    }
+        color: {CREAM};
+    }}
+    GuidanceDrawer.-active {{
+        border: solid {TERRACOTTA} 60%;
+    }}
     """
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.item_title: str = ""
         self.target_ip: str = ""
+        self.command: str = ""
+        self.tip: str = ""
+        self.heading: str = "STEP GUIDANCE"
+
+    @staticmethod
+    def elide(value: str, width: int) -> str:
+        """Shorten `value` to `width` cells, marking the cut with an ellipsis."""
+        if width <= 1:
+            return ""
+        if len(value) <= width:
+            return value
+        return value[: max(width - 1, 1)] + "…"
+
+    def reset(self) -> None:
+        """Return the drawer to its idle hint state."""
+        self.item_title = ""
+        self.command = ""
+        self.tip = ""
+        self.heading = "STEP GUIDANCE"
+        self.remove_class("-active")
+        self.refresh()
+
+    def show_command(self, command: str, tip: str, target_ip: str = "", heading: str = "CMD") -> None:
+        """Display a ready-to-copy reference command and its tip."""
+        self.item_title = ""
+        self.heading = heading
+        self.command = substitute_command_placeholders(command or "", target_ip)
+        self.tip = tip or ""
+        self.add_class("-active")
+        self.refresh()
+
+    def show_step(self, title: str, target_ip: str = "") -> None:
+        """Display guidance for a checklist step (checklist templates only)."""
+        self.heading = "STEP"
+        self.item_title = title
+        self.command = ""
+        self.tip = ""
+        guidance = get_template_guidance_for_title(title)
+        if guidance:
+            self.heading = "CMD"
+            self.command = substitute_command_placeholders(guidance.get("command", ""), target_ip)
+            self.tip = guidance.get("tip", "")
+        self.remove_class("-active")
+        self.refresh()
 
     def update_guidance(self, item_title: str, target_ip: str = "") -> None:
-        self.item_title = item_title
-        self.target_ip = target_ip
-        self.refresh()
+        """Backwards-compatible entry point for checklist steps."""
+        self.show_step(item_title, target_ip)
 
     def render(self) -> Text:
         t = Text()
-        if not self.item_title:
-            t.append("💡 STEP GUIDANCE: ", style="bold cyan")
-            t.append("Highlight any checklist item to inspect recommended commands & tips.\n", style="dim italic")
-            t.append("Shortcuts: [Space] Cycle status  •  [Enter] Copy command  •  [y] Copy title", style="dim")
+        if self.command:
+            inner = max(self.size.width - 6, 12)
+            heading = f"💡 {self.heading}: "
+            t.append(heading, style=f"bold {OK}")
+            # One row per idea: elide rather than let a long command wrap and
+            # push the tip out of the 4-row drawer.
+            t.append(self.elide(self.command, inner - len(heading)) + "\n", style=f"bold {CREAM}")
+            t.append("ℹ️  TIP: ", style=f"bold {WARN}")
+            hint = "  [Enter=Copy]"
+            tip_room = max(inner - 9 - len(hint), 6)
+            tip = self.tip if len(self.tip) <= tip_room else self.tip[: max(tip_room - 1, 1)] + "…"
+            t.append(tip, style=NOTE)
+            t.append(hint, style=f"bold {TERRACOTTA}")
             return t
 
-        from cyb0x_s.templates import get_template_guidance_for_title
-        guidance = get_template_guidance_for_title(self.item_title)
-        if guidance:
-            cmd = guidance.get("command", "")
-            tip = guidance.get("tip", "")
-            if self.target_ip:
-                cmd = cmd.replace("<TARGET_IP>", self.target_ip)
-                cmd = cmd.replace("<TARGET_SUBNET>", f"{self.target_ip.rsplit('.', 1)[0]}.0/24")
+        if self.item_title:
+            t.append("💡 STEP: ", style=f"bold {INFO}")
+            t.append(f"{self.item_title}\n", style=f"bold {CREAM}")
+            t.append("Shortcuts: [Space] Cycle status  •  [y] Copy item  •  [d] Delete item", style=NOTE)
+            return t
 
-            t.append("💡 CMD: ", style="bold green")
-            t.append(f"{cmd}\n", style="bold white")
-            t.append("ℹ️  TIP: ", style="bold yellow")
-            t.append(f"{tip} ", style="dim")
-            t.append("[Enter=Copy Cmd | Space=Cycle]", style="bold cyan")
-        else:
-            t.append("💡 STEP: ", style="bold cyan")
-            t.append(f"{self.item_title}\n", style="white")
-            t.append("Shortcuts: [Space] Cycle status  •  [y] Copy item  •  [d] Delete item", style="dim")
+        t.append("💡 STEP GUIDANCE: ", style=f"bold {INFO}")
+        t.append("Highlight a checklist step or service to inspect its commands & tips.\n", style="dim italic")
+        t.append("Shortcuts: [Space] Cycle status  •  [Enter] Copy command  •  [y] Copy title", style=NOTE)
         return t
 
 
@@ -235,31 +370,83 @@ class DataListItem(ListItem):
         yield Label(self.display_text)
 
 
+class ConfirmModal(ModalScreen[bool]):
+    """Small yes/no guard for destructive actions (delete, quit, ...)."""
+
+    DEFAULT_CSS = """
+    ConfirmModal {
+        align: center middle;
+    }
+    #confirm-box {
+        width: 60;
+        height: auto;
+        border: round $error;
+        background: $surface;
+        padding: 1 2;
+        color: $foreground;
+    }
+    #confirm-message {
+        height: auto;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(self, title: str, message: str, confirm_label: str = "Delete") -> None:
+        super().__init__()
+        self.modal_title = title
+        self.message = message
+        self.confirm_label = confirm_label
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-box"):
+            yield Label(f"▸ {self.modal_title}", classes="modal-header")
+            yield Label(self.message, id="confirm-message")
+            with Horizontal(classes="modal-buttons"):
+                yield Button(
+                    f"{self.confirm_label} (y)", variant="error", classes="danger-btn", id="btn-confirm"
+                )
+                yield Button("Cancel (Esc)", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#btn-cancel", Button).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "btn-confirm")
+
+    def on_key(self, event: Any) -> None:
+        if event.key in ("escape", "n", "N"):
+            self.dismiss(False)
+        elif event.key in ("y", "Y", "enter"):
+            self.dismiss(True)
+
+
 class SearchModal(ModalScreen):
     """Interactive global search modal (Ctrl+F or /)."""
 
-    DEFAULT_CSS = """
-    SearchModal {
+    DEFAULT_CSS = f"""
+    SearchModal {{
         align: center middle;
-    }
-    #search-box {
+    }}
+    #search-box {{
         width: 80%;
         height: 80%;
-        border: thick $primary;
-        background: $surface;
+        border: round {TERRACOTTA};
+        background: {SURFACE};
         padding: 1 2;
-    }
-    #search-input {
+    }}
+    #search-input {{
         margin-bottom: 1;
-    }
-    #search-results {
+    }}
+    #search-results {{
         height: 1fr;
-        border: solid $secondary 40%;
-    }
-    #search-status {
+        border: solid {SURFACE_RAISED};
+        background: {BACKGROUND};
+    }}
+    #search-status {{
         height: 1;
         margin-top: 1;
-    }
+        color: {MUTED};
+    }}
     """
 
     def __init__(self, store: Any, on_select: Optional[Callable[[SearchMatch], None]] = None) -> None:
@@ -270,13 +457,61 @@ class SearchModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="search-box"):
-            yield Label("[bold cyan]SEARCH WORKSHEET[/bold cyan] [dim](Esc to close, y to copy item)[/dim]")
+            yield Label(
+                f"[bold {TERRACOTTA}]SEARCH WORKSHEET[/] [#A8A099](↑↓ / j·k move, Enter copy & close, y copy, Esc close)[/]"
+            )
             yield Input(placeholder="Type keywords to search across notes, services, creds, findings...", id="search-input")
             yield ListView(id="search-results")
             yield Label("0 results", id="search-status")
 
     def on_mount(self) -> None:
         self.query_one("#search-input", Input).focus()
+
+    def _selected_match(self) -> Optional[SearchMatch]:
+        results_view = self.query_one("#search-results", ListView)
+        child = results_view.highlighted_child
+        if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
+            return child.data_obj  # type: ignore[return-value]
+        return None
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Enter / click on a result copies it and closes the dialog."""
+        match = self._selected_match()
+        if match is not None:
+            self._copy(match)
+            self.dismiss(match)
+
+    def _copy(self, match: SearchMatch) -> None:
+        val = match.title or match.snippet
+        copy_to_clipboard(val)
+        self.notify(f"Copied: {val}")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter while typing copies the top hit — the fastest capture path."""
+        event.stop()
+        match = self._selected_match() or (self.matches[0] if self.matches else None)
+        if match is not None:
+            self._copy(match)
+            self.dismiss(match)
+        else:
+            self.query_one("#search-results", ListView).focus()
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+            return
+        if isinstance(self.focused, Input):
+            return
+        if event.key in ("j", "down"):
+            self.query_one("#search-results", ListView).action_cursor_down()
+            event.stop()
+        elif event.key in ("k", "up"):
+            self.query_one("#search-results", ListView).action_cursor_up()
+            event.stop()
+        elif event.key == "y":
+            match = self._selected_match()
+            if match is not None:
+                self._copy(match)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         query = event.value.strip()
@@ -294,24 +529,12 @@ class SearchModal(ModalScreen):
 
         for m in self.matches:
             txt = Text()
-            txt.append(f"[{m.entity_type.upper()}] ", style="bold cyan")
+            txt.append(f"[{m.entity_type.upper()}] ", style=f"bold {INFO}")
             if m.target_ip:
-                txt.append(f"{m.target_ip} ", style="magenta")
-            txt.append(f"{m.title} — ", style="bold white")
-            txt.append(m.snippet, style="dim")
+                txt.append(f"{m.target_ip} ", style=f"bold {WARN}")
+            txt.append(f"{m.title} — ", style=f"bold {CREAM}")
+            txt.append(m.snippet, style=NOTE)
             results_view.append(DataListItem(data_obj=m, display_text=txt))
-
-    def on_key(self, event: Any) -> None:
-        if event.key == "escape":
-            self.dismiss(None)
-        elif event.key == "y":
-            results_view = self.query_one("#search-results", ListView)
-            if results_view.highlighted_child and isinstance(results_view.highlighted_child, DataListItem):
-                match = results_view.highlighted_child.data_obj
-                if not results_view.highlighted_child.is_placeholder and match:
-                    val = match.snippet or match.title
-                    copy_to_clipboard(val)
-                    self.notify(f"Copied: {val}")
 
 
 class AddTargetModal(ModalScreen[Optional[dict]]):
@@ -325,10 +548,10 @@ class AddTargetModal(ModalScreen[Optional[dict]]):
         width: 68;
         height: auto;
         max-height: 90%;
-        border: round #D97757;
-        background: #2A2622;
+        border: round $primary;
+        background: $surface;
         padding: 1 2;
-        color: #EDE6DA;
+        color: $foreground;
     }
     """
 
@@ -438,10 +661,10 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
         width: 72;
         height: auto;
         max-height: 92%;
-        border: round #D97757;
-        background: #2A2622;
+        border: round $primary;
+        background: $surface;
         padding: 1 2;
-        color: #EDE6DA;
+        color: $foreground;
     }
     """
 
@@ -574,10 +797,10 @@ class AddCredentialModal(ModalScreen[Optional[dict]]):
         width: 68;
         height: auto;
         max-height: 90%;
-        border: round #D97757;
-        background: #2A2622;
+        border: round $primary;
+        background: $surface;
         padding: 1 2;
-        color: #EDE6DA;
+        color: $foreground;
     }
     """
 
@@ -666,10 +889,10 @@ class AddFindingModal(ModalScreen[Optional[dict]]):
         width: 68;
         height: auto;
         max-height: 90%;
-        border: round #D97757;
-        background: #2A2622;
+        border: round $primary;
+        background: $surface;
         padding: 1 2;
-        color: #EDE6DA;
+        color: $foreground;
     }
     """
 
@@ -771,24 +994,24 @@ class FastInputModal(ModalScreen[Optional[dict]]):
     #input-container {
         width: 65%;
         height: auto;
-        border: round #D97757;
-        background: #2A2622;
+        border: round $primary;
+        background: $surface;
         padding: 1 2;
-        color: #EDE6DA;
+        color: $foreground;
     }
     #modal-title {
         text-style: bold;
-        color: #D97757;
+        color: $primary;
         margin-bottom: 1;
     }
     .input-field {
         margin-bottom: 1;
-        background: #211E1B;
-        border: round #332E29;
-        color: #EDE6DA;
+        background: $background;
+        border: round $surface-lighten-1;
+        color: $foreground;
     }
     .input-field:focus {
-        border: round #D97757;
+        border: round $primary;
     }
     #button-bar {
         height: 3;
@@ -849,7 +1072,7 @@ class HelpModal(ModalScreen):
     #help-box {
         width: 75%;
         height: 80%;
-        border: thick $primary;
+        border: round $primary;
         background: $surface;
         padding: 1 2;
     }
@@ -857,42 +1080,58 @@ class HelpModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="help-box"):
-            yield Label("[bold cyan]CYB0X-S WORKSHEET — KEYBOARD REFERENCE[/bold cyan]\n")
+            yield Label(f"[bold {TERRACOTTA}]CYB0X-S WORKSHEET — KEYBOARD REFERENCE[/bold {TERRACOTTA}]\n")
             with VerticalScroll():
                 text = """
 [bold]Key Design Principle:[/bold]
 The human decides and performs the security-testing actions. CYB0X-S records and organizes them.
 Pure passive recording • Local-first SQLite store • Zero background scanning or AI.
 
-[bold]Keyboard Navigation:[/bold]
-  [cyan]Tab / Shift+Tab[/cyan]  : Move focus between worksheet panels
-  [cyan]j / k or ↑ / ↓[/cyan]   : Navigate items in active panel
-  [cyan]y[/cyan]                : Copy highlighted value (IP, port, secret, note text)
-  [cyan]Space[/cyan]            : Cycle checklist status (TODO → CHECKED → DEFERRED → DEAD-END)
-                     or toggle credential password mask
-  [cyan]/ or Ctrl+F[/cyan]      : Global search across all recorded data
-  [cyan]t[/cyan]                : Add or switch target machine
-  [cyan]s[/cyan]                : Add service to current target
-  [cyan]f[/cyan]                : Record security finding
-  [cyan]c[/cyan]                : Record credential
-  [cyan]n[/cyan]                : Add field note
-  [cyan]k[/cyan]                : Add checklist item
-  [cyan]m[/cyan]                : Apply static methodology checklist template
-  [cyan]d[/cyan]                : Delete highlighted item
-  [cyan]?[/cyan]                : Open this help dialog
-  [cyan]q[/cyan]                : Quit worksheet
+[bold]Stations:[/bold]
+  [#D97757]1[/]  Field Worksheet      services, credentials, methodology roadmap, notes
+  [#D97757]2[/]  Playbooks & Cheatsheet   offline command reference (Enter copies)
+  [#D97757]3[/]  Credential Matrix    vault, reveal/copy, spray targets
+  [#D97757]4[/]  Flags & Failure Log  user/root flags, foothold, rabbit holes
 
-[bold]Fast Capture Commands (Bottom Bar / Shell):[/bold]
+[bold]Navigation:[/bold]
+  [#D97757]Tab / Shift+Tab[/]  : Move focus between panels
+  [#D97757]j / k  (or ↑ / ↓)[/] : Move down / up inside the focused list or tree
+  [#D97757]z[/]                : Zoom the focused panel, press again to restore
+  [#D97757]Esc[/]              : Close any dialog
+
+[bold]Working with the highlighted item:[/bold]
+  [#D97757]Enter[/]            : Copy the ready-to-paste command / next action
+  [#D97757]y[/]                : Copy the value (IP, IP:port, secret, note text)
+  [#D97757]Space[/]            : Cycle checklist status (TODO → CHECKED → DEFERRED → DEAD-END)
+                     or reveal / re-mask a credential
+  [#D97757]d[/]                : Delete it (asks for confirmation)
+
+[bold]Capture:[/bold]
+  [#D97757]t[/]  target    [#D97757]s[/]  service    [#D97757]f[/]  finding
+  [#D97757]c[/]  credential  [#D97757]n[/]  note      [#D97757]K[/]  (shift+k) checklist item
+  [#D97757]m[/]  methodology template    [#D97757]g[/]  record flags
+  [#D97757]r[/]  cheat sheet            [#D97757]o[/]  toggle in-scope / out-of-scope
+  [#D97757]/[/] or [#D97757]Ctrl+F[/]  search     [#D97757]?[/]  this help      [#D97757]q[/]  quit
+
+[bold]Fast capture commands (bottom bar):[/bold]
+  :t 10.10.10.20          add a target
+  :s 445/tcp smb          add a service
+  :c admin:password123    add a credential
+  :n found backup.zip     add a note
+  :f smb null session     add a finding
+  :uflag / :rflag <hash>  record user / root flag
+  :foothold / :privesc    record foothold & privilege escalation vector
+  :stuck <why> / :clue    log a rabbit hole or the breakthrough clue
+  :ref <term>             offline cheat sheet       :1 :2 :3 :4  stations
+
+[bold]Shell equivalents:[/bold]
   cyb0x-s target 10.10.10.20
   cyb0x-s service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
   cyb0x-s finding "SMB anonymous access enabled" --severity HIGH
   cyb0x-s cred admin:password --source backup.zip
-  cyb0x-s checklist template smb
-  cyb0x-s checklist check "null session"
-  cyb0x-s note "backup share contains archive.zip"
   cyb0x-s export --format md -o notes.md
 
-Press [bold]Esc[/bold] or [bold]q[/bold] to return to worksheet.
+Press [bold]Esc[/bold] or [bold]q[/bold] to return to the worksheet.
 """
                 yield Static(text)
             yield Button("Close", id="btn-close", variant="primary")
@@ -933,8 +1172,8 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="template-box"):
-            yield Label("[bold cyan]METHODOLOGY CHECKLIST TEMPLATES[/bold cyan] [dim](eJPTv2 & Reddit Curated)[/dim]")
-            yield Label("[dim]Select a template using ↑ / ↓ and press Enter (or click Apply)[/dim]")
+            yield Label("[bold #D97757]METHODOLOGY CHECKLIST TEMPLATES[/bold #D97757] [#A8A099](eJPTv2 & Reddit Curated)[/]")
+            yield Label("[#A8A099]Select a template using ↑ / ↓ and press Enter (or click Apply)[/]")
             yield ListView(id="template-list")
             with Horizontal(id="btn-bar"):
                 yield Button("Apply Template (Enter)", variant="primary", id="btn-apply")
@@ -946,9 +1185,9 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
         t_list = self.query_one("#template-list", ListView)
         for key, tmpl in STATIC_TEMPLATES.items():
             txt = Text()
-            txt.append(f"{key.upper():<16} ", style="bold cyan")
-            txt.append(f"({len(tmpl['items'])} items)  ", style="bold yellow")
-            txt.append(f"{tmpl['description']}", style="dim")
+            txt.append(f"{key.upper():<16} ", style=f"bold {INFO}")
+            txt.append(f"({len(tmpl['items'])} items)  ", style=f"bold {WARN}")
+            txt.append(f"{tmpl['description']}", style=NOTE)
             t_list.append(DataListItem(data_obj=key, display_text=txt))
         t_list.focus()
 
@@ -987,19 +1226,19 @@ class ReferenceModal(ModalScreen[Optional[str]]):
     #ref-box {
         width: 85%;
         height: 85%;
-        border: thick #58a6ff;
-        background: #161b22;
+        border: thick $accent;
+        background: $surface;
         padding: 1 2;
     }
     #ref-filter-input {
         margin-top: 1;
         margin-bottom: 1;
-        border: solid #30363d;
-        background: #0d1117;
+        border: solid $border;
+        background: $background;
     }
     #ref-list {
         height: 1fr;
-        border: solid #30363d;
+        border: solid $border;
         margin-bottom: 1;
     }
     #ref-btn-bar {
@@ -1014,8 +1253,8 @@ class ReferenceModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="ref-box"):
-            yield Label("[bold cyan]📖 eJPTv2 CHEAT SHEET & COMMAND REFERENCE[/bold cyan] [dim](Offline Playbook)[/dim]")
-            yield Label(f"[dim]Target IP: [bold]{self.target_ip or 'None'}[/bold] • Type to filter, Enter to copy command, Esc to exit[/dim]")
+            yield Label("[bold #D97757]📖 eJPTv2 CHEAT SHEET & COMMAND REFERENCE[/bold #D97757] [#A8A099](Offline Playbook)[/]")
+            yield Label(f"[#A8A099]Target IP: [bold]{self.target_ip or 'None'}[/bold] • Type to filter, Enter to copy command, Esc to exit[/]")
             yield Input(placeholder="Search commands: smb, winrm, mimikatz, pivot, privesc, sql, hydra...", id="ref-filter-input")
             yield ListView(id="ref-list")
             with Horizontal(id="ref-btn-bar"):
@@ -1039,9 +1278,9 @@ class ReferenceModal(ModalScreen[Optional[str]]):
         if matches:
             for item in matches:
                 txt = Text()
-                txt.append(f"[{item['category']}] ", style="bold magenta")
-                txt.append(f"{item['title']}\n", style="bold white")
-                txt.append(f"  ❯ {item['command']}\n", style="bold yellow")
+                txt.append(f"[{item['category']}] ", style=f"bold {WARN}")
+                txt.append(f"{item['title']}\n", style=f"bold {CREAM}")
+                txt.append(f"  ❯ {item['command']}\n", style=f"bold {WARN}")
                 txt.append(f"    ℹ {item['desc']}", style="dim italic")
                 ref_list.append(DataListItem(data_obj=item["command"], display_text=txt))
         else:
@@ -1086,8 +1325,8 @@ class PlaybookBrowserWidget(Static):
     }
     #playbook-search-input {
         width: 1fr;
-        border: solid #30363d;
-        background: #161b22;
+        border: solid $border;
+        background: $surface;
     }
     #playbook-body {
         height: 1fr;
@@ -1096,21 +1335,21 @@ class PlaybookBrowserWidget(Static):
     #playbook-cat-panel {
         width: 25%;
         height: 1fr;
-        border: round #30363d;
-        background: #161b22;
+        border: round $border;
+        background: $surface;
         padding: 0 1;
         margin-right: 1;
     }
     #playbook-cmd-panel {
         width: 75%;
         height: 1fr;
-        border: round #30363d;
-        background: #161b22;
+        border: round $border;
+        background: $surface;
         padding: 0 1;
     }
     .panel-hdr {
         text-style: bold;
-        color: #79c0ff;
+        color: $accent;
         padding: 0 1;
         height: 1;
     }
@@ -1153,11 +1392,11 @@ class PlaybookBrowserWidget(Static):
             c = item["category"]
             counts[c] = counts.get(c, 0) + 1
 
-        all_txt = Text(f"★ ALL PLAYBOOKS ({len(REFERENCE_PLAYBOOK)})", style="bold cyan")
+        all_txt = Text(f"★ ALL PLAYBOOKS ({len(REFERENCE_PLAYBOOK)})", style=f"bold {INFO}")
         cat_list.append(DataListItem(data_obj="ALL", display_text=all_txt))
 
         for cat, cnt in sorted(counts.items()):
-            txt = Text(f"• {cat} ({cnt})", style="bold white")
+            txt = Text(f"• {cat} ({cnt})", style=f"bold {CREAM}")
             cat_list.append(DataListItem(data_obj=cat, display_text=txt))
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -1191,9 +1430,9 @@ class PlaybookBrowserWidget(Static):
         if matches:
             for item in matches:
                 txt = Text()
-                txt.append(f"[{item['category']}] ", style="bold magenta")
-                txt.append(f"{item['title']}\n", style="bold white")
-                txt.append(f"  ❯ {item['command']}\n", style="bold yellow")
+                txt.append(f"[{item['category']}] ", style=f"bold {WARN}")
+                txt.append(f"{item['title']}\n", style=f"bold {CREAM}")
+                txt.append(f"  ❯ {item['command']}\n", style=f"bold {WARN}")
                 txt.append(f"    ℹ {item['desc']}  [Press Enter to copy]", style="dim italic")
                 cmd_list.append(DataListItem(data_obj=item["command"], display_text=txt))
         else:
@@ -1211,26 +1450,29 @@ class LootAndFlagsWidget(Static):
         padding: 0 1;
     }
     #loot-cards-container {
-        height: auto;
+        /* Explicit height: with `auto` the cards stretched over the whole
+           tab and pushed the failure log off-screen. */
+        height: 9;
         layout: horizontal;
         margin-bottom: 1;
     }
     .loot-box {
         width: 1fr;
-        border: round #30363d;
-        background: #161b22;
-        padding: 1;
+        height: 9;
+        border: round $border;
+        background: $surface;
+        padding: 0 1;
         margin-right: 1;
     }
     #loot-failure-box {
         height: 1fr;
-        border: round #30363d;
-        background: #161b22;
+        border: round $border;
+        background: $surface;
         padding: 0 1;
     }
     .loot-title {
         text-style: bold;
-        color: #79c0ff;
+        color: $accent;
         margin-bottom: 1;
     }
     """
@@ -1260,10 +1502,10 @@ class LootAndFlagsWidget(Static):
         # Flags Card
         f_txt = Text()
         if target:
-            f_txt.append("User Flag: ", style="bold cyan")
-            f_txt.append(f"{target.user_flag or '<NOT CAPTURED YET>'}\n", style="bold green" if target.user_flag else "dim")
-            f_txt.append("Root Flag: ", style="bold yellow")
-            f_txt.append(f"{target.root_flag or '<NOT CAPTURED YET>'}\n\n", style="bold green" if target.root_flag else "dim")
+            f_txt.append("User Flag: ", style=f"bold {INFO}")
+            f_txt.append(f"{target.user_flag or '<NOT CAPTURED YET>'}\n", style=f"bold {OK}" if target.user_flag else NOTE)
+            f_txt.append("Root Flag: ", style=f"bold {WARN}")
+            f_txt.append(f"{target.root_flag or '<NOT CAPTURED YET>'}\n\n", style=f"bold {OK}" if target.root_flag else NOTE)
             f_txt.append("[Press 'g' or type :uflag / :rflag to set flags]", style="dim italic")
         else:
             f_txt.append("No active target selected.", style="dim italic")
@@ -1272,11 +1514,11 @@ class LootAndFlagsWidget(Static):
         # Foothold Card
         fh_txt = Text()
         if target and (target.initial_access_vuln or target.foothold_cmd):
-            fh_txt.append("Vulnerability: ", style="bold cyan")
-            fh_txt.append(f"{target.initial_access_vuln or 'N/A'}\n", style="white")
-            fh_txt.append("Context: ", style="bold cyan")
-            fh_txt.append(f"{target.foothold_context or 'N/A'}\n", style="white")
-            fh_txt.append(f"Command:\n❯ {target.foothold_cmd or 'N/A'}", style="bold yellow")
+            fh_txt.append("Vulnerability: ", style=f"bold {INFO}")
+            fh_txt.append(f"{target.initial_access_vuln or 'N/A'}\n", style=f"bold {CREAM}")
+            fh_txt.append("Context: ", style=f"bold {INFO}")
+            fh_txt.append(f"{target.foothold_context or 'N/A'}\n", style=f"bold {CREAM}")
+            fh_txt.append(f"Command:\n❯ {target.foothold_cmd or 'N/A'}", style=f"bold {WARN}")
         else:
             fh_txt.append("No foothold recorded yet.\nType :foothold <vuln> to record.", style="dim italic")
         self.query_one("#loot-foothold-content", Static).update(fh_txt)
@@ -1284,9 +1526,9 @@ class LootAndFlagsWidget(Static):
         # PrivEsc Card
         pe_txt = Text()
         if target and (target.privesc_vector or target.root_proof):
-            pe_txt.append("PrivEsc Vector: ", style="bold cyan")
-            pe_txt.append(f"{target.privesc_vector or 'N/A'}\n", style="white")
-            pe_txt.append(f"Root Proof:\n❯ {target.root_proof or 'whoami && id && ip a'}", style="bold yellow")
+            pe_txt.append("PrivEsc Vector: ", style=f"bold {INFO}")
+            pe_txt.append(f"{target.privesc_vector or 'N/A'}\n", style=f"bold {CREAM}")
+            pe_txt.append(f"Root Proof:\n❯ {target.root_proof or 'whoami && id && ip a'}", style=f"bold {WARN}")
         else:
             pe_txt.append("No PrivEsc recorded yet.\nType :privesc <vector> to record.", style="dim italic")
         self.query_one("#loot-privesc-content", Static).update(pe_txt)
@@ -1297,10 +1539,10 @@ class LootAndFlagsWidget(Static):
         if failures:
             for fl in failures:
                 txt = Text()
-                txt.append("🕳️ [DEAD-END] ", style="bold red")
-                txt.append(f"{fl.where_stuck}\n", style="white")
+                txt.append("🕳️ [DEAD-END] ", style=f"bold {DANGER}")
+                txt.append(f"{fl.where_stuck}\n", style=f"bold {CREAM}")
                 if fl.breakthrough_clue:
-                    txt.append(f"   🔑 Breakthrough Clue: {fl.breakthrough_clue}\n", style="bold green")
+                    txt.append(f"   🔑 Breakthrough Clue: {fl.breakthrough_clue}\n", style=f"bold {OK}")
                 if fl.rule_for_next_time:
                     txt.append(f"   📌 Permanent Rule: {fl.rule_for_next_time}", style="dim italic")
                 f_list.append(DataListItem(data_obj=fl, display_text=txt))
@@ -1319,22 +1561,28 @@ class CredentialMatrixWidget(Static):
         padding: 0 1;
     }
     #cred-matrix-hdr {
-        height: 2;
+        height: 1;
+    }
+    #cred-matrix-sub {
+        height: 1;
+        color: $text-muted;
+        padding: 0 1;
         margin-bottom: 1;
     }
     #cred-matrix-list {
         height: 1fr;
-        border: round #30363d;
-        background: #161b22;
+        border: round $border;
+        background: $surface;
     }
     """
 
     def compose(self) -> ComposeResult:
         yield Label(
-            Text("CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX [Space=Reveal | y=Copy | c=Add]"),
+            Text("CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX"),
             id="cred-matrix-hdr",
             classes="panel-header",
         )
+        yield Label("", id="cred-matrix-sub", classes="panel-subtitle")
         yield ListView(id="cred-matrix-list")
 
     def update_data(
@@ -1355,28 +1603,47 @@ class CredentialMatrixWidget(Static):
             if t:
                 svc_target_map.setdefault(s.service.lower(), []).append(t.ip)
 
+        # Summary line: how much of the vault has actually been tried.
+        tested = sum(1 for c in credentials if (c.status or "").lower() in ("valid", "tested"))
+        subtitle = self.query_one("#cred-matrix-sub", Label)
+        if credentials:
+            subtitle.update(
+                f"{len(credentials)} credential(s) • {tested} validated • "
+                f"{len(credentials) - tested} untested   [Space]=Reveal  [y]=Copy  [c]=Add"
+            )
+        else:
+            subtitle.update("No credentials recorded yet — press 'c' to add one.")
+
         if credentials:
             for c in credentials:
                 txt = Text()
-                txt.append("🔑 ", style="bold green")
-                txt.append(f"[{c.service_scope or 'GLOBAL':<8}] ", style="bold magenta")
-                txt.append(f"{c.username:<16} : ", style="bold cyan")
+                txt.append("🔑 ", style=f"bold {OK}")
+                scope = (c.service_scope or "GLOBAL").upper()
+                scope = scope if len(scope) <= 8 else scope[:7] + "…"
+                txt.append(f"[{scope:<8}] ", style=f"bold {WARN}")
+                user = c.username if len(c.username) <= 16 else c.username[:15] + "…"
+                txt.append(f"{user:<16} : ", style=f"bold {INFO}")
                 secret = c.secret if c.id in revealed_ids else c.masked_secret
-                txt.append(f"{secret:<20} ", style="bold white")
+                txt.append(f"{secret:<20} ", style=f"bold {CREAM}")
 
                 # Tested vs Unsprayed
                 scope_key = (c.service_scope or "").lower()
                 applicable_hosts = svc_target_map.get(scope_key, [t.ip for t in in_scope_targets])
                 if c.source:
-                    txt.append(f" Source: {c.source} │ ", style="dim")
-                txt.append(f"Status: {c.status.upper()} │ ", style="bold yellow")
+                    txt.append(f" Source: {c.source} │ ", style=NOTE)
+                txt.append(f"Status: {c.status.upper()} │ ", style=f"bold {WARN}")
                 if len(applicable_hosts) > 1:
-                    txt.append(f"⚠ Spray Target(s): {', '.join(applicable_hosts[:3])}", style="bold yellow")
+                    txt.append(f"⚠ Spray Target(s): {', '.join(applicable_hosts[:3])}", style=f"bold {WARN}")
 
                 c_list.append(DataListItem(data_obj=c, display_text=txt))
         else:
-            txt = Text("  • No credentials recorded yet. Press 'c' to record a new credential.", style="dim italic")
-            c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            for line in (
+                "  • Nothing in the vault yet.",
+                "  • Press 'c' to record a credential, or type :c user:pass below.",
+                "  • Secrets stay masked until you reveal them with Space.",
+            ):
+                txt = Text(line, style="dim italic")
+                c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
 
 
