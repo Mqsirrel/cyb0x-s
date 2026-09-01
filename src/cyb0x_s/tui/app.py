@@ -46,25 +46,34 @@ from cyb0x_s.templates import (
     get_guidance_for_service,
     get_template_guidance_for_title,
 )
-from cyb0x_s.tui.theme import APP_CSS
+from cyb0x_s.tui.theme import (
+    APP_CSS,
+    DEFAULT_PALETTE,
+    PALETTES,
+    S,
+    current_palette,
+    set_palette,
+)
 from cyb0x_s.tui.widgets import (
     AddCredentialModal,
     AddFindingModal,
     AddServiceModal,
     AddTargetModal,
+    ConfirmModal,
+    ConsoleBar,
     CredentialMatrixWidget,
     DataListItem,
     FastInputModal,
-    GuidanceDrawer,
     HelpModal,
     LootAndFlagsWidget,
+    MachineStatusStrip,
     PlaybookBrowserWidget,
     ReferenceModal,
     SearchModal,
-    TargetInfoPanel,
     TargetTreeWidget,
     TemplateSelectionModal,
     WorksheetHeader,
+    substitute_command_placeholders,
 )
 
 
@@ -74,94 +83,131 @@ class CyboxSafeApp(App):
     TITLE = "CYB0X-S Worksheet"
     SUB_TITLE = "Field Notes • Methodology Roadmap • Playbook Reference"
 
+    # The footer is a quick reminder, not documentation: only the handful of
+    # keys a new operator needs are shown. Everything lives in `?`.
     BINDINGS = [
-        Binding("q", "quit", "Quit", priority=True),
-        Binding("y", "copy_selected", "Copy", priority=True),
-        Binding("space", "toggle_selected", "Toggle", priority=True),
-        Binding("enter", "activate_selected", "Action"),
-        Binding("z", "toggle_zoom", "Zoom"),
-        Binding("g", "record_flags", "Flags", priority=True),
-        Binding("r", "show_reference", "CheatSheet", priority=True),
-        Binding("o", "toggle_scope", "Scope Toggle", priority=True),
+        Binding("q", "quit", "Quit"),
+        Binding("question_mark", "show_help", "Help"),
+        Binding("slash", "open_search", "Search"),
+        Binding("y", "copy_selected", "Copy"),
+        Binding("space", "toggle_selected", "Toggle"),
+        Binding("enter", "activate_selected", "Action", show=False),
+        Binding("z", "toggle_zoom", "Zoom", show=False),
+        Binding("g", "record_flags", "Flags", show=False),
+        Binding("r", "show_reference", "CheatSheet", show=False),
+        Binding("o", "toggle_scope", "Scope", show=False),
         Binding("1", "switch_tab('tab-worksheet')", "Worksheet", show=False),
         Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
         Binding("3", "switch_tab('tab-creds')", "Creds", show=False),
         Binding("4", "switch_tab('tab-loot')", "Loot", show=False),
-        Binding("slash", "open_search", "Search"),
-        Binding("ctrl+f", "open_search", "Search"),
-        Binding("t", "add_target", "Target"),
-        Binding("s", "add_service", "Service"),
-        Binding("f", "add_finding", "Finding"),
-        Binding("c", "add_credential", "Cred"),
-        Binding("n", "add_note", "Note"),
-        Binding("k", "add_checklist", "Checklist"),
-        Binding("m", "apply_template", "Template"),
-        Binding("d", "delete_selected", "Delete"),
-        Binding("question_mark", "show_help", "Help"),
+        # vim-style list movement; safe next to fast-capture because Textual
+        # hands printable keys to a focused Input before app bindings.
+        Binding("j", "nav_down", "Down", show=False),
+        Binding("k", "nav_up", "Up", show=False),
+        Binding("ctrl+f", "open_search", "Search", show=False),
+        Binding("t", "add_target", "Target", show=False),
+        Binding("s", "add_service", "Service", show=False),
+        Binding("f", "add_finding", "Finding", show=False),
+        Binding("c", "add_credential", "Cred", show=False),
+        Binding("n", "add_note", "Note", show=False),
+        Binding("K", "add_checklist", "Checklist", show=False),
+        Binding("m", "apply_template", "Template", show=False),
+        Binding("d", "delete_selected", "Delete", show=False),
+        Binding("T", "cycle_theme", "Theme", show=False),
     ]
 
     CSS = APP_CSS
 
-    def __init__(self, store: Optional[NotebookStore] = None, **kwargs: Any) -> None:
+    # Everything in CYB0X-S is passive and human-driven, so the generic
+    # Textual command palette adds nothing but a confusing ^p entry.
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(
+        self,
+        store: Optional[NotebookStore] = None,
+        theme: str = DEFAULT_PALETTE,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        # Register every palette up front so switching is a one-liner later.
+        for palette in PALETTES.values():
+            self.register_theme(palette.textual_theme())
+        self.theme_name: str = theme if theme in PALETTES else DEFAULT_PALETTE
+        set_palette(self.theme_name)
+        self.theme = PALETTES[self.theme_name].textual_theme().name
         self.store = store or NotebookStore()
         self.revealed_creds: Set[int] = set()
         self.is_zoomed: bool = False
         self.zoomed_widget: Optional[Vertical] = None
+        self.hidden_by_zoom: List[Any] = []
 
     def compose(self) -> ComposeResult:
         active_ws = self.store.get_active_workspace()
         yield WorksheetHeader(workspace_name=active_ws.name if active_ws else "default")
-        yield TargetInfoPanel(id="target-info")
+        yield MachineStatusStrip(id="target-info")
 
         with TabbedContent(initial="tab-worksheet", id="tabs"):
-            # Tab 1: Active Target Worksheet (Target Tree + Workbench)
-            with TabPane("1. 📝 Field Worksheet", id="tab-worksheet"):
-                with Horizontal(id="main-container"):
-                    # Sidebar: Target & Attack Surface Tree
-                    with Vertical(id="sidebar-tree-pane"):
-                        yield TargetTreeWidget(id="target-tree")
-                    # Main Workbench: Dual Column Recon & Roadmap
-                    with Horizontal(id="workbench-pane"):
-                        with Vertical(id="col-left", classes="column"):
-                            with Vertical(id="panel-services", classes="panel-box"):
-                                yield Label("SERVICES & PORTS", id="hdr-services", classes="panel-header")
-                                yield ListView(id="list-services", classes="panel-list")
-                            with Vertical(id="panel-creds-preview", classes="panel-box"):
-                                yield Label("CREDENTIAL VAULT", id="hdr-creds", classes="panel-header")
-                                yield ListView(id="list-creds", classes="panel-list")
-                        with Vertical(id="col-right", classes="column"):
+            # Station 1 — cockpit: everything needed for the next five minutes.
+            with TabPane("1 ⌂ Cockpit", id="tab-worksheet"):
+                with Horizontal(id="cockpit"):
+                    with Vertical(id="sidebar"):
+                        with Vertical(id="panel-surface", classes="panel-box"):
+                            with Horizontal(classes="panel-header-row"):
+                                yield Label("ATTACK SURFACE", classes="panel-title")
+                                yield Label("", id="cnt-surface", classes="panel-count")
+                            yield TargetTreeWidget(id="target-tree")
+                        with Vertical(id="panel-creds", classes="panel-box"):
+                            with Horizontal(classes="panel-header-row"):
+                                yield Label("CREDENTIALS", classes="panel-title")
+                                yield Label("", id="cnt-creds", classes="panel-count")
+                            yield ListView(id="list-creds", classes="panel-list")
+                    with Vertical(id="workbench"):
+                        with Vertical(id="panel-services", classes="panel-box"):
+                            with Horizontal(classes="panel-header-row"):
+                                yield Label("SERVICES & PORTS", classes="panel-title")
+                                yield Label("", id="cnt-services", classes="panel-count")
+                            yield ListView(id="list-services", classes="panel-list")
+                        with Horizontal(id="lower-band"):
                             with Vertical(id="panel-checklist", classes="panel-box"):
-                                yield Label("METHODOLOGY ROADMAP", id="hdr-checklist", classes="panel-header")
+                                with Horizontal(classes="panel-header-row"):
+                                    yield Label("METHODOLOGY", classes="panel-title")
+                                    yield Label("", id="cnt-checklist", classes="panel-count")
                                 yield ListView(id="list-checklist", classes="panel-list")
-                                yield GuidanceDrawer(id="guidance-box")
                             with Vertical(id="panel-notes", classes="panel-box"):
-                                yield Label("FIELD NOTES & EVIDENCE", id="hdr-notes", classes="panel-header")
+                                with Horizontal(classes="panel-header-row"):
+                                    yield Label("NOTES & FINDINGS", classes="panel-title")
+                                    yield Label("", id="cnt-notes", classes="panel-count")
                                 yield ListView(id="list-notes", classes="panel-list")
 
-            # Tab 2: Cheatsheet & Ready-to-Paste Playbooks
-            with TabPane("2. 📖 Playbooks & Cheatsheet", id="tab-playbooks"):
+            # Station 2: Cheatsheet & Ready-to-Paste Playbooks
+            with TabPane("2 ▸ Playbooks", id="tab-playbooks"):
                 yield PlaybookBrowserWidget(id="playbook-browser")
 
-            # Tab 3: Dedicated Full-Screen Credential Vault Matrix
-            with TabPane("3. 🔑 Credential Matrix", id="tab-creds"):
+            # Station 3: Dedicated Full-Screen Credential Vault Matrix
+            with TabPane("3 ▸ Credentials", id="tab-creds"):
                 yield CredentialMatrixWidget(id="cred-matrix-widget")
 
-            # Tab 4: Flags, Foothold & Failure Log
-            with TabPane("4. 🏁 Flags & Failure Log", id="tab-loot"):
+            # Station 4: Flags, Foothold & Failure Log
+            with TabPane("4 ▸ Loot & Flags", id="tab-loot"):
                 yield LootAndFlagsWidget(id="loot-flags-widget")
 
-        with Horizontal(id="cmd-input-bar"):
-            yield Label("[bold cyan]❯[/bold cyan] ", id="cmd-prompt")
-            yield Input(
-                placeholder="Commands: 1-4 Tabs | :s port/proto svc | :uflag <hash> | :rflag <hash> | :ref <term> | :stuck <why> | / search...",
-                id="cmd-input",
-            )
+        yield ConsoleBar(id="guidance-box")
         yield Footer()
 
     def on_mount(self) -> None:
         self.refresh_targets()
         self.refresh_all()
+        self._apply_responsive_layout()
+
+    def on_resize(self, event: Any) -> None:
+        """Switch to a stacked, single-column workbench on narrow terminals."""
+        self._apply_responsive_layout()
+
+    def _apply_responsive_layout(self) -> None:
+        try:
+            self.screen.set_class(self.size.width < 110, "compact")
+        except Exception:
+            pass
 
     # -------------------------------------------------------------------------
     # Tab Switching
@@ -207,8 +253,10 @@ class CyboxSafeApp(App):
         except Exception:
             pass
 
-        target_panel = self.query_one("#target-info", TargetInfoPanel)
-        target_panel.update_target(active)
+        try:
+            self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
+        except Exception:
+            pass
 
         # Update Playbook Target IP
         target_ip = active.ip if active else ""
@@ -216,6 +264,32 @@ class CyboxSafeApp(App):
             self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
         except Exception:
             pass
+
+        self._refresh_header(active, targets)
+
+    def _guidance_for_service(self, svc: Service, target_ip: str) -> None:
+        """Push a service's static reference command into the guidance drawer."""
+        svc_guidance = get_guidance_for_service(svc.service, svc.port)
+        try:
+            guidance_box = self.query_one("#guidance-box", ConsoleBar)
+        except Exception:
+            return
+        if svc_guidance:
+            guidance_box.show_command(
+                svc_guidance.get("command", ""),
+                svc_guidance.get("tip", ""),
+                target_ip=target_ip,
+                heading="PORT",
+            )
+        elif svc.next_action:
+            guidance_box.show_command(
+                svc.next_action,
+                f"Custom next action recorded for port {svc.port}/{svc.protocol}.",
+                target_ip=target_ip,
+                heading="NEXT",
+            )
+        else:
+            guidance_box.reset()
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         """Dynamically preview service guidance when moving through the target tree."""
@@ -225,19 +299,61 @@ class CyboxSafeApp(App):
                 svc = d.get("service")
                 target = d.get("target")
                 if svc and target:
-                    target_ip = target.ip
-                    try:
-                        guidance_box = self.query_one("#guidance-box", GuidanceDrawer)
-                        svc_guidance = get_guidance_for_service(svc.service, svc.port)
-                        if svc_guidance:
-                            cmd = svc_guidance.get("command", "")
-                            if target_ip:
-                                cmd = cmd.replace("<TARGET_IP>", target_ip)
-                                cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
-                            guidance_box.query_one("#drawer-cmd", Static).update(f"❯ {cmd}" if cmd else "No command syntax")
-                            guidance_box.query_one("#drawer-tip", Static).update(f"💡 {svc_guidance.get('tip', '')}")
-                    except Exception:
-                        pass
+                    self._guidance_for_service(svc, target.ip)
+
+    def _refresh_header(self, active: Optional[Target], targets: List[Target]) -> None:
+        """Keep the header, the surface count and the status strip in sync."""
+        try:
+            workspace = self.store.get_active_workspace()
+        except Exception:
+            workspace = None
+
+        try:
+            ports = len(self.store.list_services())
+            creds = len(self.store.list_credentials())
+            findings = len(self.store.list_findings())
+            notes = len(self.store.list_notes())
+        except Exception:
+            return
+
+        try:
+            self.query_one(WorksheetHeader).update_status(
+                workspace_name=workspace.name if workspace else "default",
+                counts={"targets": len(targets)},
+                active_ip=active.ip if active else "",
+            )
+        except Exception:
+            pass
+
+        self._set_count("cnt-surface", f"{len(targets)} host" + ("s" if len(targets) != 1 else ""))
+
+        # "What do I do next?" — the first TODO step, plus how far along we are.
+        next_step = ""
+        progress = (0, 0, 0)
+        blockers = 0
+        try:
+            items = self.store.list_checklist_items(target_id=active.id if active else None)
+            total = len(items)
+            done = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
+            pct = int(done / total * 100) if total else 0
+            pending = [i.title for i in items if i.status == ChecklistStatus.TODO]
+            next_step = pending[0] if pending else ""
+            progress = (done, total, pct)
+            blockers = sum(1 for i in items if i.status == ChecklistStatus.DEAD_END)
+            blockers += len(self.store.list_failure_logs(target_id=active.id if active else None))
+        except Exception:
+            pass
+
+        try:
+            self.query_one("#target-info", MachineStatusStrip).update_status(
+                target=active,
+                counts={"ports": ports, "creds": creds, "vulns": findings, "notes": notes},
+                next_step=next_step,
+                progress=progress,
+                blockers=blockers,
+            )
+        except Exception:
+            pass
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Switch active target when selected in Tree."""
@@ -247,7 +363,7 @@ class CyboxSafeApp(App):
             if target_id:
                 self.store.set_active_target(int(target_id))
                 active = self.store.get_target(int(target_id))
-                self.query_one("#target-info", TargetInfoPanel).update_target(active)
+                self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
                 self.refresh_all()
 
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
@@ -257,7 +373,7 @@ class CyboxSafeApp(App):
                 t_id = int(event.tab.id.split("-")[1])
                 self.store.set_active_target(t_id)
                 active = self.store.get_target(t_id)
-                self.query_one("#target-info", TargetInfoPanel).update_target(active)
+                self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
                 self.refresh_all()
             except (ValueError, IndexError):
                 pass
@@ -278,7 +394,7 @@ class CyboxSafeApp(App):
         active = self.store.get_active_target()
         target_ip = active.ip if active else ""
         try:
-            guidance_box = self.query_one("#guidance-box", GuidanceDrawer)
+            guidance_box = self.query_one("#guidance-box", ConsoleBar)
         except Exception:
             return
 
@@ -286,21 +402,17 @@ class CyboxSafeApp(App):
             title = obj.title if isinstance(obj, ChecklistItem) else str(obj)
             guidance_box.update_guidance(title, target_ip=target_ip)
         elif event.list_view.id == "list-services" and isinstance(obj, Service):
-            svc_guidance = get_guidance_for_service(obj.service, obj.port)
-            if svc_guidance:
-                cmd = svc_guidance.get("command", "")
-                if target_ip:
-                    cmd = cmd.replace("<TARGET_IP>", target_ip)
-                    cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
-                guidance_box.query_one("#drawer-cmd", Static).update(f"❯ {cmd}" if cmd else "No command syntax")
-                guidance_box.query_one("#drawer-tip", Static).update(f"💡 {svc_guidance.get('tip', '')}")
-            elif obj.next_action:
-                guidance_box.query_one("#drawer-cmd", Static).update(f"❯ {obj.next_action}")
-                guidance_box.query_one("#drawer-tip", Static).update(f"💡 Custom next action for port {obj.port}/{obj.protocol}")
+            self._guidance_for_service(obj, target_ip)
 
     # -------------------------------------------------------------------------
     # List Population with Clear Formatting
     # -------------------------------------------------------------------------
+
+    def _set_count(self, label_id: str, text: str) -> None:
+        try:
+            self.query_one(f"#{label_id}", Label).update(text)
+        except Exception:
+            pass
 
     def refresh_all(self) -> None:
         """Refresh all data lists from the database."""
@@ -311,30 +423,28 @@ class CyboxSafeApp(App):
         svc_list = self.query_one("#list-services", ListView)
         svc_list.clear()
         services = self.store.list_services(target_id=target_id) if target_id else []
-        self.query_one("#hdr-services", Label).update(
-            f"SERVICES & PORTS ({len(services)})" if services else "SERVICES & PORTS"
-        )
+        self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
         if services:
             for s in services:
                 txt = Text()
                 if s.status.value == "CHECKED":
-                    txt.append("✓ ", style="bold green")
+                    txt.append("✓ ", style=S("ok"))
                 elif s.status.value == "DEFERRED":
-                    txt.append("~ ", style="bold yellow")
+                    txt.append("~ ", style=S("warn"))
                 elif s.status.value == "DEAD-END":
-                    txt.append("✗ ", style="bold red")
+                    txt.append("✗ ", style=S("danger"))
                 else:
-                    txt.append("→ ", style="bold cyan")
-                txt.append(f"{s.port}/{s.protocol:<4} ", style="bold white")
-                txt.append(f"{s.service:<10} ", style="bold cyan")
+                    txt.append("→ ", style=S("accent"))
+                txt.append(f"{s.port}/{s.protocol:<4} ", style=S("text"))
+                txt.append(f"{s.service:<10} ", style=S("accent"))
                 if s.access_potential in ("HIGH", "CRITICAL"):
-                    txt.append(f"[{s.access_potential}] ", style="bold red")
+                    txt.append(f"[{s.access_potential}] ", style=S("danger"))
                 elif s.access_potential == "LOW":
-                    txt.append("[LOW] ", style="dim")
+                    txt.append("[LOW] ", style=S("muted", bold=False))
                 if s.version:
-                    txt.append(f"{s.version} ", style="bright_white")
+                    txt.append(f"{s.version} ", style=S("text"))
                 if s.next_action:
-                    txt.append(f"→ `{s.next_action}` ", style="bold yellow")
+                    txt.append(f"→ `{s.next_action}` ", style=S("warn"))
                 if s.notes:
                     txt.append(f"({s.notes})", style="dim italic")
                 svc_list.append(DataListItem(data_obj=s, display_text=txt))
@@ -346,20 +456,18 @@ class CyboxSafeApp(App):
         c_list = self.query_one("#list-creds", ListView)
         c_list.clear()
         creds = self.store.list_credentials(target_id=target_id)
-        self.query_one("#hdr-creds", Label).update(
-            f"CREDENTIAL VAULT ({len(creds)})" if creds else "CREDENTIAL VAULT"
-        )
+        self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
         if creds:
             for c in creds:
                 txt = Text()
-                txt.append("🔑 ", style="bold green")
-                txt.append(f"{c.username} : ", style="bold cyan")
+                txt.append("🔑 ", style=S("ok"))
+                txt.append(f"{c.username} : ", style=S("accent"))
                 secret = c.secret if c.id in self.revealed_creds else c.masked_secret
-                txt.append(secret, style="bold white")
+                txt.append(secret, style=S("text"))
                 if c.service_scope:
-                    txt.append(f" [{c.service_scope}]", style="bold yellow")
+                    txt.append(f" [{c.service_scope}]", style=S("warn"))
                 if c.source:
-                    txt.append(f" ({c.source})", style="dim")
+                    txt.append(f" ({c.source})", style=S("muted", bold=False))
                 c_list.append(DataListItem(data_obj=c, display_text=txt))
         else:
             txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
@@ -387,24 +495,24 @@ class CyboxSafeApp(App):
         bar_len = 10
         filled = int(bar_len * (checked_count / total_items)) if total_items > 0 else 0
         bar_str = "█" * filled + "░" * (bar_len - filled)
-        hdr_txt = f"METHODOLOGY ROADMAP  [{pct:2d}%  {bar_str}  {checked_count}/{total_items}]" if total_items else "METHODOLOGY ROADMAP"
-        self.query_one("#hdr-checklist", Label).update(hdr_txt)
+        hdr_txt = f"{bar_str} {pct:>3d}% {checked_count}/{total_items}" if total_items else "—"
+        self._set_count("cnt-checklist", hdr_txt)
 
         if items:
             for item in items:
                 txt = Text()
                 if item.status == ChecklistStatus.CHECKED:
-                    txt.append("[✓] ", style="bold green")
+                    txt.append("[✓] ", style=S("ok"))
                     txt.append(item.title, style="dim strike")
                 elif item.status == ChecklistStatus.DEFERRED:
-                    txt.append("[~] ", style="bold yellow")
-                    txt.append(item.title, style="bold yellow")
+                    txt.append("[~] ", style=S("warn"))
+                    txt.append(item.title, style=S("warn"))
                 elif item.status == ChecklistStatus.DEAD_END:
-                    txt.append("[✗] ", style="bold red")
-                    txt.append(item.title, style="dim red")
+                    txt.append("[✗] ", style=S("danger"))
+                    txt.append(item.title, style=S("muted", bold=False))
                 else:
-                    txt.append("[ ] ", style="bold cyan")
-                    txt.append(item.title, style="bold white")
+                    txt.append("[ ] ", style=S("accent"))
+                    txt.append(item.title, style=S("text"))
                 ck_list.append(DataListItem(data_obj=item, display_text=txt))
         else:
             txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
@@ -418,37 +526,35 @@ class CyboxSafeApp(App):
         evidences = self.store.list_evidence(target_id=target_id)
         leads = self.store.list_leads(target_id=target_id)
         total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
-        self.query_one("#hdr-notes", Label).update(
-            f"FIELD NOTES & EVIDENCE ({total_notes_ev})" if total_notes_ev else "FIELD NOTES & EVIDENCE"
-        )
+        self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
         if notes or findings or evidences or leads:
             for f in findings:
                 txt = Text()
-                txt.append("⚠️ [VULN] ", style="bold red")
-                txt.append(f.title, style="bold white")
+                txt.append("⚠️ [VULN] ", style=S("danger"))
+                txt.append(f.title, style=S("text"))
                 if f.severity:
-                    txt.append(f" [{f.severity}]", style="bold magenta")
+                    txt.append(f" [{f.severity}]", style=S("warn"))
                 if f.description:
-                    txt.append(f" — {f.description}", style="dim")
+                    txt.append(f" — {f.description}", style=S("muted", bold=False))
                 n_list.append(DataListItem(data_obj=f, display_text=txt))
             for n in notes:
                 txt = Text()
-                txt.append("📝 > ", style="bold magenta")
-                txt.append(n.content, style="white")
+                txt.append("📝 > ", style=S("warn"))
+                txt.append(n.content, style=S("text"))
                 n_list.append(DataListItem(data_obj=n, display_text=txt))
             for ev in evidences:
                 txt = Text()
-                txt.append("📷 [EVID] ", style="bold cyan")
-                txt.append(ev.path_or_ref, style="bold white")
+                txt.append("📷 [EVID] ", style=S("accent"))
+                txt.append(ev.path_or_ref, style=S("text"))
                 if ev.description:
-                    txt.append(f" — {ev.description}", style="dim")
+                    txt.append(f" — {ev.description}", style=S("muted", bold=False))
                 n_list.append(DataListItem(data_obj=ev, display_text=txt))
             for ld in leads:
                 txt = Text()
-                txt.append("⚡ [LEAD] ", style="bold yellow")
-                txt.append(ld.title, style="bold white")
+                txt.append("⚡ [LEAD] ", style=S("warn"))
+                txt.append(ld.title, style=S("text"))
                 if ld.notes:
-                    txt.append(f" ({ld.notes})", style="dim")
+                    txt.append(f" ({ld.notes})", style=S("muted", bold=False))
                 n_list.append(DataListItem(data_obj=ld, display_text=txt))
         else:
             txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
@@ -456,6 +562,7 @@ class CyboxSafeApp(App):
 
         # 5. Tab 4: Loot & Flags Widget update
         failures = self.store.list_failure_logs(target_id=target_id)
+        self._refresh_header(active_target, self.store.list_targets())
         try:
             loot_widget = self.query_one("#loot-flags-widget", LootAndFlagsWidget)
             loot_widget.update_data(active_target, failures)
@@ -473,9 +580,9 @@ class CyboxSafeApp(App):
             new_scope = not active.is_in_scope
             self.store.update_target_details(active.id, is_in_scope=new_scope)
             active.is_in_scope = new_scope
-            self.query_one("#target-info", TargetInfoPanel).update_target(active)
+            self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
             self.refresh_targets()
-            tag = "[bold green]IN-SCOPE[/bold green]" if new_scope else "[bold red]OUT-OF-SCOPE[/bold red]"
+            tag = "[bold #8FA876]IN-SCOPE[/]" if new_scope else "[bold #E5846B]OUT-OF-SCOPE[/bold #E5846B]"
             self.notify(f"Target {active.ip} marked {tag}")
 
     def action_activate_selected(self) -> None:
@@ -491,10 +598,7 @@ class CyboxSafeApp(App):
                 if isinstance(obj, ChecklistItem):
                     guidance = get_template_guidance_for_title(obj.title)
                     if guidance and guidance.get("command"):
-                        cmd = guidance["command"]
-                        if target_ip:
-                            cmd = cmd.replace("<TARGET_IP>", target_ip)
-                            cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
+                        cmd = substitute_command_placeholders(guidance["command"], target_ip)
                         copy_to_clipboard(cmd)
                         self.notify(f"Copied command: {cmd}")
                         return
@@ -505,10 +609,7 @@ class CyboxSafeApp(App):
                         return
                     svc_guidance = get_guidance_for_service(obj.service, obj.port)
                     if svc_guidance and svc_guidance.get("command"):
-                        cmd = svc_guidance["command"]
-                        if target_ip:
-                            cmd = cmd.replace("<TARGET_IP>", target_ip)
-                            cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
+                        cmd = substitute_command_placeholders(svc_guidance["command"], target_ip)
                         copy_to_clipboard(cmd)
                         self.notify(f"Copied Service Command: {cmd}")
                         return
@@ -555,30 +656,60 @@ class CyboxSafeApp(App):
                     return
 
     def action_toggle_zoom(self) -> None:
-        """Toggle maximize/fullscreen view on the active panel."""
-        focused = self.focused
+        """Give the focused panel the whole cockpit (z toggles)."""
         if self.is_zoomed and self.zoomed_widget:
             self.zoomed_widget.remove_class("maximized")
-            self.query_one("#col-left").styles.display = "block"
-            self.query_one("#col-right").styles.display = "block"
+            for widget in self.hidden_by_zoom:
+                widget.styles.display = "block"
+            self.hidden_by_zoom = []
+            try:
+                self.query_one("#cockpit").remove_class("zoomed-mode")
+            except Exception:
+                pass
             self.is_zoomed = False
             self.zoomed_widget = None
-            self.notify("Restored standard view")
+            self.notify("Restored cockpit view")
             return
 
-        curr = focused
+        curr = self.focused
         target_box = None
-        while curr and curr != self:
+        while curr is not None and curr is not self:
             if hasattr(curr, "has_class") and curr.has_class("panel-box"):
                 target_box = curr
                 break
             curr = getattr(curr, "parent", None)
 
-        if target_box:
-            self.zoomed_widget = target_box
-            self.is_zoomed = True
-            target_box.add_class("maximized")
-            self.notify("Maximized panel (Press 'z' again to restore)")
+        if target_box is None:
+            self.notify("Focus a panel first (Tab), then press 'z' to zoom it")
+            return
+
+        # Hide every region that does not contain the target panel.
+        hidden: List[Any] = []
+        try:
+            sidebar = self.query_one("#sidebar")
+            workbench = self.query_one("#workbench")
+            lower_band = self.query_one("#lower-band")
+            services = self.query_one("#panel-services")
+            in_sidebar = target_box in sidebar.walk_children()
+            for region in (sidebar, workbench, lower_band, services):
+                if region is target_box or target_box in region.walk_children():
+                    continue
+                if in_sidebar and region is not sidebar:
+                    region.styles.display = "none"
+                    hidden.append(region)
+                elif not in_sidebar and region in (sidebar, lower_band, services):
+                    region.styles.display = "none"
+                    hidden.append(region)
+            if not in_sidebar:
+                self.query_one("#cockpit").add_class("zoomed-mode")
+        except Exception:
+            pass
+
+        self.hidden_by_zoom = hidden
+        self.zoomed_widget = target_box
+        self.is_zoomed = True
+        target_box.add_class("maximized")
+        self.notify("Zoomed panel — press 'z' again to restore")
 
     def action_record_flags(self) -> None:
         """Record user and root flags for active target."""
@@ -607,6 +738,24 @@ class CyboxSafeApp(App):
             callback=on_result,
         )
 
+    def action_cycle_theme(self) -> None:
+        """Switch to the next available palette."""
+        names = list(PALETTES)
+        current = names.index(self.theme_name) if self.theme_name in names else 0
+        self.apply_theme(names[(current + 1) % len(names)])
+
+    def apply_theme(self, name: str) -> None:
+        """Activate a palette by name, live."""
+        if name not in PALETTES:
+            self.notify(f"Unknown theme '{name}'. Available: {', '.join(PALETTES)}", severity="warning")
+            return
+        self.theme_name = name
+        palette = set_palette(name)
+        self.theme = palette.textual_theme().name
+        self.refresh_targets()
+        self.refresh_all()
+        self.notify(f"Theme: {palette.label}")
+
     def action_show_reference(self) -> None:
         """Open searchable cheat sheet and command reference modal."""
         active = self.store.get_active_target()
@@ -619,32 +768,90 @@ class CyboxSafeApp(App):
 
         self.push_screen(ReferenceModal(target_ip=target_ip), callback=on_selected)
 
+    @staticmethod
+    def _describe(obj: Any) -> str:
+        """Human readable one-liner used by the delete confirmation."""
+        if isinstance(obj, Service):
+            return f"service {obj.port}/{obj.protocol} ({obj.service})"
+        if isinstance(obj, Credential):
+            return f"credential for '{obj.username}'"
+        if isinstance(obj, (Finding, ChecklistItem, Lead)):
+            return f"'{obj.title}'"
+        if isinstance(obj, Note):
+            return f"note '{obj.content[:40]}'"
+        if isinstance(obj, Evidence):
+            return f"evidence '{obj.path_or_ref}'"
+        if isinstance(obj, FailureLog):
+            return f"failure log '{obj.where_stuck[:40]}'"
+        return "this item"
+
     def action_delete_selected(self) -> None:
-        """Delete highlighted item."""
+        """Delete highlighted item — after an explicit confirmation."""
         focused = self.focused
-        if isinstance(focused, ListView) and focused.highlighted_child:
-            item = focused.highlighted_child
-            if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
-                obj = item.data_obj
-                if isinstance(obj, Service):
-                    self.store.delete_service(obj.id)
-                elif isinstance(obj, Finding):
-                    self.store.delete_finding(obj.id)
-                elif isinstance(obj, Credential):
-                    self.store.delete_credential(obj.id)
-                elif isinstance(obj, ChecklistItem):
-                    self.store.delete_checklist_item(obj.id)
-                elif isinstance(obj, Note):
-                    self.store.delete_note(obj.id)
-                elif isinstance(obj, Evidence):
-                    self.store.delete_evidence(obj.id)
-                elif isinstance(obj, Lead):
-                    self.store.delete_lead(obj.id)
-                elif isinstance(obj, FailureLog):
-                    self.store.delete_failure_log(obj.id)
-                self.notify("Item deleted")
-                self.refresh_targets()
-                self.refresh_all()
+        if not (isinstance(focused, ListView) and focused.highlighted_child):
+            return
+        item = focused.highlighted_child
+        if not (isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj):
+            self.notify("Select an item to delete (d)")
+            return
+
+        obj = item.data_obj
+
+        def on_confirm(confirmed: Optional[bool]) -> None:
+            if not confirmed:
+                self.notify("Delete cancelled")
+                return
+            if isinstance(obj, Service):
+                self.store.delete_service(obj.id)
+            elif isinstance(obj, Finding):
+                self.store.delete_finding(obj.id)
+            elif isinstance(obj, Credential):
+                self.store.delete_credential(obj.id)
+            elif isinstance(obj, ChecklistItem):
+                self.store.delete_checklist_item(obj.id)
+            elif isinstance(obj, Note):
+                self.store.delete_note(obj.id)
+            elif isinstance(obj, Evidence):
+                self.store.delete_evidence(obj.id)
+            elif isinstance(obj, Lead):
+                self.store.delete_lead(obj.id)
+            elif isinstance(obj, FailureLog):
+                self.store.delete_failure_log(obj.id)
+            self.notify(f"Deleted {self._describe(obj)}")
+            self.refresh_targets()
+            self.refresh_all()
+
+        self.push_screen(
+            ConfirmModal(
+                title="CONFIRM DELETE",
+                message=f"Delete {self._describe(obj)}?\nThis cannot be undone.",
+                confirm_label="Delete",
+            ),
+            callback=on_confirm,
+        )
+
+    # -------------------------------------------------------------------------
+    # List navigation (vim style)
+    # -------------------------------------------------------------------------
+
+    def _move_focused_list(self, delta: int) -> None:
+        focused = self.focused
+        if focused is None:
+            return
+        action = "action_cursor_down" if delta > 0 else "action_cursor_up"
+        mover = getattr(focused, action, None)
+        if callable(mover):
+            mover()
+        elif hasattr(focused, "scroll_relative"):
+            focused.scroll_relative(y=delta)
+
+    def action_nav_down(self) -> None:
+        """Move down inside the focused list or tree."""
+        self._move_focused_list(1)
+
+    def action_nav_up(self) -> None:
+        """Move up inside the focused list or tree."""
+        self._move_focused_list(-1)
 
     def action_open_search(self) -> None:
         """Open global search dialog."""
@@ -919,6 +1126,13 @@ class CyboxSafeApp(App):
             ev_path = val[4:].strip()
             self.store.add_evidence(path_or_ref=ev_path, target_id=target_id)
             self.notify(f"Evidence logged: {ev_path}")
+        elif val.startswith(":theme"):
+            parts = val.split(maxsplit=1)
+            if len(parts) == 1:
+                self.action_cycle_theme()
+            else:
+                self.apply_theme(parts[1].strip().lower())
+            return
         elif val.startswith("/"):
             self.action_open_search()
             return

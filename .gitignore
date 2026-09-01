@@ -33,3 +33,6 @@ htmlcov/
 *.sqlite
 *.sqlite3
 .cyb0x-s/
+
+# Arena agent scratch (screenshots, screen dumps)
+.arena/
