@@ -671,6 +671,60 @@ def get_template_guidance_for_title(title: str) -> Optional[Dict[str, str]]:
     return None
 
 
+def get_guidance_for_service(service_name: str, port: int) -> Optional[Dict[str, str]]:
+    """Return instant ready-to-paste command and tip guidance for a given port / service."""
+    s_low = service_name.strip().lower()
+    if s_low in ("smb", "microsoft-ds", "netbios-ssn") or port in (139, 445):
+        return {
+            "command": "smbclient -N -L //<TARGET_IP>/ && smbmap -u guest -p '' -d . -H <TARGET_IP>",
+            "tip": "Test null session shares with smbclient and smbmap. Use rpcclient to dump users.",
+        }
+    elif s_low in ("http", "https", "http-proxy", "web", "apache", "nginx", "iis") or port in (80, 443, 8080, 8000, 8081, 8888, 5000):
+        proto = "https" if port == 443 or "https" in s_low else "http"
+        port_suffix = f":{port}" if port not in (80, 443) else ""
+        return {
+            "command": f"whatweb {proto}://<TARGET_IP>{port_suffix}/ && feroxbuster -u {proto}://<TARGET_IP>{port_suffix}/ -w /usr/share/wordlists/dirb/common.txt",
+            "tip": "Inspect web technologies, robots.txt, and fuzz directories with feroxbuster or gobuster.",
+        }
+    elif s_low == "ssh" or port == 22:
+        return {
+            "command": "ssh <USER>@<TARGET_IP> | hydra -l <USER> -P /usr/share/wordlists/rockyou.txt ssh://<TARGET_IP>",
+            "tip": "Connect using discovered credentials or perform targeted wordlist attack with Hydra.",
+        }
+    elif s_low in ("winrm", "wsman") or port in (5985, 5986):
+        return {
+            "command": "evil-winrm -i <TARGET_IP> -u <USER> -p '<PW>'",
+            "tip": "Spawn interactive remote PowerShell console over WinRM using valid credentials.",
+        }
+    elif s_low in ("rdp", "ms-wbt-server") or port == 3389:
+        return {
+            "command": "xfreerdp /u:<USER> /p:'<PW>' /v:<TARGET_IP> /fonts /smart-sizing",
+            "tip": "Connect to graphical desktop session or check BlueKeep CVE-2019-0708 with Metasploit.",
+        }
+    elif s_low in ("mssql", "ms-sql-s") or port == 1433:
+        return {
+            "command": "nmap -p 1433 --script ms-sql-info,ms-sql-empty-password,ms-sql-xp-cmdshell --script-args mssql.username=sa,mssql.password='',ms-sql-xp-cmdshell.cmd='type C:\\flag.txt' <TARGET_IP>",
+            "tip": "Audit MSSQL for empty passwords, dump password hashes, and test xp_cmdshell command execution.",
+        }
+    elif s_low in ("mysql",) or port == 3306:
+        return {
+            "command": "mysql -h <TARGET_IP> -u root -p",
+            "tip": "Connect to MySQL. Test select load_file('/etc/shadow') or nmap mysql-dump-hashes.",
+        }
+    elif s_low in ("ftp",) or port == 21:
+        return {
+            "command": "ftp <TARGET_IP> (login anonymous:anonymous)",
+            "tip": "Check anonymous login and file download/upload permissions.",
+        }
+    elif s_low in ("snmp",) or port == 161:
+        return {
+            "command": "onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp.txt <TARGET_IP> && snmpwalk -v2c -c public <TARGET_IP>",
+            "tip": "Brute-force community strings with onesixtyone and extract running processes and network interfaces.",
+        }
+    return None
+
+
+
 def apply_template_to_store(
     store: Any,
     template_name: str,
