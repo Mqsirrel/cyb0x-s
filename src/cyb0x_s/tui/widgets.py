@@ -556,3 +556,243 @@ class ReferenceModal(ModalScreen[Optional[str]]):
             self.dismiss(None)
 
 
+class PlaybookBrowserWidget(Static):
+    """Interactive full-screen playbook and command cheat sheet browser."""
+
+    DEFAULT_CSS = """
+    PlaybookBrowserWidget {
+        height: 1fr;
+        layout: vertical;
+        padding: 0 1;
+    }
+    #playbook-top-bar {
+        height: 3;
+        layout: horizontal;
+        margin-bottom: 1;
+    }
+    #playbook-search-input {
+        width: 1fr;
+        border: solid #30363d;
+        background: #161b22;
+    }
+    #playbook-body {
+        height: 1fr;
+        layout: horizontal;
+    }
+    #playbook-cat-panel {
+        width: 25%;
+        height: 1fr;
+        border: round #30363d;
+        background: #161b22;
+        padding: 0 1;
+        margin-right: 1;
+    }
+    #playbook-cmd-panel {
+        width: 75%;
+        height: 1fr;
+        border: round #30363d;
+        background: #161b22;
+        padding: 0 1;
+    }
+    .panel-hdr {
+        text-style: bold;
+        color: #79c0ff;
+        padding: 0 1;
+        height: 1;
+    }
+    """
+
+    def __init__(self, target_ip: str = "", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.target_ip = target_ip
+        self.selected_category = "ALL"
+        self.search_query = ""
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="playbook-top-bar"):
+            yield Input(placeholder="Search all commands: smb, winrm, mimikatz, pivot, privesc, sql, hydra...", id="playbook-search-input")
+        with Horizontal(id="playbook-body"):
+            with Vertical(id="playbook-cat-panel"):
+                yield Label("CATEGORIES", classes="panel-hdr")
+                yield ListView(id="playbook-cat-list")
+            with Vertical(id="playbook-cmd-panel"):
+                yield Label("READY-TO-PASTE COMMANDS", id="playbook-cmd-hdr", classes="panel-hdr")
+                yield ListView(id="playbook-cmd-list")
+
+    def on_mount(self) -> None:
+        self._populate_categories()
+        self._populate_commands()
+
+    def update_target_ip(self, target_ip: str) -> None:
+        self.target_ip = target_ip
+        self._populate_commands()
+
+    def _populate_categories(self) -> None:
+        from cyb0x_s.reference import REFERENCE_PLAYBOOK
+
+        cat_list = self.query_one("#playbook-cat-list", ListView)
+        cat_list.clear()
+
+        # Count per category
+        counts: dict[str, int] = {}
+        for item in REFERENCE_PLAYBOOK:
+            c = item["category"]
+            counts[c] = counts.get(c, 0) + 1
+
+        all_txt = Text(f"★ ALL PLAYBOOKS ({len(REFERENCE_PLAYBOOK)})", style="bold cyan")
+        cat_list.append(DataListItem(data_obj="ALL", display_text=all_txt))
+
+        for cat, cnt in sorted(counts.items()):
+            txt = Text(f"• {cat} ({cnt})", style="bold white")
+            cat_list.append(DataListItem(data_obj=cat, display_text=txt))
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "playbook-search-input":
+            self.search_query = event.value
+            self._populate_commands()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "playbook-cat-list" and isinstance(event.item, DataListItem):
+            self.selected_category = str(event.item.data_obj)
+            self._populate_commands()
+        elif event.list_view.id == "playbook-cmd-list" and isinstance(event.item, DataListItem):
+            if event.item.data_obj and not event.item.is_placeholder:
+                cmd = str(event.item.data_obj)
+                copy_to_clipboard(cmd)
+                self.app.notify(f"Copied command: {cmd}")
+
+    def _populate_commands(self) -> None:
+        from cyb0x_s.reference import search_reference
+
+        cmd_list = self.query_one("#playbook-cmd-list", ListView)
+        cmd_list.clear()
+
+        matches = search_reference(self.search_query, target_ip=self.target_ip)
+        if self.selected_category != "ALL":
+            matches = [m for m in matches if m["category"].lower() == self.selected_category.lower()]
+
+        hdr = self.query_one("#playbook-cmd-hdr", Label)
+        hdr.update(f"COMMAND REFERENCE: {self.selected_category} ({len(matches)} ready commands)")
+
+        if matches:
+            for item in matches:
+                txt = Text()
+                txt.append(f"[{item['category']}] ", style="bold magenta")
+                txt.append(f"{item['title']}\n", style="bold white")
+                txt.append(f"  ❯ {item['command']}\n", style="bold yellow")
+                txt.append(f"    ℹ {item['desc']}  [Press Enter to copy]", style="dim italic")
+                cmd_list.append(DataListItem(data_obj=item["command"], display_text=txt))
+        else:
+            txt = Text("  • No matching commands found.", style="dim italic")
+            cmd_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+
+class LootAndFlagsWidget(Static):
+    """Dedicated status dashboard for Flags, Foothold proofs, and Failure Log."""
+
+    DEFAULT_CSS = """
+    LootAndFlagsWidget {
+        height: 1fr;
+        layout: vertical;
+        padding: 0 1;
+    }
+    #loot-cards-container {
+        height: auto;
+        layout: horizontal;
+        margin-bottom: 1;
+    }
+    .loot-box {
+        width: 1fr;
+        border: round #30363d;
+        background: #161b22;
+        padding: 1;
+        margin-right: 1;
+    }
+    #loot-failure-box {
+        height: 1fr;
+        border: round #30363d;
+        background: #161b22;
+        padding: 0 1;
+    }
+    .loot-title {
+        text-style: bold;
+        color: #79c0ff;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.target: Optional[Target] = None
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="loot-cards-container"):
+            with Vertical(classes="loot-box"):
+                yield Label("🏁 CAPTURED EXAM FLAGS", classes="loot-title")
+                yield Static(id="loot-flags-content")
+            with Vertical(classes="loot-box"):
+                yield Label("⚡ INITIAL FOOTHOLD & EXPLOIT", classes="loot-title")
+                yield Static(id="loot-foothold-content")
+            with Vertical(classes="loot-box"):
+                yield Label("👑 PRIVILEGE ESCALATION & ROOT PROOF", classes="loot-title")
+                yield Static(id="loot-privesc-content")
+        with Vertical(id="loot-failure-box"):
+            yield Label("🧠 RABBIT HOLE & BREAKTHROUGH ANALYSIS (FAILURE LOG)", classes="loot-title")
+            yield ListView(id="loot-failure-list")
+
+    def update_data(self, target: Optional[Target], failures: List[Any]) -> None:
+        self.target = target
+
+        # Flags Card
+        f_txt = Text()
+        if target:
+            f_txt.append("User Flag: ", style="bold cyan")
+            f_txt.append(f"{target.user_flag or '<NOT CAPTURED YET>'}\n", style="bold green" if target.user_flag else "dim")
+            f_txt.append("Root Flag: ", style="bold yellow")
+            f_txt.append(f"{target.root_flag or '<NOT CAPTURED YET>'}\n\n", style="bold green" if target.root_flag else "dim")
+            f_txt.append("[Press 'g' or type :uflag / :rflag to set flags]", style="dim italic")
+        else:
+            f_txt.append("No active target selected.", style="dim italic")
+        self.query_one("#loot-flags-content", Static).update(f_txt)
+
+        # Foothold Card
+        fh_txt = Text()
+        if target and (target.initial_access_vuln or target.foothold_cmd):
+            fh_txt.append("Vulnerability: ", style="bold cyan")
+            fh_txt.append(f"{target.initial_access_vuln or 'N/A'}\n", style="white")
+            fh_txt.append("Context: ", style="bold cyan")
+            fh_txt.append(f"{target.foothold_context or 'N/A'}\n", style="white")
+            fh_txt.append(f"Command:\n❯ {target.foothold_cmd or 'N/A'}", style="bold yellow")
+        else:
+            fh_txt.append("No foothold recorded yet.\nType :foothold <vuln> to record.", style="dim italic")
+        self.query_one("#loot-foothold-content", Static).update(fh_txt)
+
+        # PrivEsc Card
+        pe_txt = Text()
+        if target and (target.privesc_vector or target.root_proof):
+            pe_txt.append("PrivEsc Vector: ", style="bold cyan")
+            pe_txt.append(f"{target.privesc_vector or 'N/A'}\n", style="white")
+            pe_txt.append(f"Root Proof:\n❯ {target.root_proof or 'whoami && id && ip a'}", style="bold yellow")
+        else:
+            pe_txt.append("No PrivEsc recorded yet.\nType :privesc <vector> to record.", style="dim italic")
+        self.query_one("#loot-privesc-content", Static).update(pe_txt)
+
+        # Failure Log List
+        f_list = self.query_one("#loot-failure-list", ListView)
+        f_list.clear()
+        if failures:
+            for fl in failures:
+                txt = Text()
+                txt.append("🕳️ [DEAD-END] ", style="bold red")
+                txt.append(f"{fl.where_stuck}\n", style="white")
+                if fl.breakthrough_clue:
+                    txt.append(f"   🔑 Breakthrough Clue: {fl.breakthrough_clue}\n", style="bold green")
+                if fl.rule_for_next_time:
+                    txt.append(f"   📌 Permanent Rule: {fl.rule_for_next_time}", style="dim italic")
+                f_list.append(DataListItem(data_obj=fl, display_text=txt))
+        else:
+            txt = Text("  • No rabbit holes or failure logs recorded. Type :stuck <where> / :clue <breakthrough>", style="dim italic")
+            f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+
+

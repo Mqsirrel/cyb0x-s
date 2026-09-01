@@ -213,18 +213,22 @@ cyb0x-s
 cyb0x-s tui
 ```
 
-### TUI Keyboard Shortcuts
+### TUI Keyboard Shortcuts & Station Tabs
 
 | Key | Action |
 |---|---|
+| `1` | **Switch to 1. Field Worksheet** (Services, Creds, Methodology Roadmap, Notes) |
+| `2` | **Switch to 2. Playbooks & Cheatsheet** (Full-screen interactive playbook browser) |
+| `3` | **Switch to 3. Credential Matrix** (Full-screen credential vault & hashes table) |
+| `4` | **Switch to 4. Flags & Failure Log** (Captured user/root flags, foothold proof, rabbit hole log) |
 | `Tab` / `Shift+Tab` | Cycle focus between panels |
 | `j` / `k` or `↑` / `↓` | Navigate items in list (updates Live Guidance Drawer dynamically) |
-| `Enter` | Copy recommended command for highlighted checklist item to clipboard |
+| `Enter` | **Copy ready-to-paste command** for highlighted service / checklist item to clipboard |
 | `y` | Copy selected item (Next Action, IP:port, secret, note text) to clipboard |
 | `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or toggle password reveal |
 | `z` | **Toggle Fullscreen Zoom** on focused panel |
 | `g` | **Record Captured Flags** (`user.txt` and `root.txt`) for active target |
-| `r` | **Open eJPTv2 Cheat Sheet & Command Reference** (Offline Playbook) |
+| `r` | **Open Quick Cheat Sheet Modal** with search & 1-key copying |
 | `/` or `Ctrl+F` | Open global search modal |
 | `t` | Add target |
 | `s` | Add service to active target (with Access Potential & Next Action) |
@@ -238,6 +242,16 @@ cyb0x-s tui
 | `q` | Exit CYB0X-S |
 
 ### Quick Command Bar (Bottom of TUI)
+* `:1`, `:2`, `:3`, `:4` — Instant station tab switching
+* `:uflag <hash>` / `:rflag <hash>` — Save captured exam flags
+* `:foothold <vuln>` — Record initial access vulnerability
+* `:privesc <vector>` — Record privilege escalation vector
+* `:stuck <why>` — Log a rabbit hole dead end (Notion Section 06)
+* `:clue <breakthrough>` — Log the breakthrough clue that unlocked progress
+* `:ref <term>` — Pop up offline cheat sheet for any service (e.g. `:ref winrm`)
+* `:s 445/tcp smb` — Quick service entry
+* `:c admin:password123` — Quick credential entry
+* `:n <text>` — Quick field note entry
 You can also type single-line commands into the bottom input field:
 * `:uflag <hash>` — Record user flag (`user.txt`)
 * `:rflag <hash>` — Record root flag (`root.txt`)

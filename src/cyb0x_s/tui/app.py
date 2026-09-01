@@ -1,7 +1,7 @@
 """Main Textual application for CYB0X-S Worksheet.
 
-High-efficiency, keyboard-driven terminal field worksheet for security testing observations.
-Strictly passive: stores human-discovered data, never attacks or generates autonomous steps.
+High-efficiency, keyboard-driven terminal field worksheet and offensive cheatsheet station.
+Strictly passive: stores human-discovered data, provides instant offline command references.
 """
 
 from __future__ import annotations
@@ -11,7 +11,19 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
-from textual.widgets import Footer, Input, Label, ListItem, ListView, Static, Tab, Tabs
+from textual.widgets import (
+    Button,
+    Footer,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Static,
+    Tab,
+    TabbedContent,
+    TabPane,
+    Tabs,
+)
 
 from cyb0x_s.clipboard import copy_to_clipboard, extract_copy_value
 from cyb0x_s.db.store import NotebookStore
@@ -37,6 +49,8 @@ from cyb0x_s.tui.widgets import (
     FastInputModal,
     GuidanceDrawer,
     HelpModal,
+    LootAndFlagsWidget,
+    PlaybookBrowserWidget,
     ReferenceModal,
     SearchModal,
     TargetInfoPanel,
@@ -46,10 +60,10 @@ from cyb0x_s.tui.widgets import (
 
 
 class CyboxSafeApp(App):
-    """CYB0X-S Terminal Field Worksheet Application."""
+    """CYB0X-S Terminal Field Worksheet & Playbook Station."""
 
     TITLE = "CYB0X-S Worksheet"
-    SUB_TITLE = "Field Notes & Methodology Roadmap"
+    SUB_TITLE = "Field Notes • Methodology Roadmap • Playbook Reference"
 
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),
@@ -59,6 +73,10 @@ class CyboxSafeApp(App):
         Binding("z", "toggle_zoom", "Zoom"),
         Binding("g", "record_flags", "Flags", priority=True),
         Binding("r", "show_reference", "CheatSheet", priority=True),
+        Binding("1", "switch_tab('tab-worksheet')", "Worksheet", show=False),
+        Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
+        Binding("3", "switch_tab('tab-creds')", "Creds", show=False),
+        Binding("4", "switch_tab('tab-loot')", "Loot", show=False),
         Binding("slash", "open_search", "Search"),
         Binding("ctrl+f", "open_search", "Search"),
         Binding("t", "add_target", "Target"),
@@ -82,6 +100,32 @@ class CyboxSafeApp(App):
         background: #161b22;
         border-bottom: solid #30363d;
     }
+    TabbedContent {
+        height: 1fr;
+    }
+    Tabs {
+        background: #161b22;
+        border-bottom: solid #30363d;
+        height: 3;
+    }
+    Tab {
+        padding: 0 2;
+        background: transparent;
+        color: #8b949e;
+    }
+    Tab:hover {
+        color: #f0f6fc;
+        background: #21262d;
+    }
+    Tab.-active {
+        color: #58a6ff;
+        text-style: bold;
+        background: #1c2128;
+        border-bottom: tall #58a6ff;
+    }
+    Underline {
+        display: none;
+    }
     #main-container {
         height: 1fr;
         layout: horizontal;
@@ -102,21 +146,10 @@ class CyboxSafeApp(App):
         background: #1c2128;
     }
     #panel-services {
-        height: 55%;
+        height: 58%;
     }
-    #panel-intel {
-        height: 45%;
-        border: none;
-        background: transparent;
-        padding: 0;
-        margin-bottom: 0;
-    }
-    #panel-findings {
-        height: 1fr;
-        margin-bottom: 1;
-    }
-    #panel-creds {
-        height: 1fr;
+    #panel-creds-preview {
+        height: 42%;
     }
     #panel-checklist {
         height: 62%;
@@ -159,6 +192,12 @@ class CyboxSafeApp(App):
         border: double #58a6ff !important;
         layer: top;
     }
+    #creds-fullscreen-panel {
+        height: 1fr;
+        border: round #30363d;
+        background: #161b22;
+        padding: 0 1;
+    }
     """
 
     def __init__(self, store: Optional[NotebookStore] = None, **kwargs: Any) -> None:
@@ -174,32 +213,47 @@ class CyboxSafeApp(App):
         yield TargetInfoPanel(id="target-info")
         with Horizontal(id="target-bar"):
             yield Tabs(id="target-tabs")
-        with Horizontal(id="main-container"):
-            # Left column: Recon & Intel (Services on top, Findings + Creds below)
-            with Vertical(id="col-left", classes="column"):
-                with Vertical(id="panel-services", classes="panel-box"):
-                    yield Label("SERVICES & PORTS", id="hdr-services", classes="panel-header")
-                    yield ListView(id="list-services", classes="panel-list")
-                with Vertical(id="panel-intel"):
-                    with Vertical(id="panel-findings", classes="panel-box"):
-                        yield Label("FINDINGS", id="hdr-findings", classes="panel-header")
-                        yield ListView(id="list-findings", classes="panel-list")
-                    with Vertical(id="panel-creds", classes="panel-box"):
-                        yield Label("CREDENTIAL VAULT", id="hdr-creds", classes="panel-header")
-                        yield ListView(id="list-creds", classes="panel-list")
-            # Right column: Methodology & Notes
-            with Vertical(id="col-right", classes="column"):
-                with Vertical(id="panel-checklist", classes="panel-box"):
-                    yield Label("METHODOLOGY ROADMAP", id="hdr-checklist", classes="panel-header")
-                    yield ListView(id="list-checklist", classes="panel-list")
-                    yield GuidanceDrawer(id="guidance-box")
-                with Vertical(id="panel-notes", classes="panel-box"):
-                    yield Label("FIELD NOTES & EVIDENCE", id="hdr-notes", classes="panel-header")
-                    yield ListView(id="list-notes", classes="panel-list")
+
+        with TabbedContent(initial="tab-worksheet", id="tabs"):
+            # Tab 1: Active Target Worksheet
+            with TabPane("1. 📝 Field Worksheet", id="tab-worksheet"):
+                with Horizontal(id="main-container"):
+                    # Left column: Recon & Intel (Services + Creds)
+                    with Vertical(id="col-left", classes="column"):
+                        with Vertical(id="panel-services", classes="panel-box"):
+                            yield Label("SERVICES & PORTS", id="hdr-services", classes="panel-header")
+                            yield ListView(id="list-services", classes="panel-list")
+                        with Vertical(id="panel-creds-preview", classes="panel-box"):
+                            yield Label("CREDENTIAL VAULT", id="hdr-creds", classes="panel-header")
+                            yield ListView(id="list-creds", classes="panel-list")
+                    # Right column: Methodology Roadmap & Field Notes
+                    with Vertical(id="col-right", classes="column"):
+                        with Vertical(id="panel-checklist", classes="panel-box"):
+                            yield Label("METHODOLOGY ROADMAP", id="hdr-checklist", classes="panel-header")
+                            yield ListView(id="list-checklist", classes="panel-list")
+                            yield GuidanceDrawer(id="guidance-box")
+                        with Vertical(id="panel-notes", classes="panel-box"):
+                            yield Label("FIELD NOTES & EVIDENCE", id="hdr-notes", classes="panel-header")
+                            yield ListView(id="list-notes", classes="panel-list")
+
+            # Tab 2: Cheatsheet & Ready-to-Paste Playbooks
+            with TabPane("2. 📖 Playbooks & Cheatsheet", id="tab-playbooks"):
+                yield PlaybookBrowserWidget(id="playbook-browser")
+
+            # Tab 3: Dedicated Full-Screen Credential Vault
+            with TabPane("3. 🔑 Credential Matrix", id="tab-creds"):
+                with Vertical(id="creds-fullscreen-panel"):
+                    yield Label(Text("CREDENTIAL VAULT & HASH MATRIX [Space=Reveal | y=Copy | c=Add]"), id="hdr-creds-full", classes="panel-header")
+                    yield ListView(id="list-creds-full", classes="panel-list")
+
+            # Tab 4: Flags, Foothold & Failure Log
+            with TabPane("4. 🏁 Flags & Failure Log", id="tab-loot"):
+                yield LootAndFlagsWidget(id="loot-flags-widget")
+
         with Horizontal(id="cmd-input-bar"):
             yield Label("[bold cyan]❯[/bold cyan] ", id="cmd-prompt")
             yield Input(
-                placeholder="Quick cmd: :s port/proto svc | :uflag <hash> | :rflag <hash> | :c user:pass | :n note | / search...",
+                placeholder="Commands: 1-4 Tabs | :s port/proto svc | :uflag <hash> | :rflag <hash> | :ref <term> | :stuck <why> | / search...",
                 id="cmd-input",
             )
         yield Footer()
@@ -207,6 +261,19 @@ class CyboxSafeApp(App):
     def on_mount(self) -> None:
         self.refresh_targets()
         self.refresh_all()
+
+    # -------------------------------------------------------------------------
+    # Tab Switching
+    # -------------------------------------------------------------------------
+
+    def action_switch_tab(self, tab_id: str) -> None:
+        """Switch active TabbedContent pane."""
+        tabbed = self.query_one("#tabs", TabbedContent)
+        tabbed.active = tab_id
+        if tab_id == "tab-playbooks":
+            active = self.store.get_active_target()
+            target_ip = active.ip if active else ""
+            self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
 
     # -------------------------------------------------------------------------
     # Target Management & Tabs
@@ -237,6 +304,13 @@ class CyboxSafeApp(App):
         target_panel = self.query_one("#target-info", TargetInfoPanel)
         target_panel.update_target(active)
 
+        # Update Playbook Target IP
+        target_ip = active.ip if active else ""
+        try:
+            self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
+        except Exception:
+            pass
+
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Switch active target when tab changes."""
         if event.tab and event.tab.id and event.tab.id.startswith("target-"):
@@ -254,16 +328,38 @@ class CyboxSafeApp(App):
     # -------------------------------------------------------------------------
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        """Update guidance drawer when a checklist item is highlighted."""
-        if event.list_view.id == "list-checklist" and event.item:
-            item = event.item
-            if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
-                obj = item.data_obj
-                active = self.store.get_active_target()
-                target_ip = active.ip if active else ""
-                title = obj.title if isinstance(obj, ChecklistItem) else str(obj)
-                guidance_box = self.query_one("#guidance-box", GuidanceDrawer)
-                guidance_box.update_guidance(title, target_ip=target_ip)
+        """Update guidance drawer when a checklist item or service is highlighted."""
+        if not event.item or not isinstance(event.item, DataListItem) or event.item.is_placeholder:
+            return
+
+        obj = event.item.data_obj
+        if not obj:
+            return
+
+        active = self.store.get_active_target()
+        target_ip = active.ip if active else ""
+        try:
+            guidance_box = self.query_one("#guidance-box", GuidanceDrawer)
+        except Exception:
+            return
+
+        if event.list_view.id == "list-checklist":
+            title = obj.title if isinstance(obj, ChecklistItem) else str(obj)
+            guidance_box.update_guidance(title, target_ip=target_ip)
+        elif event.list_view.id == "list-services" and isinstance(obj, Service):
+            from cyb0x_s.templates import get_guidance_for_service
+
+            svc_guidance = get_guidance_for_service(obj.service, obj.port)
+            if svc_guidance:
+                cmd = svc_guidance.get("command", "")
+                if target_ip:
+                    cmd = cmd.replace("<TARGET_IP>", target_ip)
+                    cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
+                guidance_box.query_one("#drawer-cmd", Static).update(f"❯ {cmd}" if cmd else "No command syntax")
+                guidance_box.query_one("#drawer-tip", Static).update(f"💡 {svc_guidance.get('tip', '')}")
+            elif obj.next_action:
+                guidance_box.query_one("#drawer-cmd", Static).update(f"❯ {obj.next_action}")
+                guidance_box.query_one("#drawer-tip", Static).update(f"💡 Custom next action for port {obj.port}/{obj.protocol}")
 
     # -------------------------------------------------------------------------
     # List Population with Clear Formatting
@@ -309,33 +405,19 @@ class CyboxSafeApp(App):
             txt = Text("  • No services recorded (Press 's' to add or type ':s 80/tcp http')", style="dim italic")
             svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
-        # 2. Findings
-        f_list = self.query_one("#list-findings", ListView)
-        f_list.clear()
-        findings = self.store.list_findings(target_id=target_id)
-        self.query_one("#hdr-findings", Label).update(
-            f"FINDINGS ({len(findings)})" if findings else "FINDINGS"
-        )
-        if findings:
-            for f in findings:
-                txt = Text()
-                txt.append("• ", style="bold yellow")
-                txt.append(f.title, style="bold white")
-                if f.severity:
-                    txt.append(f" [{f.severity}]", style="bold magenta")
-                if f.description:
-                    txt.append(f" — {f.description}", style="dim")
-                f_list.append(DataListItem(data_obj=f, display_text=txt))
-        else:
-            txt = Text("  • No findings recorded (Press 'f' to add)", style="dim italic")
-            f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-
-        # 3. Credentials
+        # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
         c_list = self.query_one("#list-creds", ListView)
         c_list.clear()
+        c_full_list = self.query_one("#list-creds-full", ListView)
+        c_full_list.clear()
         creds = self.store.list_credentials(target_id=target_id)
         self.query_one("#hdr-creds", Label).update(
             f"CREDENTIAL VAULT ({len(creds)})" if creds else "CREDENTIAL VAULT"
+        )
+        self.query_one("#hdr-creds-full", Label).update(
+            Text(f"CREDENTIAL VAULT & HASH MATRIX ({len(creds)}) [Space=Reveal | y=Copy | c=Add]")
+            if creds
+            else Text("CREDENTIAL VAULT & HASH MATRIX [Space=Reveal | y=Copy | c=Add]")
         )
         if creds:
             for c in creds:
@@ -344,14 +426,18 @@ class CyboxSafeApp(App):
                 txt.append(f"{c.username} : ", style="bold cyan")
                 secret = c.secret if c.id in self.revealed_creds else c.masked_secret
                 txt.append(secret, style="bold white")
+                if c.service_scope:
+                    txt.append(f" [{c.service_scope}]", style="bold yellow")
                 if c.source:
                     txt.append(f" ({c.source})", style="dim")
                 c_list.append(DataListItem(data_obj=c, display_text=txt))
+                c_full_list.append(DataListItem(data_obj=c, display_text=txt))
         else:
             txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
             c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            c_full_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
-        # 4. Checklist & Progress Bar
+        # 3. Checklist & Progress Bar
         ck_list = self.query_one("#list-checklist", ListView)
         ck_list.clear()
         items = self.store.list_checklist_items(target_id=target_id)
@@ -385,32 +471,32 @@ class CyboxSafeApp(App):
             txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
             ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
-        # 5. Combined Field Notes, Evidence, Leads & Failure Log
+        # 4. Combined Field Notes, Evidence & Findings
         n_list = self.query_one("#list-notes", ListView)
         n_list.clear()
         notes = self.store.list_notes(target_id=target_id)
+        findings = self.store.list_findings(target_id=target_id)
         evidences = self.store.list_evidence(target_id=target_id)
         leads = self.store.list_leads(target_id=target_id)
-        failures = self.store.list_failure_logs(target_id=target_id)
-        total_notes_ev = len(notes) + len(evidences) + len(leads) + len(failures)
+        total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
         self.query_one("#hdr-notes", Label).update(
             f"FIELD NOTES & EVIDENCE ({total_notes_ev})" if total_notes_ev else "FIELD NOTES & EVIDENCE"
         )
-        if notes or evidences or leads or failures:
+        if notes or findings or evidences or leads:
+            for f in findings:
+                txt = Text()
+                txt.append("⚠️ [VULN] ", style="bold red")
+                txt.append(f.title, style="bold white")
+                if f.severity:
+                    txt.append(f" [{f.severity}]", style="bold magenta")
+                if f.description:
+                    txt.append(f" — {f.description}", style="dim")
+                n_list.append(DataListItem(data_obj=f, display_text=txt))
             for n in notes:
                 txt = Text()
                 txt.append("📝 > ", style="bold magenta")
                 txt.append(n.content, style="white")
                 n_list.append(DataListItem(data_obj=n, display_text=txt))
-            for fl in failures:
-                txt = Text()
-                txt.append("🕳️ [DEAD-END] ", style="bold red")
-                txt.append(fl.where_stuck, style="white")
-                if fl.breakthrough_clue:
-                    txt.append(f" → 🔑 Clue: {fl.breakthrough_clue}", style="bold green")
-                if fl.rule_for_next_time:
-                    txt.append(f" (📌 Rule: {fl.rule_for_next_time})", style="dim italic")
-                n_list.append(DataListItem(data_obj=fl, display_text=txt))
             for ev in evidences:
                 txt = Text()
                 txt.append("📷 [EVID] ", style="bold cyan")
@@ -429,6 +515,14 @@ class CyboxSafeApp(App):
             txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
             n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
+        # 5. Tab 4: Loot & Flags Widget update
+        failures = self.store.list_failure_logs(target_id=target_id)
+        try:
+            loot_widget = self.query_one("#loot-flags-widget", LootAndFlagsWidget)
+            loot_widget.update_data(active_target, failures)
+        except Exception:
+            pass
+
     # -------------------------------------------------------------------------
     # Hotkey Actions
     # -------------------------------------------------------------------------
@@ -440,9 +534,10 @@ class CyboxSafeApp(App):
             item = focused.highlighted_child
             if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 obj = item.data_obj
+                active = self.store.get_active_target()
+                target_ip = active.ip if active else ""
+
                 if isinstance(obj, ChecklistItem):
-                    active = self.store.get_active_target()
-                    target_ip = active.ip if active else ""
                     guidance = get_template_guidance_for_title(obj.title)
                     if guidance and guidance.get("command"):
                         cmd = guidance["command"]
@@ -451,6 +546,21 @@ class CyboxSafeApp(App):
                             cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
                         copy_to_clipboard(cmd)
                         self.notify(f"Copied command: {cmd}")
+                        return
+                elif isinstance(obj, Service):
+                    if obj.next_action:
+                        copy_to_clipboard(obj.next_action)
+                        self.notify(f"Copied Next Action: {obj.next_action}")
+                        return
+                    from cyb0x_s.templates import get_guidance_for_service
+                    svc_guidance = get_guidance_for_service(obj.service, obj.port)
+                    if svc_guidance and svc_guidance.get("command"):
+                        cmd = svc_guidance["command"]
+                        if target_ip:
+                            cmd = cmd.replace("<TARGET_IP>", target_ip)
+                            cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
+                        copy_to_clipboard(cmd)
+                        self.notify(f"Copied Service Command: {cmd}")
                         return
 
         self.action_copy_selected()
@@ -547,6 +657,18 @@ class CyboxSafeApp(App):
             callback=on_result,
         )
 
+    def action_show_reference(self) -> None:
+        """Open searchable cheat sheet and command reference modal."""
+        active = self.store.get_active_target()
+        target_ip = active.ip if active else ""
+
+        def on_selected(cmd: Optional[str]) -> None:
+            if cmd:
+                copy_to_clipboard(cmd)
+                self.notify(f"Copied command: {cmd}")
+
+        self.push_screen(ReferenceModal(target_ip=target_ip), callback=on_selected)
+
     def action_delete_selected(self) -> None:
         """Delete highlighted item."""
         focused = self.focused
@@ -580,18 +702,6 @@ class CyboxSafeApp(App):
     def action_show_help(self) -> None:
         """Open help sheet."""
         self.push_screen(HelpModal())
-
-    def action_show_reference(self) -> None:
-        """Open searchable cheat sheet and command reference modal."""
-        active = self.store.get_active_target()
-        target_ip = active.ip if active else ""
-
-        def on_selected(cmd: Optional[str]) -> None:
-            if cmd:
-                copy_to_clipboard(cmd)
-                self.notify(f"Copied command: {cmd}")
-
-        self.push_screen(ReferenceModal(target_ip=target_ip), callback=on_selected)
 
     # -------------------------------------------------------------------------
     # Add Item Modals
@@ -796,6 +906,20 @@ class CyboxSafeApp(App):
         if not val:
             return
 
+        # Handle tab switching via command: :1, :2, :3, :4
+        if val == ":1":
+            self.action_switch_tab("tab-worksheet")
+            return
+        elif val == ":2":
+            self.action_switch_tab("tab-playbooks")
+            return
+        elif val == ":3":
+            self.action_switch_tab("tab-creds")
+            return
+        elif val == ":4":
+            self.action_switch_tab("tab-loot")
+            return
+
         active = self.store.get_active_target()
         target_id = active.id if active else None
 
@@ -834,6 +958,14 @@ class CyboxSafeApp(App):
             clue_txt = val[6:].strip()
             self.store.add_failure_log(target_id=target_id, breakthrough_clue=clue_txt)
             self.notify(f"Breakthrough clue logged: {clue_txt}")
+        elif val.startswith(":ref ") or val.startswith(":cheat "):
+            active_ip = active.ip if active else ""
+            def on_cmd_selected(cmd: Optional[str]) -> None:
+                if cmd:
+                    copy_to_clipboard(cmd)
+                    self.notify(f"Copied command: {cmd}")
+            self.push_screen(ReferenceModal(target_ip=active_ip), callback=on_cmd_selected)
+            return
         elif val.startswith(":n "):
             note_text = val[3:].strip()
             self.store.add_note(content=note_text, target_id=target_id)
@@ -879,14 +1011,6 @@ class CyboxSafeApp(App):
             ev_path = val[4:].strip()
             self.store.add_evidence(path_or_ref=ev_path, target_id=target_id)
             self.notify(f"Evidence logged: {ev_path}")
-        elif val.startswith(":ref ") or val.startswith(":cheat "):
-            active_ip = active.ip if active else ""
-            def on_cmd_selected(cmd: Optional[str]) -> None:
-                if cmd:
-                    copy_to_clipboard(cmd)
-                    self.notify(f"Copied command: {cmd}")
-            self.push_screen(ReferenceModal(target_ip=active_ip), callback=on_cmd_selected)
-            return
         elif val.startswith("/"):
             self.action_open_search()
             return
