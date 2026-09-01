@@ -3,6 +3,92 @@
 **Reviewed:** 2026-09-01 · **Scope:** `src/cyb0x_s/tui/` (Textual app, widgets, theme) plus the
 README shortcut tables · **Branch:** `arena/01a05e3f-cyb0x-s`
 
+> **Follow-up (same branch): the interface has since been redesigned.**
+> The findings below are still the defect record and the backlog, but the
+> layout, the palette and the console are new — see
+> **[§0 The redesign](#0-the-redesign-cockpit--slate--console)**. Sections 4–7
+> describe the state *before* that work and are kept for the record.
+
+---
+
+## 0. The redesign: cockpit + slate + console
+
+Three goals, chosen with the operator in mind: **see everything that matters on
+one screen**, **know what to do next without hunting**, and **never clip a
+command you are about to copy**.
+
+### Layout — station 1 becomes a cockpit
+
+The old station 1 was a 2×2 grid of equal panels, so every row was truncated to
+~50 characters and the guidance drawer was a 4-row box that clipped the very
+commands it existed to show. The new station 1 is a **cockpit**:
+
+```
+┌─ header: workspace + counters ───────────────────────────────────────────────┐
+│ ◆ target  hostname  OS   [SCOPE]  🏁 👑 ⚡          ports · creds · vulns     │  status strip
+│ NEXT ▸ first unchecked step   ▓▓▓▓▓░░░░░ 50% (2/4)            no blockers    │
+│  1 ⌂ Cockpit   2 ▸ Playbooks   3 ▸ Credentials   4 ▸ Loot & Flags            │
+├──────────────────┬───────────────────────────────────────────────────────────┤
+│ ATTACK SURFACE   │ SERVICES & PORTS  (full width — rows never truncate)      │
+│ CREDENTIALS      ├──────────────────────────────┬────────────────────────────┤
+│                  │ METHODOLOGY + progress       │ NOTES & FINDINGS           │
+├──────────────────┴──────────────────────────────┴────────────────────────────┤
+│ ❯ command for the highlighted row                              [Enter]=copy  │  console
+│   tip                                                                        │
+│ ▸ fast-capture bar                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+* **Status strip** (2 rows) answers the four exam questions: which box, what is
+  captured, what is next, what is blocking me. Flag hashes, foothold, scope and
+  counters are chips on the right.
+* **Services get the full width** of the workbench, so `445/tcp smb Samba 4.3 ▸ smbmap -H …`
+  renders in one line instead of being cut in half.
+* **Credentials moved into the sidebar**, under the attack-surface tree, so they
+  are visible in every station instead of competing with services for space.
+* **Methodology and notes** share the lower band; the methodology header carries
+  the progress bar (`▓▓▓▓▓░░░░░ 50% 2/4`) instead of a separate drawer.
+
+Renders of the new cockpit: `dev/previews/cockpit-slate.png` (default),
+`dev/previews/cockpit-warm.png` (legacy palette), `dev/previews/playbooks-slate.png`,
+`dev/previews/loot-slate.png`. Regenerate any time with
+`.venv/bin/python dev/screenshot.py <out-dir> [slate|warm]`.
+
+### The console
+
+The 4-row guidance drawer became a **full-width console** pinned under the
+stations: row 1 shows the command for whatever is highlighted (checklist step,
+service, or your own "next action"), row 2 its tip, row 3 is the fast-capture
+bar. Long commands are elided with `…` and never wrap mid-word, and the console
+is the same place you type `:s`, `:c`, `:stuck` — one destination for "what can I
+run" and "record what I found".
+
+### Palette — slate
+
+| Role | `slate` (default) | `warm` (legacy) |
+|---|---|---|
+| chrome | `#0E1418` / `#151C22` | `#211E1B` / `#2A2622` |
+| text | `#DDE6EE` (13.6:1) | `#EDE6DA` (13.4:1) |
+| data / focus | cyan `#4FD6E8` | terracotta `#D97757` |
+| captured / ok | mint `#6FE3B0` | sage `#8FA876` |
+| warn / next | amber `#F5B455` | kraft `#D4A27F` |
+| danger / vuln | coral `#FF8069` | `#E5846B` |
+
+The stylesheet now contains **no literal colours** — every rule references a
+Textual design token generated from the active palette, so switching palette is
+a one-line swap. Press **`T`** or type **`:theme warm`** to change it live.
+
+### Also in the redesign
+
+* Row colours are read from the live palette (`S("ok")`, `S("danger")`, …)
+  instead of the terminal's ANSI colours, so the theme is consistent everywhere.
+* Station tabs are shorter and numbered glyphs (`1 ⌂`, `2 ▸`) so the bar fits
+  narrow terminals.
+* Panel headers are title-left / count-right (`SERVICES & PORTS … 3 ports`).
+* The sidebar tree lost its own border — panels are framed once, not twice.
+
+---
+
 ---
 
 ## 1. TL;DR

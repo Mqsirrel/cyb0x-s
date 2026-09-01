@@ -1,428 +1,634 @@
-"""CYB0X-S TUI Theme: warm charcoal, terracotta, kraft gold, sage green palette.
+"""CYB0X-S theming: palettes, design tokens and the application stylesheet.
 
-Single source of truth for the interface colours. Widgets import these tokens
-instead of hard-coding colours so the whole worksheet stays visually coherent.
+Two palettes ship with the app:
+
+* ``slate``  — cool graphite chrome with cyan/mint data and amber warnings.
+               Default: tuned for long sessions and at-a-glance state.
+* ``warm``   — the original charcoal / terracotta / kraft identity.
+
+The stylesheet below deliberately contains **no literal colours**: every rule
+references a Textual design token (``$surface``, ``$accent``, ``$text-muted`` …)
+that is generated from the active :class:`Palette`. Switching palette therefore
+only has to swap the registered theme and Textual re-parses the CSS.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Dict, Optional
+
 from textual.theme import Theme
 
-# --- Palette -----------------------------------------------------------------
-BACKGROUND = "#211E1B"
-DARK_CHARCOAL = BACKGROUND
-HEADER_BG = "#191715"
-SURFACE = "#2A2622"
-SURFACE_RAISED = "#332E29"
-TERRACOTTA = "#D97757"
-TERRACOTTA_BRIGHT = "#E58767"
-CREAM = "#EDE6DA"
-MUTED = "#A8A099"
-KRAFT = "#D4A27F"
-SAGE = "#8FA876"
-ERROR_RED = "#C4553B"
 
-# Row-level text colours. Rows are built with Rich `Text` in Python (not CSS),
-# so they need explicit palette values — otherwise they fall back to the
-# terminal's ANSI colours and clash with the warm chrome.
-OK = SAGE                 # checked / captured / success
-DANGER = "#E5846B"        # findings, dead ends (lighter than ERROR_RED: 5.6:1)
-WARN = KRAFT              # deferred, next action, attention
-INFO = TERRACOTTA         # ports, service names, neutral accent
-NOTE = MUTED              # secondary / dim text
+@dataclass(frozen=True)
+class Palette:
+    """A complete colour set for the worksheet."""
 
-# Semantic aliases (kept explicit so widget CSS reads clearly)
-BORDER = SURFACE_RAISED
-FOCUS = TERRACOTTA
-PANEL_BG = SURFACE
-PANEL_HEADER = KRAFT
-ACCENT = TERRACOTTA
-OK_GREEN = SAGE
-WARN_RED = ERROR_RED
+    name: str
+    label: str
+    bg: str
+    surface: str
+    raised: str
+    border: str
+    border_strong: str
+    text: str
+    text_soft: str
+    muted: str
+    accent: str  # focus, ports, data
+    ok: str  # captured / checked / success
+    warn: str  # deferred / next action / attention
+    danger: str  # findings / dead ends / critical
+    dark: bool = True
 
-# Registering the palette as a Textual theme makes every built-in design token
-# ($surface, $border, $primary, $text-muted, footer/scrollbar colours, ...)
-# resolve to the CYB0X-S warm palette. Widgets then inherit one coherent look
-# instead of each CSS block hard-coding its own colours.
-CYBOX_WARM_THEME = Theme(
-    name="cyb0x-warm",
-    primary=TERRACOTTA,
-    secondary=KRAFT,
-    accent=TERRACOTTA,
-    foreground=CREAM,
-    background=BACKGROUND,
-    surface=SURFACE,
-    panel=SURFACE,
-    success=SAGE,
-    warning=KRAFT,
-    error=ERROR_RED,
-    dark=True,
-    variables={
-        "footer-background": HEADER_BG,
-        "footer-foreground": MUTED,
-        "border": SURFACE_RAISED,
-        "border-blurred": SURFACE_RAISED,
-        "block-cursor-background": TERRACOTTA,
-        "block-cursor-foreground": CREAM,
-        "input-selection-background": SURFACE_RAISED,
-        "scrollbar": SURFACE_RAISED,
-        "scrollbar-background": BACKGROUND,
-    },
+    def textual_theme(self) -> Theme:
+        """Build the Textual theme (and thus all ``$`` tokens) for this palette."""
+        return Theme(
+            name=f"cyb0x-{self.name}",
+            primary=self.accent,
+            secondary=self.text_soft,
+            accent=self.accent,
+            foreground=self.text,
+            background=self.bg,
+            surface=self.surface,
+            panel=self.surface,
+            success=self.ok,
+            warning=self.warn,
+            error=self.danger,
+            dark=self.dark,
+            variables={
+                "text-soft": self.text_soft,
+                "border": self.border,
+                "border-blurred": self.border,
+                "block-cursor-background": self.accent,
+                "block-cursor-foreground": self.bg,
+                "block-cursor-text-style": "bold",
+                "footer-background": self.bg,
+                "footer-foreground": self.muted,
+                "footer-key-foreground": self.accent,
+                "footer-description-foreground": self.text_soft,
+                "input-selection-background": self.raised,
+                "input-selection-foreground": self.text,
+                "scrollbar": self.border_strong,
+                "scrollbar-background": self.bg,
+                "scrollbar-hover": self.border_strong,
+                "scrollbar-active": self.accent,
+                "link-color": self.accent,
+            },
+        )
+
+
+SLATE = Palette(
+    name="slate",
+    label="Slate · cyan / mint",
+    bg="#0E1418",
+    surface="#151C22",
+    raised="#1D262E",
+    border="#2A363F",
+    border_strong="#3A4B58",
+    text="#DDE6EE",
+    text_soft="#B6C7D6",
+    muted="#8698A8",
+    accent="#4FD6E8",
+    ok="#6FE3B0",
+    warn="#F5B455",
+    danger="#FF8069",
 )
 
-APP_CSS = f"""
-Screen {{
+WARM = Palette(
+    name="warm",
+    label="Warm · terracotta (legacy)",
+    bg="#211E1B",
+    surface="#2A2622",
+    raised="#332E29",
+    border="#3A342E",
+    border_strong="#4A423A",
+    text="#EDE6DA",
+    text_soft="#CFC5B8",
+    muted="#A8A099",
+    accent="#D97757",
+    ok="#8FA876",
+    warn="#D4A27F",
+    danger="#E5846B",
+)
+
+PALETTES: Dict[str, Palette] = {p.name: p for p in (SLATE, WARM)}
+DEFAULT_PALETTE = SLATE.name
+
+#: The palette every widget reads at render time. Swapped by :func:`set_palette`.
+PALETTE: Palette = PALETTES[DEFAULT_PALETTE]
+
+
+def set_palette(name: str) -> Palette:
+    """Activate ``name`` and return the palette now in use."""
+    global PALETTE
+    PALETTE = PALETTES.get(name, PALETTES[DEFAULT_PALETTE])
+    return PALETTE
+
+
+def current_palette() -> Palette:
+    return PALETTE
+
+
+def S(token: str, bold: bool = True) -> str:  # noqa: N802 - short by design
+    """Rich style string for a palette token, e.g. ``S("ok")`` → ``bold #6FE3B0``.
+
+    Rows are composed in Python (not CSS), so they read the live palette here.
+    """
+    colour = getattr(PALETTE, token, PALETTE.text)
+    return f"bold {colour}" if bold else colour
+
+
+# ---------------------------------------------------------------------------
+# Stylesheet
+# ---------------------------------------------------------------------------
+
+APP_CSS = """
+Screen {
+    background: $background;
+    color: $foreground;
     layout: vertical;
-    background: {BACKGROUND};
-    color: {CREAM};
-}}
+}
 
-Header {{
-    background: {HEADER_BG};
-    color: {CREAM};
-}}
-
-Footer {{
-    background: {HEADER_BG};
-    color: {MUTED};
-}}
-
-WorksheetHeader {{
-    height: 2;
-    background: {HEADER_BG};
-    color: {CREAM};
-    border-bottom: solid {TERRACOTTA} 40%;
+/* --- chrome ------------------------------------------------------------- */
+#app-header {
+    height: 1;
+    background: $background;
+    color: $text-muted;
     padding: 0 2;
-}}
+}
 
-TargetInfoPanel {{
-    height: 2;
-    border-bottom: solid {SURFACE_RAISED};
-    padding: 0 2;
-    background: {SURFACE};
-    color: {CREAM};
-}}
-
-TabbedContent {{
+TabbedContent {
     height: 1fr;
-    background: {BACKGROUND};
-}}
+    background: $background;
+}
 
-Tabs {{
-    background: {HEADER_BG};
-    border-bottom: solid {SURFACE_RAISED};
-    height: 2;
-}}
-
-Tab {{
+#status-strip {
+    height: 3;
+    background: $surface;
+    border-bottom: solid $border;
     padding: 0 2;
+}
+
+Tabs {
+    height: 2;
+    background: $background;
+    border-bottom: solid $border;
+}
+
+Tab {
+    padding: 0 2;
+    color: $text-muted;
     background: transparent;
-    color: {MUTED};
-}}
+}
 
-Tab:hover {{
-    color: {CREAM};
-    background: {SURFACE};
-}}
+Tab:hover {
+    color: $foreground;
+    background: $surface;
+}
 
-Tab.-active {{
-    color: {TERRACOTTA};
+Tab.-active {
+    color: $accent;
     text-style: bold;
-    background: {SURFACE};
-}}
+    background: $surface;
+}
 
-/* The underline is the animated "you are here" bar under the active tab.
-   It must stay visible: Tabs hides the active tab's own highlight, so
-   removing it makes the current station impossible to identify. */
-Underline > .underline--bar {{
-    background: {SURFACE_RAISED};
-    color: {TERRACOTTA};
-}}
+Underline > .underline--bar {
+    background: $surface-lighten-1;
+    color: $accent;
+}
 
-#main-container {{
+/* --- cockpit (station 1) ------------------------------------------------ */
+#cockpit {
     height: 1fr;
     layout: horizontal;
-    background: {BACKGROUND};
-}}
+    background: $background;
+}
 
-#sidebar-tree-pane {{
-    width: 28%;
+#sidebar {
+    width: 26%;
     height: 100%;
-    padding-right: 1;
-}}
-
-TargetTreeWidget {{
-    background: {SURFACE};
     padding: 0 1;
-    height: 1fr;
-    border: round {SURFACE_RAISED};
-    color: {CREAM};
-}}
+}
 
-TargetTreeWidget:focus {{
-    border: round {TERRACOTTA};
-}}
-
-#workbench-pane {{
-    width: 72%;
+#workbench {
+    width: 74%;
     height: 100%;
-    layout: horizontal;
-}}
-
-.column {{
-    width: 1fr;
-    height: 1fr;
     padding: 0 1;
-}}
+    layout: vertical;
+}
 
-.panel-box {{
-    border: round {SURFACE_RAISED};
-    background: {SURFACE};
+.panel-box {
+    border: round $border;
+    background: $surface;
     margin-bottom: 1;
     padding: 0 1;
-}}
+}
 
-.panel-box:focus-within {{
-    border: round {TERRACOTTA};
-    background: {SURFACE_RAISED};
-}}
+.panel-box:focus-within {
+    border: round $accent;
+    background: $surface-lighten-1;
+}
 
-#panel-services {{
-    height: 58%;
-}}
-
-#panel-creds-preview {{
-    height: 42%;
-}}
-
-#panel-checklist {{
-    height: 62%;
-}}
-
-#panel-notes {{
-    height: 38%;
-}}
-
-.panel-header {{
-    text-style: bold;
-    color: {KRAFT};
-    padding: 0 1;
+.panel-header-row {
     height: 1;
-}}
+    layout: horizontal;
+}
 
-.panel-list {{
+.panel-title {
+    width: 1fr;
+    color: $accent;
+    text-style: bold;
+    padding: 0 1;
+}
+
+.panel-count {
+    width: auto;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+.panel-list {
     height: 1fr;
     background: transparent;
-}}
+}
 
-ListView > ListItem {{
-    padding: 0 1;
-    color: {CREAM};
-}}
+#panel-surface {
+    height: 58%;
+}
 
-ListView > ListItem:hover {{
-    background: {SURFACE_RAISED};
-}}
+#panel-creds {
+    height: 42%;
+    margin-bottom: 0;
+}
 
-ListView > ListItem.-selected {{
-    background: {TERRACOTTA} 30%;
-    color: {CREAM};
-    text-style: bold;
-}}
+#panel-services {
+    height: 54%;
+}
 
-GuidanceDrawer {{
-    height: 4;
-    border: solid {SURFACE_RAISED};
-    background: {BACKGROUND};
-    padding: 0 1;
-    margin-top: 1;
-    color: {CREAM};
-}}
-
-GuidanceDrawer.-active {{
-    border: solid {TERRACOTTA} 60%;
-}}
-
-#cmd-input-bar {{
-    height: 3;
-    border-top: solid {SURFACE_RAISED};
-    padding: 0 1;
-    background: {HEADER_BG};
+#lower-band {
+    height: 46%;
     layout: horizontal;
-    align: left middle;
-}}
+}
 
-#cmd-prompt {{
-    width: 3;
-    padding-top: 1;
-    color: {TERRACOTTA};
-}}
+#panel-checklist {
+    width: 45%;
+    height: 100%;
+    margin-bottom: 0;
+}
 
-#cmd-input {{
+#panel-notes {
+    width: 55%;
+    height: 100%;
+    margin-bottom: 0;
+    margin-left: 1;
+}
+
+/* --- console ------------------------------------------------------------ */
+#guidance-box {
+    height: 5;
+    border: round $border;
+    background: $surface;
+    padding: 0 1;
+    margin: 0 1;
+}
+
+#guidance-box:focus-within {
+    border: round $accent;
+}
+
+#console-cmd {
+    height: 1;
+    color: $foreground;
+}
+
+#console-tip {
+    height: 1;
+    color: $text-muted;
+}
+
+#console-input-row {
+    height: 1;
+    layout: horizontal;
+}
+
+#console-prompt {
+    width: 2;
+    color: $accent;
+    text-style: bold;
+}
+
+Input {
+    height: 1;
     width: 1fr;
     border: none;
     background: transparent;
-    color: {CREAM};
-}}
+    color: $foreground;
+}
 
-#cmd-input:focus {{
+Input:focus {
     border: none;
-}}
+}
 
-/* --- Panel zoom (z) ------------------------------------------------------- */
-/* Zooming hides the sidebar and the sibling column so the focused panel
-   genuinely owns the screen instead of only growing inside its column. */
-#main-container.zoomed-mode > #sidebar-tree-pane {{
-    display: none;
-}}
+/* --- lists -------------------------------------------------------------- */
+ListView > ListItem {
+    padding: 0 1;
+    color: $foreground;
+}
 
-#main-container.zoomed-mode > #workbench-pane {{
-    width: 100%;
-}}
+ListView > ListItem:hover {
+    background: $surface-lighten-1;
+}
 
-.maximized {{
-    height: 100% !important;
-    border: double {TERRACOTTA} !important;
-}}
+ListView > ListItem.-selected {
+    background: $accent 22%;
+    color: $foreground;
+    text-style: bold;
+}
 
-/* --- Responsive layout ---------------------------------------------------- */
-/* Below ~110 columns the two-column workbench stops being readable, so the
-   columns stack and the sidebar gives up some width. */
-Screen.compact #sidebar-tree-pane {{
-    width: 24%;
-}}
+Footer {
+    background: $background;
+    color: $text-muted;
+}
 
-Screen.compact #workbench-pane {{
-    layout: vertical;
-    width: 76%;
-}}
-
-Screen.compact .column {{
+/* --- stations 2-4 ------------------------------------------------------- */
+.station-pad {
     height: 1fr;
-    width: 100%;
-}}
+    padding: 0 1;
+}
 
-Screen.compact .panel-box {{
+#playbook-search-input {
+    height: 3;
+    border: round $border;
+    background: $surface;
+    margin-bottom: 1;
+}
+
+#playbook-body {
     height: 1fr;
-    margin-bottom: 0;
-}}
+    layout: horizontal;
+}
 
-Screen.compact #panel-services,
-Screen.compact #panel-creds-preview,
-Screen.compact #panel-checklist,
-Screen.compact #panel-notes {{
+#playbook-cat-panel {
+    width: 25%;
     height: 1fr;
-}}
+    border: round $border;
+    background: $surface;
+    padding: 0 1;
+    margin-right: 1;
+}
 
-Screen.compact GuidanceDrawer {{
-    display: none;
-}}
+#playbook-cmd-panel {
+    width: 75%;
+    height: 1fr;
+    border: round $border;
+    background: $surface;
+    padding: 0 1;
+}
 
-/* Modal Styling */
-ModalScreen {{
+#cred-matrix-sub {
+    height: 1;
+    color: $text-muted;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+#cred-matrix-list {
+    height: 1fr;
+    border: round $border;
+    background: $surface;
+}
+
+#loot-cards-container {
+    height: 9;
+    layout: horizontal;
+    margin-bottom: 1;
+}
+
+.loot-box {
+    width: 1fr;
+    height: 9;
+    border: round $border;
+    background: $surface;
+    padding: 0 1;
+    margin-right: 1;
+}
+
+#loot-failure-box {
+    height: 1fr;
+    border: round $border;
+    background: $surface;
+    padding: 0 1;
+}
+
+.loot-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+/* --- modals ------------------------------------------------------------- */
+ModalScreen {
     align: center middle;
-    background: rgba(15, 13, 11, 0.75);
-}}
+    background: rgba(6, 9, 12, 0.78);
+}
 
-.synapse-modal-dialog {{
+.synapse-modal-dialog {
     width: 68;
     height: auto;
-    max-height: 90%;
-    border: round {TERRACOTTA};
-    background: {SURFACE};
+    max-height: 92%;
+    border: round $accent;
+    background: $surface;
     padding: 1 2;
-    color: {CREAM};
-}}
+    color: $foreground;
+}
 
-.modal-header {{
+.modal-header {
     text-style: bold;
-    color: {TERRACOTTA};
+    color: $accent;
     height: 2;
-    border-bottom: solid {SURFACE_RAISED};
+    border-bottom: solid $border;
     margin-bottom: 1;
-}}
+}
 
-.field-label {{
-    color: {KRAFT};
+.field-label {
+    color: $text-soft;
     text-style: bold;
     margin-top: 1;
-}}
+}
 
-Input {{
-    background: {BACKGROUND};
-    border: round {SURFACE_RAISED};
-    color: {CREAM};
+.modal-input {
     height: 3;
-}}
+    border: round $border;
+    background: $background;
+    color: $foreground;
+}
 
-Input:focus {{
-    border: round {TERRACOTTA};
-}}
+.modal-input:focus {
+    border: round $accent;
+}
 
-Select {{
-    background: {BACKGROUND};
-    border: round {SURFACE_RAISED};
-    color: {CREAM};
+Select {
     height: 3;
-}}
+    background: $background;
+    color: $foreground;
+    border: round $border;
+}
 
-Select:focus {{
-    border: round {TERRACOTTA};
-}}
+Select:focus {
+    border: round $accent;
+}
 
-SelectCurrent {{
-    background: {BACKGROUND};
-    color: {CREAM};
+SelectCurrent {
+    background: $background;
+    color: $foreground;
     border: none;
-}}
+}
 
-SelectOverlay {{
-    background: {SURFACE_RAISED};
-    border: round {TERRACOTTA};
-    color: {CREAM};
-}}
+SelectOverlay {
+    background: $surface-lighten-1;
+    border: round $accent;
+    color: $foreground;
+}
 
-.modal-buttons {{
+.modal-buttons {
     height: 3;
     margin-top: 1;
     layout: horizontal;
     align: right middle;
-}}
+}
 
-Button {{
-    background: {SURFACE_RAISED};
-    color: {CREAM};
+Button {
+    background: $surface-lighten-1;
+    color: $foreground;
     border: none;
     margin-left: 1;
     height: 3;
     min-width: 12;
-}}
+}
 
-Button:hover {{
-    background: {KRAFT};
-    color: {BACKGROUND};
+Button:hover {
+    background: $accent;
+    color: $background;
     text-style: bold;
-}}
+}
 
-Button.primary-btn {{
-    background: {TERRACOTTA};
-    color: {CREAM};
+Button.primary-btn {
+    background: $accent;
+    color: $background;
     text-style: bold;
-}}
+}
 
-Button.primary-btn:hover {{
-    background: {TERRACOTTA_BRIGHT};
-    color: {CREAM};
-}}
+Button.primary-btn:hover {
+    background: $accent-lighten-1;
+    color: $background;
+}
 
-Button.danger-btn {{
-    background: {ERROR_RED};
-    color: {CREAM};
+Button.danger-btn {
+    background: $error;
+    color: $background;
     text-style: bold;
-}}
+}
 
-Button.danger-btn:hover {{
-    background: #D9654B;
-    color: {CREAM};
-}}
+Button.danger-btn:hover {
+    background: $error-lighten-1;
+    color: $background;
+}
+
+#confirm-box {
+    width: 60;
+    height: auto;
+    border: round $error;
+    background: $surface;
+    padding: 1 2;
+    color: $foreground;
+}
+
+#search-box {
+    width: 80%;
+    height: 80%;
+    border: round $accent;
+    background: $surface;
+    padding: 1 2;
+}
+
+#search-results {
+    height: 1fr;
+    border: round $border;
+    background: $background;
+}
+
+#search-status {
+    height: 1;
+    margin-top: 1;
+    color: $text-muted;
+}
+
+#help-box, #template-box, #ref-box {
+    width: 80%;
+    height: 85%;
+    border: round $accent;
+    background: $surface;
+    padding: 1 2;
+}
+
+#template-list, #ref-list {
+    height: 1fr;
+    border: round $border;
+    background: $background;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
+#ref-filter-input {
+    height: 3;
+    border: round $border;
+    background: $background;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
+/* --- zoom + responsive -------------------------------------------------- */
+#cockpit.zoomed-mode > #sidebar {
+    display: none;
+}
+
+#cockpit.zoomed-mode > #workbench {
+    width: 100%;
+}
+
+.maximized {
+    height: 100% !important;
+    border: double $accent !important;
+}
+
+Screen.compact #sidebar {
+    width: 24%;
+}
+
+Screen.compact #workbench {
+    width: 76%;
+}
+
+Screen.compact #lower-band {
+    layout: vertical;
+}
+
+Screen.compact #panel-checklist,
+Screen.compact #panel-notes {
+    width: 100%;
+    height: 1fr;
+    margin-left: 0;
+}
+
+Screen.compact #console-tip {
+    display: none;
+}
+
+Screen.compact #guidance-box {
+    height: 4;
+}
+
+Screen.compact #status-strip {
+    height: 2;
+}
 """
