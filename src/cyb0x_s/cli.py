@@ -26,8 +26,8 @@ from cyb0x_s.templates import apply_template_to_store, get_available_templates
 console = Console()
 err_console = Console(stderr=True)
 
-BANNER = """[bold cyan]CYB0X-S[/bold cyan] [bold green]MODE: SAFE[/bold green]
-[dim]Safe Field Notebook • Human-controlled • Passive recording[/dim]"""
+BANNER = """[bold cyan]CYB0X-S WORKSHEET[/bold cyan] [bold green]MODE: SAFE[/bold green]
+[dim]Safe Field Worksheet • Human-controlled • Passive recording[/dim]"""
 
 
 def _get_store(ctx: click.Context) -> NotebookStore:
