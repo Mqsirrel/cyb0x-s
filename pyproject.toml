@@ -1,0 +1,29 @@
+[project]
+name = "cyb0x-s"
+version = "0.1.0"
+description = "CYB0X-S — Conservative, passive, human-controlled pentesting and lab field notebook"
+readme = "README.md"
+authors = [
+    { name = "CYB0X-S Contributors" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1.0",
+    "pydantic>=2.7.0",
+    "rich>=13.7.0",
+    "textual>=0.70.0",
+]
+
+[project.scripts]
+cyb0x-s = "cyb0x_s.cli:main"
+cys = "cyb0x_s.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]

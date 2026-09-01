@@ -1,0 +1,112 @@
+{
+  "version": "1.0",
+  "format": "cyb0x-s-backup",
+  "exported_at": "2026-09-01T08:00:00Z",
+  "workspace": {
+    "name": "Lab-Assessment-01",
+    "description": "Target machine lab assessment field notebook"
+  },
+  "targets": [
+    {
+      "ip": "10.10.10.20",
+      "hostname": "target.local",
+      "os": "Linux",
+      "notes": "Lab host running web application and file share services",
+      "services": [
+        {
+          "port": 22,
+          "protocol": "tcp",
+          "service": "SSH",
+          "version": "OpenSSH 8.2p1",
+          "status": "CHECKED",
+          "notes": "Password auth allowed"
+        },
+        {
+          "port": 80,
+          "protocol": "tcp",
+          "service": "HTTP",
+          "version": "Apache 2.4.41",
+          "status": "CHECKED",
+          "notes": "Redirects to /login"
+        },
+        {
+          "port": 445,
+          "protocol": "tcp",
+          "service": "SMB",
+          "version": "Samba 4.3",
+          "status": "CHECKED",
+          "notes": "Anonymous read access"
+        }
+      ],
+      "findings": [
+        {
+          "title": "SMB anonymous access enabled",
+          "description": "Read access confirmed to backup share",
+          "notes": "Contains archive.zip",
+          "severity": "HIGH"
+        },
+        {
+          "title": "HTTP redirects to /login",
+          "description": "Landing page presents login form",
+          "notes": "Default credentials not tested yet",
+          "severity": "INFO"
+        }
+      ],
+      "credentials": [
+        {
+          "username": "admin",
+          "secret": "Summer2024!Secure",
+          "source": "backup.zip / config.php",
+          "service_scope": "Web Administration",
+          "status": "untested",
+          "notes": "Extracted from config file"
+        }
+      ],
+      "checklist": [
+        {
+          "category": "ENUMERATION",
+          "title": "TCP enumeration",
+          "status": "CHECKED",
+          "notes": ""
+        },
+        {
+          "category": "ENUMERATION",
+          "title": "HTTP enumeration",
+          "status": "CHECKED",
+          "notes": ""
+        },
+        {
+          "category": "ENUMERATION",
+          "title": "SMB enumeration",
+          "status": "TODO",
+          "notes": ""
+        }
+      ],
+      "evidence": [
+        {
+          "evidence_type": "screenshot",
+          "path_or_ref": "evidence/proof_screenshot_01.png",
+          "description": "Anonymous SMB access listing backup share"
+        }
+      ],
+      "notes": [
+        {
+          "content": "backup share contains archive.zip"
+        },
+        {
+          "content": "archive.zip contains old site configs and admin credentials"
+        }
+      ]
+    }
+  ],
+  "findings": [],
+  "credentials": [],
+  "leads": [
+    {
+      "title": "Check web application for known CVE in Apache 2.4.41",
+      "notes": "Operator to review release changelogs",
+      "status": "open"
+    }
+  ],
+  "notes": []
+}
