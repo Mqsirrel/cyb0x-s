@@ -1,0 +1,452 @@
+From d6106d6b252d2e7a687df46f29d6ff2774d11eeb Mon Sep 17 00:00:00 2001
+From: Mqsirrel <68720462+Mqsirrel@users.noreply.github.com>
+Date: Tue, 1 Sep 2026 22:57:28 +0000
+Subject: [PATCH] chore(handoff): add portable seven-palette recovery patch,
+ bundle and guide
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ handoff/0001-theme-seven-palettes.patch | 270 ++++++++++++++++++++++++
+ handoff/REBUILD.md                      |  74 +++++++
+ handoff/theme-recovery.bundle           | Bin 0 -> 3507 bytes
+ 3 files changed, 344 insertions(+)
+ create mode 100644 handoff/0001-theme-seven-palettes.patch
+ create mode 100644 handoff/REBUILD.md
+ create mode 100644 handoff/theme-recovery.bundle
+
+diff --git a/handoff/0001-theme-seven-palettes.patch b/handoff/0001-theme-seven-palettes.patch
+new file mode 100644
+index 0000000..fdd362c
+--- /dev/null
++++ b/handoff/0001-theme-seven-palettes.patch
+@@ -0,0 +1,270 @@
++From fb512deb558fc1f53314112bd08f8314ff38cba1 Mon Sep 17 00:00:00 2001
++From: Mqsirrel <68720462+Mqsirrel@users.noreply.github.com>
++Date: Tue, 1 Sep 2026 22:56:58 +0000
++Subject: [PATCH] feat(theme): restore all seven palettes with WCAG AAA/AA
++ contrast
++
++Bring back the full 7-palette set that was lost with the previous
++session's untracked commit: slate (default), midnight, ember, moss,
++neon, mono and warm. Adds Palette.contrast_ratio()/_luminance() and
++Palette.swatch() for the theme picker, plus module-level mix()/ramp()
++helpers used by the gradient bar. Docs updated to the seven themes.
++
++Verified against the measured contrast table: every palette's text is
++AAA (\u22657:1) and muted is AA (\u22654.5:1), exactly as reported.
++
++Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
++---
++ README.md                |  13 +++-
++ src/cyb0x_s/tui/theme.py | 162 +++++++++++++++++++++++++++++++++++++--
++ 2 files changed, 167 insertions(+), 8 deletions(-)
++
++diff --git a/README.md b/README.md
++index 6a524aa..e733e2a 100644
++--- a/README.md
+++++ b/README.md
++@@ -249,14 +249,23 @@ credential vault, **4** flags / foothold / rabbit-hole log.
++ 
++ ### Themes
++ 
++-Two palettes ship with the app and can be swapped live:
+++Seven palettes ship with the app and can be swapped live:
++ 
++ | Name | Look | Command |
++ |---|---|---|
++ | `slate` | graphite chrome, cyan/mint data, amber warnings — **default** | `:theme slate` |
+++| `midnight` | indigo / periwinkle, calm low-flare for long labs | `:theme midnight` |
+++| `ember` | amber CRT, warm reading glow | `:theme ember` |
+++| `moss` | forest / lime, low-eye-strain green | `:theme moss` |
+++| `neon` | magenta / electric, high-energy accent | `:theme neon` |
+++| `mono` | luminance only, colour-blind safe (no hue) | `:theme mono` |
++ | `warm` | the original charcoal / terracotta / kraft identity | `:theme warm` |
++ 
++ Press **`T`** to cycle, or use `:theme <name>` in the command bar.
+++Every palette keeps its body text at WCAG **AAA** (≥7:1) and muted text at
+++**AA** (≥4.5:1) against its background. `mono` carries no hue at all — status
+++is still conveyed by the UI symbols (✓ ⚠ ✗, `DEAD-END`, `[HIGH]`), so it is
+++colour-blind safe rather than ambiguous.
++ Below 110 columns the workbench stacks into a single column so rows stay readable.
++ 
++ ### TUI Keyboard Shortcuts
++@@ -303,7 +312,7 @@ press `?` for the complete reference.
++ * `:clue <breakthrough>` — log the breakthrough clue that unlocked progress
++ * `:ev <path>` — log evidence
++ * `:ref <term>` — pop up the offline cheat sheet (e.g. `:ref winrm`)
++-* `:theme <name>` — switch palette (`slate`, `warm`); `:theme` alone cycles
+++* `:theme <name>` — switch palette (`slate`, `midnight`, `ember`, `moss`, `neon`, `mono`, `warm`); `:theme` alone cycles
++ * `:q` — quit
++ 
++ Anything else you type is recorded as a field note, so the bar never blocks you.
++diff --git a/src/cyb0x_s/tui/theme.py b/src/cyb0x_s/tui/theme.py
++index c73f276..9a28bdc 100644
++--- a/src/cyb0x_s/tui/theme.py
+++++ b/src/cyb0x_s/tui/theme.py
++@@ -1,10 +1,15 @@
++ """CYB0X-S theming: palettes, design tokens and the application stylesheet.
++ 
++-Two palettes ship with the app:
+++Seven palettes ship with the app:
++ 
++-* ``slate``  — cool graphite chrome with cyan/mint data and amber warnings.
++-               Default: tuned for long sessions and at-a-glance state.
++-* ``warm``   — the original charcoal / terracotta / kraft identity.
+++* ``slate``    — cool graphite chrome with cyan/mint data and amber warnings.
+++                 Default: tuned for long sessions and at-a-glance state.
+++* ``midnight`` — indigo / periwinkle, calm and low-flare for long labs.
+++* ``ember``    — amber CRT, warm monochrome-adjacent reading glow.
+++* ``moss``     — forest / lime, low-eye-strain green.
+++* ``neon``     — magenta / electric, high-energy accent.
+++* ``mono``     — luminance only, colour-blind safe (no hue at all).
+++* ``warm``     — the original charcoal / terracotta / kraft identity.
++ 
++ The stylesheet below deliberately contains **no literal colours**: every rule
++ references a Textual design token (``$surface``, ``$accent``, ``$text-muted`` …)
++@@ -15,7 +20,7 @@ only has to swap the registered theme and Textual re-parses the CSS.
++ from __future__ import annotations
++ 
++ from dataclasses import dataclass
++-from typing import Dict, Optional
+++from typing import Dict, List, Optional
++ 
++ from textual.theme import Theme
++ 
++@@ -40,6 +45,36 @@ class Palette:
++     danger: str  # findings / dead ends / critical
++     dark: bool = True
++ 
+++    def _luminance(self, colour: str) -> float:
+++        """Relative luminance of a ``#RRGGBB`` colour, per WCAG."""
+++        colour = colour.lstrip("#")
+++        channels = [int(colour[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+++
+++        def _linear(c: float) -> float:
+++            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+++
+++        r, g, b = (_linear(c) for c in channels)
+++        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+++
+++    def contrast_ratio(self, foreground: str = "", background: str = "") -> float:
+++        """WCAG contrast ratio between two palette colours (defaults text-on-bg)."""
+++        fg = self._luminance(foreground or self.text)
+++        bg = self._luminance(background or self.bg)
+++        lighter, darker = max(fg, bg), min(fg, bg)
+++        return (lighter + 0.05) / (darker + 0.05)
+++
+++    def swatch(self) -> List[tuple[str, str]]:
+++        """Ordered (label, colour) pairs for the theme picker's colour strip."""
+++        return [
+++            ("bg", self.bg),
+++            ("surface", self.surface),
+++            ("text", self.text),
+++            ("accent", self.accent),
+++            ("ok", self.ok),
+++            ("warn", self.warn),
+++            ("danger", self.danger),
+++        ]
+++
++     def textual_theme(self) -> Theme:
++         """Build the Textual theme (and thus all ``$`` tokens) for this palette."""
++         return Theme(
++@@ -94,6 +129,91 @@ SLATE = Palette(
++     danger="#FF8069",
++ )
++ 
+++MIDNIGHT = Palette(
+++    name="midnight",
+++    label="Midnight · indigo / periwinkle",
+++    bg="#0B1020",
+++    surface="#131A2E",
+++    raised="#1C2542",
+++    border="#27324F",
+++    border_strong="#3B4A72",
+++    text="#DCE3F5",
+++    text_soft="#AFBAD7",
+++    muted="#7E8AAE",
+++    accent="#6DA8FF",
+++    ok="#7EE7BE",
+++    warn="#F2C078",
+++    danger="#FF7A93",
+++)
+++
+++EMBER = Palette(
+++    name="ember",
+++    label="Ember · amber CRT",
+++    bg="#120E09",
+++    surface="#1D1710",
+++    raised="#272019",
+++    border="#3A3126",
+++    border_strong="#574835",
+++    text="#F4E7D2",
+++    text_soft="#D6C5A8",
+++    muted="#A6907A",
+++    accent="#FFB000",
+++    ok="#C3D95C",
+++    warn="#FF8C42",
+++    danger="#FF6B57",
+++)
+++
+++MOSS = Palette(
+++    name="moss",
+++    label="Moss · forest / lime",
+++    bg="#0C1410",
+++    surface="#131E18",
+++    raised="#1B2B22",
+++    border="#27392D",
+++    border_strong="#3A5544",
+++    text="#DCEBE0",
+++    text_soft="#B4CDBE",
+++    muted="#7F9A8B",
+++    accent="#68D6A0",
+++    ok="#A3E635",
+++    warn="#E8C46A",
+++    danger="#FF8A75",
+++)
+++
+++NEON = Palette(
+++    name="neon",
+++    label="Neon · magenta / electric",
+++    bg="#0A0812",
+++    surface="#151026",
+++    raised="#201938",
+++    border="#312754",
+++    border_strong="#4A3C7D",
+++    text="#EEE8FF",
+++    text_soft="#C5B9EA",
+++    muted="#8E81BC",
+++    accent="#FF5EDB",
+++    ok="#4ADE80",
+++    warn="#FDE047",
+++    danger="#FB7185",
+++)
+++
+++MONO = Palette(
+++    name="mono",
+++    label="Mono · luminance only",
+++    bg="#0D0E10",
+++    surface="#17181B",
+++    raised="#212226",
+++    border="#2F3136",
+++    border_strong="#4C4F56",
+++    text="#F5F6F7",
+++    text_soft="#C7CAD0",
+++    muted="#8C9097",
+++    accent="#E9ECEF",
+++    ok="#B6BBC1",
+++    warn="#DCE0E4",
+++    danger="#FFFFFF",
+++)
+++
++ WARM = Palette(
++     name="warm",
++     label="Warm · terracotta (legacy)",
++@@ -111,7 +231,9 @@ WARM = Palette(
++     danger="#E5846B",
++ )
++ 
++-PALETTES: Dict[str, Palette] = {p.name: p for p in (SLATE, WARM)}
+++PALETTES: Dict[str, Palette] = {
+++    p.name: p for p in (SLATE, MIDNIGHT, EMBER, MOSS, NEON, MONO, WARM)
+++}
++ DEFAULT_PALETTE = SLATE.name
++ 
++ #: The palette every widget reads at render time. Swapped by :func:`set_palette`.
++@@ -138,6 +260,34 @@ def S(token: str, bold: bool = True) -> str:  # noqa: N802 - short by design
++     return f"bold {colour}" if bold else colour
++ 
++ 
+++def mix(colour_a: str, colour_b: str, t: float) -> str:
+++    """Linear interpolation between two ``#RRGGBB`` colours, clamped to ``[0,1]``."""
+++    t = max(0.0, min(1.0, t))
+++
+++    def _ch(v: str) -> tuple[int, int, int]:
+++        v = v.lstrip("#")
+++        return (int(v[0:2], 16), int(v[2:4], 16), int(v[4:6], 16))
+++
+++    a, b = _ch(colour_a), _ch(colour_b)
+++    channels = (
+++        max(0, min(255, round(a[i] + (b[i] - a[i]) * t))) for i in range(3)
+++    )
+++    return "#" + "".join(f"{c:02X}" for c in channels)
+++
+++
+++def ramp(colour: str, steps: int, *, dim_towards: str = "#000000", floor: float = 0.0) -> List[str]:
+++    """A ``steps``-length gradient from ``dim_towards`` up to ``colour``.
+++
+++    ``floor`` shifts the starting point away from pure ``dim_towards`` so the
+++    first step stays legible on dark backgrounds.
+++    """
+++    if steps <= 0:
+++        return []
+++    if steps == 1:
+++        return [colour]
+++    return [mix(dim_towards, colour, floor + (1.0 - floor) * (i / (steps - 1))) for i in range(steps)]
+++
+++
++ # ---------------------------------------------------------------------------
++ # Stylesheet
++ # ---------------------------------------------------------------------------
++-- 
++2.39.5
++
+diff --git a/handoff/REBUILD.md b/handoff/REBUILD.md
+new file mode 100644
+index 0000000..75de490
+--- /dev/null
++++ b/handoff/REBUILD.md
+@@ -0,0 +1,74 @@
++# CYB0X-S — seven-palette theme recovery
++
++This folder is a **self-contained, portable copy** of the theme work so it can be
++rebuilt in any fresh checkout. Both artifacts are generated from the commit
++`fb512de` (parent `aafa2c5`), which is the current tip of
++`arena/01a05f18-cyb0x-s`.
++
++## Contents
++
++| File | Purpose |
++|---|---|
++| `0001-theme-seven-palettes.patch` | The `fb512de` commit as a unified diff (README + `src/cyb0x_s/tui/theme.py`). |
++| `theme-recovery.bundle` | The same commit in a git bundle, preserving the **original commit hash** `fb512de`. |
++| `REBUILD.md` | This file. |
++
++## Verified
++
++* `git bundle verify theme-recovery.bundle` → **okay**: contains `fb512de`
++  (refs/heads/arena/01a05f18-cyb0x-s), requires `aafa2c5`.
++* `git apply --check 0001-theme-seven-palettes.patch` on a fresh checkout of
++  `aafa2c5` → **applies cleanly**.
++* With the patch applied, `src/cyb0x_s/tui/theme.py` defines **7 palettes**
++  (`name=` × 7).
++* Applied on a checkout of the *base* `aafa2c5` — do **not** apply it on
++  `e7e3047` (or any state that already contains the two-palette `Palette`
++  design plus a picker), where hunks may conflict.
++
++## Recovery commands
++
++### Option A — apply the patch onto the base commit
++
++```bash
++git checkout -B arena/01a05f18-cyb0x-s aafa2c5
++git apply handoff/0001-theme-seven-palettes.patch
++git commit -am "feat(theme): restore all seven palettes with WCAG AAA/AA contrast"
++```
++
++### Option B — restore exact hashes from the bundle
++
++```bash
++git fetch handoff/theme-recovery.bundle
++git checkout -b arena/01a05f18-cyb0x-s FETCH_HEAD
++# or, to keep it as a commit on top of current state:
++git cherry-pick fb512deb558fc1f53314112bd08f8314ff38cba1
++```
++
++## What this contains
++
++* **Seven palettes**: `slate` (default), `midnight`, `ember`, `moss`, `neon`,
++  `mono`, `warm`.
++* **`Palette` methods**: `_luminance()`, `contrast_ratio()`, `swatch()`.
++* **Module helpers**: `mix()`, `ramp()` (used by the gradient bar).
++* **README** updated to list the seven themes with their commands and the
++  AAA/AA contrast guarantee.
++
++Verified contrast (text on bg — all AAA ≥7:1; muted AA ≥4.5:1):
++
++| theme | text | muted | accent |
++|---|---|---|---|
++| slate | 14.69 | 6.25 | 10.70 |
++| midnight | 14.74 | 5.53 | 7.84 |
++| ember | 15.75 | 6.31 | 10.49 |
++| moss | 15.14 | 6.14 | 10.43 |
++| neon | 16.68 | 5.70 | 7.46 |
++| mono | 17.85 | 6.02 | 16.29 |
++| warm | 13.37 | 6.44 | 5.31 |
++
++## Not included (available on request)
++
++The theme **picker modal** (`ThemeSwatch` / `ThemePickerModal`, `T` →
++`action_open_theme_picker`), the `settings.py` derive-guidance gate, and the
++`dev/theme_gallery.py` gallery tool were described in the previous handoff but
++their exact source is not present, so they were not reconstructed here. The
++palettes are fully selectable already via `:theme <name>` and the `T` cycle.
+diff --git a/handoff/theme-recovery.bundle b/handoff/theme-recovery.bundle
+new file mode 100644
+index 0000000000000000000000000000000000000000..775c916277c400f779206cfa41a9ba83e654d1d8
+GIT binary patch
+literal 3507
+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
+
+literal 0
+HcmV?d00001
+
+-- 
+2.39.5
+
