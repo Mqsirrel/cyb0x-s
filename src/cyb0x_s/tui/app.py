@@ -1,6 +1,6 @@
-"""Main Textual application for CYB0X-S (Safe Field Notebook).
+"""Main Textual application for CYB0X-S Worksheet.
 
-Keyboard-driven, high-speed, human-controlled terminal interface.
+High-efficiency, keyboard-driven terminal worksheet for security testing observations.
 """
 
 from __future__ import annotations
@@ -29,17 +29,17 @@ from cyb0x_s.tui.widgets import (
     DataListItem,
     FastInputModal,
     HelpModal,
-    SafeHeader,
     SearchModal,
     TargetInfoPanel,
+    WorksheetHeader,
 )
 
 
 class CyboxSafeApp(App):
-    """CYB0X-S Terminal Field Notebook Application."""
+    """CYB0X-S Terminal Field Worksheet Application."""
 
     TITLE = "CYB0X-S Worksheet"
-    SUB_TITLE = "Safe Field Worksheet • Human-controlled • Passive recording"
+    SUB_TITLE = "Field Notes & Methodology Tracker"
 
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),
@@ -61,12 +61,12 @@ class CyboxSafeApp(App):
     CSS = """
     Screen {
         layout: vertical;
-        background: $background;
+        background: #0d1117;
     }
     #target-bar {
         height: 3;
-        background: $surface;
-        border-bottom: solid $secondary;
+        background: #161b22;
+        border-bottom: solid #30363d;
     }
     #main-container {
         height: 1fr;
@@ -78,29 +78,61 @@ class CyboxSafeApp(App):
         padding: 0 1;
     }
     .panel-box {
-        border: round $primary;
-        height: 1fr;
+        border: round #30363d;
+        background: #161b22;
         margin-bottom: 1;
         padding: 0 1;
-        background: $surface-darken-1;
+    }
+    .panel-box:focus-within {
+        border: round #58a6ff;
+        background: #1c2128;
+    }
+    #panel-services {
+        height: 4fr;
+    }
+    #panel-findings {
+        height: 3fr;
+    }
+    #panel-creds {
+        height: 3fr;
+    }
+    #panel-checklist {
+        height: 4fr;
+    }
+    #panel-notes {
+        height: 3fr;
+    }
+    #panel-evidence {
+        height: 3fr;
     }
     .panel-header {
         text-style: bold;
-        color: $accent;
+        color: #79c0ff;
         padding: 0 1;
-        background: $surface;
+        height: 1;
     }
     .panel-list {
         height: 1fr;
     }
     #cmd-input-bar {
         height: 3;
-        border-top: solid $secondary;
+        border-top: solid #30363d;
         padding: 0 1;
-        background: $surface;
+        background: #161b22;
+        layout: horizontal;
+        align: left middle;
+    }
+    #cmd-prompt {
+        width: 3;
+        padding-top: 1;
     }
     #cmd-input {
         width: 1fr;
+        border: none;
+        background: transparent;
+    }
+    #cmd-input:focus {
+        border: none;
     }
     """
 
@@ -110,34 +142,38 @@ class CyboxSafeApp(App):
         self.revealed_creds: Set[int] = set()
 
     def compose(self) -> ComposeResult:
-        yield SafeHeader()
+        active_ws = self.store.get_active_workspace()
+        yield WorksheetHeader(workspace_name=active_ws.name if active_ws else "default")
         yield TargetInfoPanel(id="target-info")
         with Horizontal(id="target-bar"):
             yield Tabs(id="target-tabs")
         with Horizontal(id="main-container"):
             with Vertical(classes="column"):
-                with Vertical(classes="panel-box"):
-                    yield Label("SERVICES", classes="panel-header")
+                with Vertical(id="panel-services", classes="panel-box"):
+                    yield Label("SERVICES", id="hdr-services", classes="panel-header")
                     yield ListView(id="list-services", classes="panel-list")
-                with Vertical(classes="panel-box"):
-                    yield Label("FINDINGS", classes="panel-header")
+                with Vertical(id="panel-findings", classes="panel-box"):
+                    yield Label("FINDINGS", id="hdr-findings", classes="panel-header")
                     yield ListView(id="list-findings", classes="panel-list")
-                with Vertical(classes="panel-box"):
-                    yield Label("CREDENTIALS (Space to reveal)", classes="panel-header")
+                with Vertical(id="panel-creds", classes="panel-box"):
+                    yield Label("CREDENTIAL VAULT", id="hdr-creds", classes="panel-header")
                     yield ListView(id="list-creds", classes="panel-list")
             with Vertical(classes="column"):
-                with Vertical(classes="panel-box"):
-                    yield Label("CHECKLIST (Space to cycle)", classes="panel-header")
+                with Vertical(id="panel-checklist", classes="panel-box"):
+                    yield Label("METHODOLOGY CHECKLIST", id="hdr-checklist", classes="panel-header")
                     yield ListView(id="list-checklist", classes="panel-list")
-                with Vertical(classes="panel-box"):
-                    yield Label("NOTES", classes="panel-header")
+                with Vertical(id="panel-notes", classes="panel-box"):
+                    yield Label("FIELD NOTES", id="hdr-notes", classes="panel-header")
                     yield ListView(id="list-notes", classes="panel-list")
-                with Vertical(classes="panel-box"):
-                    yield Label("EVIDENCE", classes="panel-header")
+                with Vertical(id="panel-evidence", classes="panel-box"):
+                    yield Label("EVIDENCE & LEADS", id="hdr-evidence", classes="panel-header")
                     yield ListView(id="list-evidence", classes="panel-list")
         with Horizontal(id="cmd-input-bar"):
-            yield Label("[dim]:n Note | :f Finding | :s Port/Proto Service | :c User:Pass[/dim]  ", id="cmd-label")
-            yield Input(placeholder="Quick command or :n <note> (press Enter)", id="cmd-input")
+            yield Label("[bold cyan]❯[/bold cyan] ", id="cmd-prompt")
+            yield Input(
+                placeholder="Quick command: :n note | :f finding | :s port/proto svc | :c user:pass | :t ip | / search...",
+                id="cmd-input",
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -151,11 +187,13 @@ class CyboxSafeApp(App):
     def refresh_targets(self) -> None:
         """Update target tabs and active target panel."""
         tabs = self.query_one("#target-tabs", Tabs)
+        target_bar = self.query_one("#target-bar", Horizontal)
         tabs.clear()
         targets = self.store.list_targets()
         active = self.store.get_active_target()
 
-        if targets:
+        if len(targets) > 1:
+            target_bar.styles.display = "block"
             active_tab_id = None
             for t in targets:
                 tab_id = f"target-{t.id}"
@@ -165,6 +203,9 @@ class CyboxSafeApp(App):
                     active_tab_id = tab_id
             if active_tab_id:
                 tabs.active = active_tab_id
+        else:
+            # Hide redundant tabs bar when only 0 or 1 target exists to reclaim screen space
+            target_bar.styles.display = "none"
 
         target_panel = self.query_one("#target-info", TargetInfoPanel)
         target_panel.update_target(active)
@@ -182,20 +223,22 @@ class CyboxSafeApp(App):
                 pass
 
     # -------------------------------------------------------------------------
-    # List Population
+    # List Population with Clear Empty-State Placeholders
     # -------------------------------------------------------------------------
 
     def refresh_all(self) -> None:
         """Refresh all data lists from the database."""
         active_target = self.store.get_active_target()
         target_id = active_target.id if active_target else None
-        target_ip = active_target.ip if active_target else None
 
         # 1. Services
         svc_list = self.query_one("#list-services", ListView)
         svc_list.clear()
-        if target_id is not None:
-            services = self.store.list_services(target_id=target_id)
+        services = self.store.list_services(target_id=target_id) if target_id else []
+        self.query_one("#hdr-services", Label).update(
+            f"SERVICES ({len(services)})" if services else "SERVICES"
+        )
+        if services:
             for s in services:
                 txt = Text()
                 if s.status.value == "CHECKED":
@@ -213,75 +256,123 @@ class CyboxSafeApp(App):
                 if s.notes:
                     txt.append(f"({s.notes})", style="italic dim")
                 svc_list.append(DataListItem(data_obj=s, display_text=txt))
+        else:
+            txt = Text("  • No services recorded (Press 's' to add)", style="dim italic")
+            svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # 2. Findings
         f_list = self.query_one("#list-findings", ListView)
         f_list.clear()
         findings = self.store.list_findings(target_id=target_id)
-        for f in findings:
-            txt = Text()
-            txt.append("• ", style="bold yellow")
-            txt.append(f.title, style="bold white")
-            if f.severity:
-                txt.append(f" [{f.severity}]", style="bold magenta")
-            if f.description:
-                txt.append(f" — {f.description}", style="dim")
-            f_list.append(DataListItem(data_obj=f, display_text=txt))
+        self.query_one("#hdr-findings", Label).update(
+            f"FINDINGS ({len(findings)})" if findings else "FINDINGS"
+        )
+        if findings:
+            for f in findings:
+                txt = Text()
+                txt.append("• ", style="bold yellow")
+                txt.append(f.title, style="bold white")
+                if f.severity:
+                    txt.append(f" [{f.severity}]", style="bold magenta")
+                if f.description:
+                    txt.append(f" — {f.description}", style="dim")
+                f_list.append(DataListItem(data_obj=f, display_text=txt))
+        else:
+            txt = Text("  • No findings recorded (Press 'f' to add)", style="dim italic")
+            f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # 3. Credentials
         c_list = self.query_one("#list-creds", ListView)
         c_list.clear()
         creds = self.store.list_credentials(target_id=target_id)
-        for c in creds:
-            txt = Text()
-            txt.append("• ", style="bold green")
-            txt.append(f"{c.username} : ", style="bold cyan")
-            secret = c.secret if c.id in self.revealed_creds else c.masked_secret
-            txt.append(secret, style="bold white")
-            if c.source:
-                txt.append(f" ({c.source})", style="dim")
-            c_list.append(DataListItem(data_obj=c, display_text=txt))
+        self.query_one("#hdr-creds", Label).update(
+            f"CREDENTIAL VAULT ({len(creds)})" if creds else "CREDENTIAL VAULT"
+        )
+        if creds:
+            for c in creds:
+                txt = Text()
+                txt.append("• ", style="bold green")
+                txt.append(f"{c.username} : ", style="bold cyan")
+                secret = c.secret if c.id in self.revealed_creds else c.masked_secret
+                txt.append(secret, style="bold white")
+                if c.source:
+                    txt.append(f" ({c.source})", style="dim")
+                c_list.append(DataListItem(data_obj=c, display_text=txt))
+        else:
+            txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
+            c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # 4. Checklist
         ck_list = self.query_one("#list-checklist", ListView)
         ck_list.clear()
         items = self.store.list_checklist_items(target_id=target_id)
-        for item in items:
-            txt = Text()
-            if item.status == ChecklistStatus.CHECKED:
-                txt.append("[✓] ", style="bold green")
-            elif item.status == ChecklistStatus.DEFERRED:
-                txt.append("[~] ", style="bold yellow")
-            elif item.status == ChecklistStatus.DEAD_END:
-                txt.append("[✗] ", style="bold red")
-            else:
-                txt.append("[ ] ", style="bold white")
-            txt.append(item.title, style="white")
-            if item.category and item.category != "ENUMERATION":
-                txt.append(f" ({item.category})", style="dim")
-            ck_list.append(DataListItem(data_obj=item, display_text=txt))
+        checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
+        self.query_one("#hdr-checklist", Label).update(
+            f"METHODOLOGY CHECKLIST ({checked_count}/{len(items)})" if items else "METHODOLOGY CHECKLIST"
+        )
+        if items:
+            for item in items:
+                txt = Text()
+                if item.status == ChecklistStatus.CHECKED:
+                    txt.append("[✓] ", style="bold green")
+                elif item.status == ChecklistStatus.DEFERRED:
+                    txt.append("[~] ", style="bold yellow")
+                elif item.status == ChecklistStatus.DEAD_END:
+                    txt.append("[✗] ", style="bold red")
+                else:
+                    txt.append("[ ] ", style="bold white")
+                txt.append(item.title, style="white")
+                if item.category and item.category != "ENUMERATION":
+                    txt.append(f" ({item.category})", style="dim")
+                ck_list.append(DataListItem(data_obj=item, display_text=txt))
+        else:
+            txt = Text("  • No checklist items (Press 'm' for templates or 'k' to add)", style="dim italic")
+            ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # 5. Notes
         n_list = self.query_one("#list-notes", ListView)
         n_list.clear()
         notes = self.store.list_notes(target_id=target_id)
-        for n in notes:
-            txt = Text()
-            txt.append("> ", style="bold magenta")
-            txt.append(n.content, style="white")
-            n_list.append(DataListItem(data_obj=n, display_text=txt))
+        self.query_one("#hdr-notes", Label).update(
+            f"FIELD NOTES ({len(notes)})" if notes else "FIELD NOTES"
+        )
+        if notes:
+            for n in notes:
+                txt = Text()
+                txt.append("> ", style="bold magenta")
+                txt.append(n.content, style="white")
+                n_list.append(DataListItem(data_obj=n, display_text=txt))
+        else:
+            txt = Text("  • No notes recorded (Press 'n' or type below)", style="dim italic")
+            n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
-        # 6. Evidence
+        # 6. Evidence & Leads
         ev_list = self.query_one("#list-evidence", ListView)
         ev_list.clear()
         evidences = self.store.list_evidence(target_id=target_id)
-        for ev in evidences:
-            txt = Text()
-            txt.append(f"[{ev.evidence_type}] ", style="bold cyan")
-            txt.append(ev.path_or_ref, style="bold white")
-            if ev.description:
-                txt.append(f" — {ev.description}", style="dim")
-            ev_list.append(DataListItem(data_obj=ev, display_text=txt))
+        leads = self.store.list_leads(target_id=target_id)
+        total_ev = len(evidences) + len(leads)
+        self.query_one("#hdr-evidence", Label).update(
+            f"EVIDENCE & LEADS ({total_ev})" if total_ev else "EVIDENCE & LEADS"
+        )
+        if evidences or leads:
+            for ev in evidences:
+                txt = Text()
+                txt.append(f"[{ev.evidence_type}] ", style="bold cyan")
+                txt.append(ev.path_or_ref, style="bold white")
+                if ev.description:
+                    txt.append(f" — {ev.description}", style="dim")
+                ev_list.append(DataListItem(data_obj=ev, display_text=txt))
+            for ld in leads:
+                txt = Text()
+                txt.append("[lead] ", style="bold yellow")
+                txt.append(ld.title, style="bold white")
+                if ld.notes:
+                    txt.append(f" ({ld.notes})", style="dim")
+                ev_list.append(DataListItem(data_obj=ld, display_text=txt))
+        else:
+            txt = Text("  • No evidence logged (Type ':ev <path>' or press 'd' to delete)", style="dim italic")
+            ev_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
     # -------------------------------------------------------------------------
     # Hotkey Actions
@@ -292,7 +383,7 @@ class CyboxSafeApp(App):
         focused = self.focused
         if isinstance(focused, ListView) and focused.highlighted_child:
             item = focused.highlighted_child
-            if isinstance(item, DataListItem):
+            if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 active = self.store.get_active_target()
                 target_ip = active.ip if active else None
                 val = extract_copy_value(item.data_obj, target_ip=target_ip)
@@ -300,14 +391,14 @@ class CyboxSafeApp(App):
                     copy_to_clipboard(val)
                     self.notify(f"Copied: {val}")
                     return
-        self.notify("Select an item to copy (y)")
+        self.notify("Select a valid item to copy (y)")
 
     def action_toggle_selected(self) -> None:
         """Toggle checklist status or credential reveal."""
         focused = self.focused
         if isinstance(focused, ListView) and focused.highlighted_child:
             item = focused.highlighted_child
-            if isinstance(item, DataListItem):
+            if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 obj = item.data_obj
                 if isinstance(obj, ChecklistItem):
                     self.store.cycle_checklist_status(obj.id)
@@ -326,7 +417,7 @@ class CyboxSafeApp(App):
         focused = self.focused
         if isinstance(focused, ListView) and focused.highlighted_child:
             item = focused.highlighted_child
-            if isinstance(item, DataListItem):
+            if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 obj = item.data_obj
                 if isinstance(obj, Service):
                     self.store.delete_service(obj.id)
@@ -340,6 +431,8 @@ class CyboxSafeApp(App):
                     self.store.delete_note(obj.id)
                 elif isinstance(obj, Evidence):
                     self.store.delete_evidence(obj.id)
+                elif isinstance(obj, Lead):
+                    self.store.delete_lead(obj.id)
                 self.notify("Item deleted")
                 self.refresh_all()
 
@@ -563,17 +656,14 @@ class CyboxSafeApp(App):
         target_id = active.id if active else None
 
         if val.startswith(":n "):
-            # Quick note
             note_text = val[3:].strip()
             self.store.add_note(content=note_text, target_id=target_id)
             self.notify(f"Note added: {note_text}")
         elif val.startswith(":f "):
-            # Quick finding
             finding_text = val[3:].strip()
             self.store.add_finding(title=finding_text, target_id=target_id)
             self.notify(f"Finding added: {finding_text}")
         elif val.startswith(":c "):
-            # Quick cred
             cred_str = val[3:].strip()
             if ":" in cred_str:
                 u, p = cred_str.split(":", 1)
@@ -582,13 +672,11 @@ class CyboxSafeApp(App):
             self.store.add_credential(username=u, secret=p, target_id=target_id)
             self.notify(f"Cred added: {u}")
         elif val.startswith(":t "):
-            # Quick target
             ip = val[3:].strip()
             self.store.add_target(ip=ip)
             self.refresh_targets()
             self.notify(f"Target added: {ip}")
         elif val.startswith(":s "):
-            # Quick service :s 445/tcp SMB
             parts = val[3:].strip().split()
             if parts and active:
                 port_proto = parts[0]
@@ -608,15 +696,17 @@ class CyboxSafeApp(App):
                     self.notify(f"Service added: {port_str}/{proto} {svc_name}")
                 except ValueError:
                     self.notify("Invalid port", severity="error")
+        elif val.startswith(":ev "):
+            ev_path = val[4:].strip()
+            self.store.add_evidence(path_or_ref=ev_path, target_id=target_id)
+            self.notify(f"Evidence logged: {ev_path}")
         elif val.startswith("/"):
-            # Trigger search
             self.action_open_search()
             return
         elif val == ":q":
             self.exit()
             return
         else:
-            # Treat bare text as a field note
             self.store.add_note(content=val, target_id=target_id)
             self.notify(f"Note added: {val}")
 

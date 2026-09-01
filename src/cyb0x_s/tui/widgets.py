@@ -1,4 +1,4 @@
-"""Textual widgets and modal dialogs for CYB0X-S."""
+"""Textual widgets and modal dialogs for CYB0X-S Worksheet."""
 
 from __future__ import annotations
 
@@ -24,38 +24,40 @@ from cyb0x_s.models import (
 from cyb0x_s.search import SearchMatch, search_notebook
 
 
-class SafeHeader(Static):
-    """Clean terminal header enforcing MODE: SAFE and human-controlled philosophy."""
+class WorksheetHeader(Static):
+    """Clean, high-density terminal header without loud safe-mode labels."""
 
     DEFAULT_CSS = """
-    SafeHeader {
-        height: 4;
-        background: $surface;
+    WorksheetHeader {
+        height: 2;
+        background: $surface-darken-2;
         color: $text;
-        border-bottom: solid $primary;
-        padding: 0 1;
+        border-bottom: solid $primary 30%;
+        padding: 0 2;
     }
     """
 
+    def __init__(self, workspace_name: str = "default", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.workspace_name = workspace_name
+
     def render(self) -> Text:
         t = Text()
-        t.append("CYB0X-S WORKSHEET", style="bold cyan")
-        t.append("                                  ")
-        t.append("MODE: SAFE\n", style="bold green reverse")
-        t.append("Passive field worksheet", style="dim")
-        t.append("                  ")
-        t.append("Human-controlled • Passive recording", style="italic")
+        t.append("CYB0X-S ", style="bold cyan")
+        t.append("WORKSHEET", style="bold white")
+        t.append("  │  ", style="dim")
+        t.append("Field Notes & Methodology", style="dim italic")
         return t
 
 
 class TargetInfoPanel(Static):
-    """Displays information for the currently active target."""
+    """Displays compact, clean status for the currently active target."""
 
     DEFAULT_CSS = """
     TargetInfoPanel {
-        height: 4;
-        border: solid $secondary;
-        padding: 0 1;
+        height: 2;
+        border-bottom: solid $secondary 25%;
+        padding: 0 2;
         background: $surface-darken-1;
     }
     """
@@ -68,26 +70,39 @@ class TargetInfoPanel(Static):
 
     def render(self) -> Text:
         t = Text()
-        t.append("TARGET: ", style="bold magenta")
         if self.target:
+            t.append("● ", style="bold green")
+            t.append("TARGET: ", style="bold magenta")
             t.append(self.target.ip, style="bold white")
             if self.target.hostname:
                 t.append(f" ({self.target.hostname})", style="cyan")
-            t.append(f"  [OS: {self.target.os}]\n", style="dim")
+            if self.target.os and self.target.os != "Unknown":
+                t.append(f" [{self.target.os}]", style="dim")
             if self.target.notes:
-                t.append(f"Notes: {self.target.notes}", style="dim italic")
+                t.append(f"  •  {self.target.notes}", style="dim italic")
         else:
-            t.append("No active target selected (Press 't' to add target)", style="yellow italic")
+            t.append("○ ", style="dim yellow")
+            t.append("TARGET: ", style="bold yellow")
+            t.append("No active target selected", style="yellow")
+            t.append("  (Press 't' to add a target or type ':t <ip>' in command bar)", style="dim")
         return t
 
 
 class DataListItem(ListItem):
-    """Custom ListItem wrapping a specific data model."""
+    """Custom ListItem wrapping a specific data model or placeholder."""
 
-    def __init__(self, data_obj: Any, display_text: Text, *children: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        data_obj: Any,
+        display_text: Text,
+        is_placeholder: bool = False,
+        *children: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*children, **kwargs)
         self.data_obj = data_obj
         self.display_text = display_text
+        self.is_placeholder = is_placeholder
 
     def compose(self) -> ComposeResult:
         yield Label(self.display_text)
@@ -112,7 +127,7 @@ class SearchModal(ModalScreen):
     }
     #search-results {
         height: 1fr;
-        border: solid $secondary;
+        border: solid $secondary 40%;
     }
     #search-status {
         height: 1;
@@ -128,8 +143,8 @@ class SearchModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="search-box"):
-            yield Label("[bold cyan]SEARCH NOTEBOOK[/bold cyan] [dim](Press Esc to exit, y to copy)[/dim]")
-            yield Input(placeholder="Type to search across all notes, services, creds, findings...", id="search-input")
+            yield Label("[bold cyan]SEARCH WORKSHEET[/bold cyan] [dim](Esc to close, y to copy item)[/dim]")
+            yield Input(placeholder="Type keywords to search across notes, services, creds, findings...", id="search-input")
             yield ListView(id="search-results")
             yield Label("0 results", id="search-status")
 
@@ -166,9 +181,10 @@ class SearchModal(ModalScreen):
             results_view = self.query_one("#search-results", ListView)
             if results_view.highlighted_child and isinstance(results_view.highlighted_child, DataListItem):
                 match = results_view.highlighted_child.data_obj
-                val = match.snippet or match.title
-                copy_to_clipboard(val)
-                self.notify(f"Copied: {val}")
+                if not results_view.highlighted_child.is_placeholder and match:
+                    val = match.snippet or match.title
+                    copy_to_clipboard(val)
+                    self.notify(f"Copied: {val}")
 
 
 class FastInputModal(ModalScreen[Optional[dict]]):
@@ -179,7 +195,7 @@ class FastInputModal(ModalScreen[Optional[dict]]):
         align: center middle;
     }
     #input-container {
-        width: 60%;
+        width: 65%;
         height: auto;
         border: thick $primary;
         background: $surface;
@@ -201,7 +217,6 @@ class FastInputModal(ModalScreen[Optional[dict]]):
     def __init__(self, title: str, fields: List[tuple[str, str, str]]) -> None:
         super().__init__()
         self.modal_title = title
-        # fields: list of (key, label, default_value)
         self.fields = fields
 
     def compose(self) -> ComposeResult:
@@ -211,8 +226,8 @@ class FastInputModal(ModalScreen[Optional[dict]]):
                 yield Label(label_text)
                 yield Input(value=default_val, id=f"field-{key}", classes="input-field")
             with Horizontal(id="button-bar"):
-                yield Button("Save", variant="primary", id="btn-save")
-                yield Button("Cancel", variant="default", id="btn-cancel")
+                yield Button("Save (Enter)", variant="primary", id="btn-save")
+                yield Button("Cancel (Esc)", variant="default", id="btn-cancel")
 
     def on_mount(self) -> None:
         first_input = self.query(Input).first()
@@ -233,7 +248,6 @@ class FastInputModal(ModalScreen[Optional[dict]]):
         if event.key == "escape":
             self.dismiss(None)
         elif event.key == "enter":
-            # Save on enter
             data = {}
             for key, _, _ in self.fields:
                 inp = self.query_one(f"#field-{key}", Input)
@@ -242,7 +256,7 @@ class FastInputModal(ModalScreen[Optional[dict]]):
 
 
 class HelpModal(ModalScreen):
-    """Modal displaying keyboard shortcuts and safe philosophy."""
+    """Modal displaying keyboard shortcuts and workflow reference."""
 
     DEFAULT_CSS = """
     HelpModal {
@@ -259,41 +273,42 @@ class HelpModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="help-box"):
-            yield Label("[bold cyan]CYB0X-S CHEAT SHEET & KEYBOARD SHORTCUTS[/bold cyan]\n")
+            yield Label("[bold cyan]CYB0X-S WORKSHEET — KEYBOARD REFERENCE[/bold cyan]\n")
             with VerticalScroll():
                 text = """
 [bold]Key Design Principle:[/bold]
 The human decides and performs the security-testing actions. CYB0X-S records and organizes them.
-Zero AI, zero automated scanning, zero next-attack suggestions.
+Pure passive recording • Local-first SQLite store • Zero background scanning or AI.
 
-[bold]Keyboard Shortcuts:[/bold]
-  [cyan]Tab / Shift+Tab[/cyan]  : Cycle focus between notebook panels
-  [cyan]j / k or ↑ / ↓[/cyan]   : Move up/down within active list
-  [cyan]y[/cyan]                : Copy selected item value (IP, port, secret, note text)
+[bold]Keyboard Navigation:[/bold]
+  [cyan]Tab / Shift+Tab[/cyan]  : Move focus between worksheet panels
+  [cyan]j / k or ↑ / ↓[/cyan]   : Navigate items in active panel
+  [cyan]y[/cyan]                : Copy highlighted value (IP, port, secret, note text)
   [cyan]Space[/cyan]            : Cycle checklist status (TODO → CHECKED → DEFERRED → DEAD-END)
-                     or toggle credential password reveal
-  [cyan]/ or Ctrl+F[/cyan]      : Open global search across all entities
-  [cyan]t[/cyan]                : Add or switch target
+                     or toggle credential password mask
+  [cyan]/ or Ctrl+F[/cyan]      : Global search across all recorded data
+  [cyan]t[/cyan]                : Add or switch target machine
   [cyan]s[/cyan]                : Add service to current target
-  [cyan]f[/cyan]                : Add finding to current target
-  [cyan]c[/cyan]                : Add credential
-  [cyan]n[/cyan]                : Add free-form note
-  [cyan]k[/cyan]                : Add manual checklist item
+  [cyan]f[/cyan]                : Record security finding
+  [cyan]c[/cyan]                : Record credential
+  [cyan]n[/cyan]                : Add field note
+  [cyan]k[/cyan]                : Add checklist item
   [cyan]m[/cyan]                : Apply static methodology checklist template
   [cyan]d[/cyan]                : Delete highlighted item
   [cyan]?[/cyan]                : Open this help dialog
-  [cyan]q[/cyan]                : Quit CYB0X-S
+  [cyan]q[/cyan]                : Quit worksheet
 
-[bold]CLI Fast Capture Commands:[/bold]
+[bold]Fast Capture Commands (Bottom Bar / Shell):[/bold]
   cyb0x-s target 10.10.10.20
   cyb0x-s service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
-  cyb0x-s finding "SMB anonymous access enabled"
+  cyb0x-s finding "SMB anonymous access enabled" --severity HIGH
   cyb0x-s cred admin:password --source backup.zip
-  cyb0x-s note "8080 appears to be Jenkins"
   cyb0x-s checklist template smb
+  cyb0x-s checklist check "null session"
+  cyb0x-s note "backup share contains archive.zip"
   cyb0x-s export --format md -o notes.md
 
-Press [bold]Esc[/bold] or [bold]q[/bold] to return to notebook.
+Press [bold]Esc[/bold] or [bold]q[/bold] to return to worksheet.
 """
                 yield Static(text)
             yield Button("Close", id="btn-close", variant="primary")
