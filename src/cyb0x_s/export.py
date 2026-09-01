@@ -1,0 +1,381 @@
+"""Export and import engines for CYB0X-S.
+
+Produces clean, standalone Markdown, JSON backups, and plain text notes.
+Allows lossless round-trip workspace migration.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Union
+
+from cyb0x_s.db.store import NotebookStore
+from cyb0x_s.models import ChecklistStatus, Workspace
+
+
+def export_markdown(
+    store: NotebookStore,
+    workspace_id: Optional[int] = None,
+    reveal_creds: bool = False,
+) -> str:
+    """Export notebook to human-readable standalone Markdown.
+
+    Designed to be clear and useful without CYB0X-S installed.
+    """
+    ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
+    if not ws:
+        return "# Empty Workspace\n"
+
+    lines: List[str] = []
+    lines.append(f"# Assessment Workspace: {ws.name}")
+    if ws.description:
+        lines.append(f"> {ws.description}\n")
+    else:
+        lines.append("")
+
+    targets = store.list_targets(workspace_id=ws.id)
+
+    if not targets:
+        lines.append("*No targets recorded in this workspace.*\n")
+
+    for target in targets:
+        lines.append(f"# Target: {target.ip}")
+        meta_parts: List[str] = []
+        if target.hostname:
+            meta_parts.append(f"Hostname: `{target.hostname}`")
+        if target.os and target.os != "Unknown":
+            meta_parts.append(f"OS: {target.os}")
+        if meta_parts:
+            lines.append(f"> {' | '.join(meta_parts)}")
+        if target.notes:
+            lines.append(f"> Notes: {target.notes}")
+        lines.append("")
+
+        # Services
+        services = store.list_services(target_id=target.id)
+        if services:
+            lines.append("## Services")
+            for s in services:
+                version_str = f" — {s.version}" if s.version else ""
+                status_str = f" [{s.status.value}]" if s.status.value != "CHECKED" else ""
+                notes_str = f" ({s.notes})" if s.notes else ""
+                lines.append(f"- {s.port}/{s.protocol} — {s.service}{version_str}{status_str}{notes_str}")
+            lines.append("")
+
+        # Findings
+        findings = store.list_findings(target_id=target.id)
+        if findings:
+            lines.append("## Findings")
+            for f in findings:
+                sev_prefix = f"[{f.severity}] " if f.severity else ""
+                lines.append(f"- {sev_prefix}{f.title}")
+                if f.description:
+                    lines.append(f"  {f.description}")
+                if f.notes:
+                    lines.append(f"  Note: {f.notes}")
+            lines.append("")
+
+        # Credentials
+        creds = store.list_credentials(target_id=target.id)
+        if creds:
+            lines.append("## Credentials")
+            for c in creds:
+                secret_display = c.secret if reveal_creds else c.masked_secret
+                meta = []
+                if c.source:
+                    meta.append(f"Source: {c.source}")
+                if c.service_scope:
+                    meta.append(f"Scope: {c.service_scope}")
+                if c.status and c.status != "untested":
+                    meta.append(f"Status: {c.status}")
+                meta_str = f" ({', '.join(meta)})" if meta else ""
+                lines.append(f"- {c.username} : {secret_display}{meta_str}")
+            lines.append("")
+
+        # Checklist
+        checklist = store.list_checklist_items(target_id=target.id)
+        if checklist:
+            lines.append("## Checklist")
+            for item in checklist:
+                if item.status == ChecklistStatus.CHECKED:
+                    box = "[x]"
+                elif item.status == ChecklistStatus.DEFERRED:
+                    box = "[-]"
+                elif item.status == ChecklistStatus.DEAD_END:
+                    box = "[!]"
+                else:
+                    box = "[ ]"
+                status_suffix = (
+                    f" ({item.status.value})"
+                    if item.status in (ChecklistStatus.DEFERRED, ChecklistStatus.DEAD_END)
+                    else ""
+                )
+                lines.append(f"- {box} {item.title}{status_suffix}")
+            lines.append("")
+
+        # Evidence
+        evidence = store.list_evidence(target_id=target.id)
+        if evidence:
+            lines.append("## Evidence")
+            for ev in evidence:
+                desc_str = f" — {ev.description}" if ev.description else ""
+                lines.append(f"- [{ev.evidence_type}] `{ev.path_or_ref}`{desc_str}")
+            lines.append("")
+
+        # Notes
+        notes = store.list_notes(target_id=target.id)
+        if notes:
+            lines.append("## Notes")
+            for n in notes:
+                lines.append(f"- {n.content}")
+            lines.append("")
+
+        lines.append("---")
+        lines.append("")
+
+    # Global entries (target_id is None)
+    global_findings = [f for f in store.list_findings() if f.target_id is None]
+    global_creds = [c for c in store.list_credentials() if c.target_id is None]
+    global_notes = [n for n in store.list_notes() if n.target_id is None]
+    global_leads = store.list_leads()
+
+    if global_findings or global_creds or global_notes or global_leads:
+        lines.append("# Assessment General Notes")
+        if global_findings:
+            lines.append("## General Findings")
+            for f in global_findings:
+                lines.append(f"- {f.title}")
+            lines.append("")
+        if global_creds:
+            lines.append("## General Credentials")
+            for c in global_creds:
+                secret_display = c.secret if reveal_creds else c.masked_secret
+                lines.append(f"- {c.username} : {secret_display}")
+            lines.append("")
+        if global_leads:
+            lines.append("## Open Leads")
+            for ld in global_leads:
+                lines.append(f"- [{ld.status.upper()}] {ld.title} ({ld.notes})")
+            lines.append("")
+        if global_notes:
+            lines.append("## General Notes")
+            for n in global_notes:
+                lines.append(f"- {n.content}")
+            lines.append("")
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def export_txt(store: NotebookStore, workspace_id: Optional[int] = None) -> str:
+    """Export notebook to plain text format."""
+    ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
+    if not ws:
+        return "Empty Workspace\n"
+
+    lines: List[str] = [
+        "CYB0X-S SAFE FIELD NOTEBOOK",
+        f"Workspace: {ws.name}",
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "=" * 60,
+        "",
+    ]
+
+    targets = store.list_targets(workspace_id=ws.id)
+    for target in targets:
+        lines.append(f"TARGET: {target.ip} ({target.hostname or 'no-host'}) [OS: {target.os}]")
+        lines.append("-" * 40)
+
+        services = store.list_services(target_id=target.id)
+        if services:
+            lines.append("SERVICES:")
+            for s in services:
+                lines.append(f"  * {s.port}/{s.protocol:<4} {s.service:<12} {s.version} [{s.status.value}]")
+
+        findings = store.list_findings(target_id=target.id)
+        if findings:
+            lines.append("FINDINGS:")
+            for f in findings:
+                lines.append(f"  * {f.title} ({f.severity or 'manual'})")
+
+        creds = store.list_credentials(target_id=target.id)
+        if creds:
+            lines.append("CREDENTIALS:")
+            for c in creds:
+                lines.append(f"  * {c.username} : {c.masked_secret} (Source: {c.source})")
+
+        checklist = store.list_checklist_items(target_id=target.id)
+        if checklist:
+            lines.append("CHECKLIST:")
+            for item in checklist:
+                lines.append(f"  [{item.status.value:<8}] {item.title}")
+
+        notes = store.list_notes(target_id=target.id)
+        if notes:
+            lines.append("NOTES:")
+            for n in notes:
+                lines.append(f"  > {n.content}")
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def export_json(store: NotebookStore, workspace_id: Optional[int] = None) -> str:
+    """Export complete workspace to JSON representation."""
+    ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
+    if not ws:
+        return json.dumps({"error": "Workspace not found"})
+
+    data: Dict[str, Any] = {
+        "version": "1.0",
+        "format": "cyb0x-s-backup",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "workspace": ws.model_dump(mode="json"),
+        "targets": [],
+        "findings": [f.model_dump(mode="json") for f in store.list_findings() if f.target_id is None],
+        "credentials": [c.model_dump(mode="json") for c in store.list_credentials() if c.target_id is None],
+        "leads": [ld.model_dump(mode="json") for ld in store.list_leads()],
+        "notes": [n.model_dump(mode="json") for n in store.list_notes() if n.target_id is None],
+    }
+
+    targets = store.list_targets(workspace_id=ws.id)
+    for t in targets:
+        t_data = t.model_dump(mode="json")
+        t_data["services"] = [s.model_dump(mode="json") for s in store.list_services(target_id=t.id)]
+        t_data["findings"] = [f.model_dump(mode="json") for f in store.list_findings(target_id=t.id)]
+        t_data["credentials"] = [c.model_dump(mode="json") for c in store.list_credentials(target_id=t.id)]
+        t_data["checklist"] = [ci.model_dump(mode="json") for ci in store.list_checklist_items(target_id=t.id)]
+        t_data["evidence"] = [ev.model_dump(mode="json") for ev in store.list_evidence(target_id=t.id)]
+        t_data["field_notes"] = [n.model_dump(mode="json") for n in store.list_notes(target_id=t.id)]
+        data["targets"].append(t_data)
+
+    return json.dumps(data, indent=2, default=str)
+
+
+def import_json(
+    store: NotebookStore,
+    json_content: Union[str, Dict[str, Any]],
+    workspace_name: Optional[str] = None,
+) -> Workspace:
+    """Import workspace data from JSON structure."""
+    if isinstance(json_content, str):
+        payload = json.loads(json_content)
+    else:
+        payload = json_content
+
+    ws_data = payload.get("workspace", {})
+    name = workspace_name or ws_data.get("name") or "imported_workspace"
+    desc = ws_data.get("description", "Imported assessment")
+
+    ws = store.get_or_create_workspace(name=name, description=desc)
+    store.set_active_workspace(ws.id)
+
+    # Import targets and children
+    for t_item in payload.get("targets", []):
+        t_notes = t_item.get("notes", "")
+        if not isinstance(t_notes, str):
+            t_notes = ""
+
+        target = store.add_target(
+            ip=t_item["ip"],
+            hostname=t_item.get("hostname", ""),
+            os_name=t_item.get("os", "Unknown"),
+            notes=t_notes,
+            workspace_id=ws.id,
+        )
+
+        for s in t_item.get("services", []):
+            store.add_service(
+                target_id=target.id,
+                port=s["port"],
+                protocol=s.get("protocol", "tcp"),
+                service=s.get("service", "unknown"),
+                version=s.get("version", ""),
+                status=s.get("status", "CHECKED"),
+                notes=s.get("notes", ""),
+            )
+
+        for f in t_item.get("findings", []):
+            store.add_finding(
+                title=f["title"],
+                target_id=target.id,
+                description=f.get("description", ""),
+                notes=f.get("notes", ""),
+                severity=f.get("severity"),
+            )
+
+        for c in t_item.get("credentials", []):
+            store.add_credential(
+                username=c["username"],
+                secret=c["secret"],
+                source=c.get("source", ""),
+                target_id=target.id,
+                service_scope=c.get("service_scope", ""),
+                status=c.get("status", "untested"),
+                notes=c.get("notes", ""),
+            )
+
+        for ci in t_item.get("checklist", []):
+            store.add_checklist_item(
+                title=ci["title"],
+                category=ci.get("category", "ENUMERATION"),
+                target_id=target.id,
+                status=ci.get("status", "TODO"),
+                notes=ci.get("notes", ""),
+            )
+
+        for ev in t_item.get("evidence", []):
+            store.add_evidence(
+                path_or_ref=ev["path_or_ref"],
+                target_id=target.id,
+                evidence_type=ev.get("evidence_type", "screenshot"),
+                description=ev.get("description", ""),
+            )
+
+        # Field notes of target (supports both 'field_notes' and legacy 'notes' list)
+        f_notes = t_item.get("field_notes", [])
+        if not f_notes and isinstance(t_item.get("notes"), list):
+            f_notes = t_item["notes"]
+        for n in f_notes:
+            store.add_note(
+                content=n["content"],
+                target_id=target.id,
+            )
+
+    # Global items
+    for f in payload.get("findings", []):
+        store.add_finding(
+            title=f["title"],
+            target_id=None,
+            description=f.get("description", ""),
+            notes=f.get("notes", ""),
+            severity=f.get("severity"),
+        )
+
+    for c in payload.get("credentials", []):
+        store.add_credential(
+            username=c["username"],
+            secret=c["secret"],
+            source=c.get("source", ""),
+            target_id=None,
+            service_scope=c.get("service_scope", ""),
+            status=c.get("status", "untested"),
+            notes=c.get("notes", ""),
+        )
+
+    for ld in payload.get("leads", []):
+        store.add_lead(
+            title=ld["title"],
+            target_id=None,
+            notes=ld.get("notes", ""),
+            status=ld.get("status", "open"),
+        )
+
+    for n in payload.get("notes", []):
+        store.add_note(
+            content=n["content"],
+            target_id=None,
+        )
+
+    return ws
