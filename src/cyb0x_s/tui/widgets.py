@@ -22,8 +22,9 @@ from cyb0x_s.models import (
     Target,
 )
 from cyb0x_s.search import SearchMatch, search_notebook
+from cyb0x_s.settings import derive_guidance_enabled
 from cyb0x_s.templates import get_template_guidance_for_title
-from cyb0x_s.tui.theme import S, current_palette
+from cyb0x_s.tui.theme import PALETTES, S, current_palette, mix, ramp
 
 
 def substitute_command_placeholders(command: str, target_ip: str = "") -> str:
@@ -225,6 +226,20 @@ class MachineStatusStrip(Static):
         t.append(value, style=f"bold {colour}")
         t.append("  ", style="")
 
+    @staticmethod
+    def _progress_bar(pct: int, width: int, P: Any) -> Text:
+        """A rising gradient bar — brighter where you are, dim where you began."""
+        filled = int(round(width * pct / 100))
+        shades = ramp(P.ok, filled, dim_towards=P.surface, floor=0.35) if filled else []
+        empty = mix(P.border, P.surface, 0.55)
+
+        bar = Text()
+        for i in range(filled):
+            bar.append("\u2588", style=f"bold {shades[i]}")
+        if filled < width:
+            bar.append("\u2591" * (width - filled), style=empty)
+        return bar
+
     def render(self) -> Text:
         P = current_palette()
         t = Text()
@@ -291,9 +306,8 @@ class MachineStatusStrip(Static):
             row2.append("press 'm' to load a methodology template", style=f"{P.muted}")
 
         if total:
-            bar_len = 10
-            filled = int(bar_len * done / total) if total else 0
-            row2.append("   " + "█" * filled + "░" * (bar_len - filled), style=f"{P.ok}")
+            row2.append("   ")
+            row2.append_text(self._progress_bar(pct, 12, P))
             row2.append(f" {pct:>3d}% ({done}/{total})", style=f"{P.text_soft}")
 
         tail = f"🕳 {self.blockers} dead end" + ("s" if self.blockers != 1 else "") if self.blockers else "no blockers"
@@ -513,6 +527,143 @@ class ConfirmModal(ModalScreen[bool]):
             self.dismiss(False)
         elif event.key in ("y", "Y", "enter"):
             self.dismiss(True)
+
+
+class ThemeSwatch(Static):
+    """One row in the theme picker: colour strip, name, vibe, contrast."""
+
+    DEFAULT_CSS = """
+    ThemeSwatch {
+        height: 3;
+        padding: 0 1;
+    }
+    ThemeSwatch.selected {
+        background: $surface-lighten-1;
+    }
+    """
+
+    def __init__(self, palette_name: str, palette_label: str) -> None:
+        super().__init__(id=f"theme-{palette_name}")
+        self.palette_name = palette_name
+        self.palette_label = palette_label
+
+    def render(self) -> Text:
+        palette = PALETTES[self.palette_name]
+        active = current_palette().name == palette.name
+
+        out = Text()
+        if active:
+            out.append(" ● ", style=f"bold {palette.accent}")
+        else:
+            out.append(" ○ ", style=palette.muted)
+
+        # colour strip — the palette's own hues, so rows look like themselves
+        for _label, colour in palette.swatch():
+            out.append("███", style=f"on {colour}")
+
+        out.append("  ")
+        out.append(f"{palette.name:<10}", style=f"bold {palette.text}")
+        out.append(palette.label.split("·", 1)[-1].strip(), style=palette.text_soft)
+
+        ratio = palette.contrast_ratio()
+        grade = "AAA" if ratio >= 7 else ("AA" if ratio >= 4.5 else "low")
+        out.append("   ")
+        out.append(f"{ratio:4.1f}:1", style=palette.muted)
+        out.append(f" {grade}", style=palette.ok if ratio >= 7 else palette.warn)
+        if active:
+            out.append("   active", style=f"bold {palette.accent}")
+        return out
+
+
+class ThemePickerModal(ModalScreen[str]):
+    """Pick a palette with a live preview: moving the cursor applies it."""
+
+    DEFAULT_CSS = """
+    ThemePickerModal {
+        align: center middle;
+        background: rgba(6, 9, 12, 0.72);
+    }
+
+    #theme-picker-box {
+        width: 76;
+        height: auto;
+        max-height: 90%;
+        border: round $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    #theme-picker-title {
+        width: 100%;
+        padding: 0 0 1 0;
+        color: $accent;
+        text-style: bold;
+    }
+
+    #theme-picker-list {
+        height: auto;
+        max-height: 24;
+        background: transparent;
+        border: none;
+    }
+
+    #theme-picker-list > ListItem {
+        padding: 0;
+    }
+
+    #theme-picker-hint {
+        width: 100%;
+        padding: 1 0 0 0;
+        color: $text-soft;
+    }
+    """
+
+    def __init__(self, current: str) -> None:
+        super().__init__()
+        self.original = current
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="theme-picker-box"):
+            yield Label("◈  THEME — move the cursor to preview, Enter to keep", id="theme-picker-title")
+            yield ListView(
+                *[
+                    ListItem(ThemeSwatch(name, palette.label))
+                    for name, palette in PALETTES.items()
+                ],
+                id="theme-picker-list",
+            )
+            yield Label(
+                "↑↓/j/k move     Enter keep     Esc cancel     T re-open",
+                id="theme-picker-hint",
+            )
+
+    def on_mount(self) -> None:
+        names = list(PALETTES)
+        index = names.index(self.original) if self.original in names else 0
+        self.query_one("#theme-picker-list", ListView).index = index
+        self.query_one("#theme-picker-list", ListView).focus()
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        """Live preview: apply the palette the cursor is sitting on."""
+        for row in self.query(ThemeSwatch):
+            row.set_class(row.palette_name == current_palette().name, "selected")
+        if event.item is None:
+            return
+        rows = event.item.query(ThemeSwatch)
+        if not rows:
+            return
+        name = rows[0].palette_name
+        if name != current_palette().name:
+            self.app.apply_theme(name, quiet=True)  # type: ignore[attr-defined]
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            event.stop()
+            self.app.apply_theme(self.original)  # type: ignore[attr-defined]
+            self.dismiss(self.original)
+        elif event.key == "enter":
+            event.stop()
+            self.dismiss(current_palette().name)
 
 
 class SearchModal(ModalScreen):
@@ -817,11 +968,12 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
             yield Label("Initial Access Potential:", classes="field-label")
             yield Select(
                 [
+                    ("— not rated —", ""),
                     ("HIGH (Direct RCE / Credentials / Easy Win)", "HIGH"),
                     ("MED (Enumeration / Brute-force)", "MED"),
                     ("LOW (Informational / Hardened)", "LOW"),
                 ],
-                value="HIGH",
+                value="",
                 id="svc-potential",
             )
 
@@ -844,6 +996,9 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
                 self.query_one("#svc-port", Input).value = port
                 self.query_one("#svc-proto", Select).value = proto
                 self.query_one("#svc-name", Input).value = name.upper()
+                if not derive_guidance_enabled():
+                    # Exam-safe: don't auto-fill a rating or a next command.
+                    return
                 self.query_one("#svc-potential", Select).value = pot
                 if self.target_ip:
                     nxt = nxt.replace("<TARGET_IP>", self.target_ip)
@@ -869,7 +1024,7 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
         proto = str(self.query_one("#svc-proto", Select).value or "tcp")
         name = self.query_one("#svc-name", Input).value.strip() or "unknown"
         ver = self.query_one("#svc-ver", Input).value.strip()
-        pot = str(self.query_one("#svc-potential", Select).value or "MED")
+        pot = str(self.query_one("#svc-potential", Select).value or "")
         nxt = self.query_one("#svc-next", Input).value.strip()
 
         self.dismiss({
