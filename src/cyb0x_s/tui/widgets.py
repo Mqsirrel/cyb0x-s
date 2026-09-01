@@ -72,14 +72,32 @@ class TargetInfoPanel(Static):
         t = Text()
         if self.target:
             t.append("● ", style="bold green")
+            scope_style = "bold green" if self.target.is_in_scope else "bold red"
+            scope_txt = "[IN-SCOPE] " if self.target.is_in_scope else "[OUT-OF-SCOPE] "
+            t.append(scope_txt, style=scope_style)
             t.append("TARGET: ", style="bold magenta")
             t.append(self.target.ip, style="bold white")
             if self.target.hostname:
                 t.append(f" ({self.target.hostname})", style="cyan")
             if self.target.os and self.target.os != "Unknown":
                 t.append(f" [{self.target.os}]", style="dim")
-            if self.target.notes:
-                t.append(f"  •  {self.target.notes}", style="dim italic")
+
+            # Flags indicators
+            t.append("  │  ", style="dim")
+            if self.target.user_flag:
+                t.append("🏁 User: ", style="bold green")
+                t.append(self.target.user_flag[:15] + ("..." if len(self.target.user_flag) > 15 else "") + " ", style="white")
+            else:
+                t.append("🏁 User: [ ] ", style="dim")
+
+            if self.target.root_flag:
+                t.append("👑 Root: ", style="bold yellow")
+                t.append(self.target.root_flag[:15] + ("..." if len(self.target.root_flag) > 15 else "") + " ", style="bold white")
+            else:
+                t.append("👑 Root: [ ] ", style="dim")
+
+            if self.target.initial_access_vuln:
+                t.append(f" │ ⚡ {self.target.initial_access_vuln}", style="bold cyan")
         else:
             t.append("○ ", style="dim yellow")
             t.append("TARGET: ", style="bold yellow")

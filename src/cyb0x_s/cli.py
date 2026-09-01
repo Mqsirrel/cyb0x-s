@@ -616,6 +616,90 @@ def ws_create(ctx: click.Context, name: str, desc: str) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Flags, Footholds, PrivEsc & Failure Log (Notion Alignment)
+# -----------------------------------------------------------------------------
+
+@cli.command("flag")
+@click.argument("flag_type", type=click.Choice(["user", "root", "u", "r"], case_sensitive=False))
+@click.argument("value")
+@click.option("--target", "-t", default=None, help="Target IP or ID")
+@click.pass_context
+def flag_cmd(ctx: click.Context, flag_type: str, value: str, target: Optional[str]) -> None:
+    """Record a captured user or root flag (e.g. cyb0x-s flag user eJPT{hash})."""
+    store = _get_store(ctx)
+    t = store.resolve_target(target)
+    if not t:
+        err_console.print("[red]Error: No target specified and no active target set.[/red]")
+        sys.exit(1)
+    is_user = flag_type.lower() in ("user", "u")
+    if is_user:
+        store.update_target_details(t.id, user_flag=value)
+        console.print(f"[green]✓ Recorded user flag on {t.ip}:[/green] [bold cyan]{value}[/bold cyan]")
+    else:
+        store.update_target_details(t.id, root_flag=value)
+        console.print(f"[green]✓ Recorded root flag on {t.ip}:[/green] [bold yellow]{value}[/bold yellow]")
+
+
+@cli.command("foothold")
+@click.option("--vuln", default="", help="Vulnerability / CVE exploited")
+@click.option("--cmd", default="", help="Exploit command executed")
+@click.option("--context", default="", help="User context obtained (e.g. www-data)")
+@click.option("--target", "-t", default=None, help="Target IP or ID")
+@click.pass_context
+def foothold_cmd_cli(ctx: click.Context, vuln: str, cmd: str, context: str, target: Optional[str]) -> None:
+    """Record initial foothold exploitation details."""
+    store = _get_store(ctx)
+    t = store.resolve_target(target)
+    if not t:
+        err_console.print("[red]Error: No target specified and no active target set.[/red]")
+        sys.exit(1)
+    store.update_target_details(t.id, initial_access_vuln=vuln, foothold_cmd=cmd, foothold_context=context)
+    console.print(f"[green]✓ Recorded initial foothold on {t.ip}[/green]")
+
+
+@cli.command("privesc")
+@click.option("--vector", default="", help="Privilege escalation vector")
+@click.option("--proof", default="", help="Root proof command (e.g. whoami && id && ip a)")
+@click.option("--target", "-t", default=None, help="Target IP or ID")
+@click.pass_context
+def privesc_cmd_cli(ctx: click.Context, vector: str, proof: str, target: Optional[str]) -> None:
+    """Record privilege escalation details and root proof."""
+    store = _get_store(ctx)
+    t = store.resolve_target(target)
+    if not t:
+        err_console.print("[red]Error: No target specified and no active target set.[/red]")
+        sys.exit(1)
+    store.update_target_details(t.id, privesc_vector=vector, root_proof=proof)
+    console.print(f"[green]✓ Recorded privilege escalation on {t.ip}[/green]")
+
+
+@cli.command("stuck")
+@click.option("--stuck", "where_stuck", default="", help="Where did you get stuck / false path?")
+@click.option("--clue", "breakthrough_clue", default="", help="What clue or finding unlocked the box?")
+@click.option("--rule", "rule_for_next_time", default="", help="Permanent takeaway / rule for next time")
+@click.option("--target", "-t", default=None, help="Target IP or ID")
+@click.pass_context
+def failure_cmd_cli(
+    ctx: click.Context,
+    where_stuck: str,
+    breakthrough_clue: str,
+    rule_for_next_time: str,
+    target: Optional[str],
+) -> None:
+    """Record breakthrough and rabbit hole analysis (Failure Log)."""
+    store = _get_store(ctx)
+    t = store.resolve_target(target)
+    t_id = t.id if t else None
+    store.add_failure_log(
+        target_id=t_id,
+        where_stuck=where_stuck,
+        breakthrough_clue=breakthrough_clue,
+        rule_for_next_time=rule_for_next_time,
+    )
+    console.print("[green]✓ Recorded breakthrough & rabbit hole analysis entry[/green]")
+
+
+# -----------------------------------------------------------------------------
 # Interactive TUI launcher
 # -----------------------------------------------------------------------------
 

@@ -200,27 +200,36 @@ cyb0x-s tui
 | Key | Action |
 |---|---|
 | `Tab` / `Shift+Tab` | Cycle focus between panels |
-| `j` / `k` or `↑` / `↓` | Navigate items in list |
-| `y` | Copy selected item (IP, port, secret, note text) to clipboard |
+| `j` / `k` or `↑` / `↓` | Navigate items in list (updates Live Guidance Drawer dynamically) |
+| `Enter` | Copy recommended command for highlighted checklist item to clipboard |
+| `y` | Copy selected item (Next Action, IP:port, secret, note text) to clipboard |
 | `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or toggle password reveal |
+| `z` | **Toggle Fullscreen Zoom** on focused panel |
+| `g` | **Record Captured Flags** (`user.txt` and `root.txt`) for active target |
 | `/` or `Ctrl+F` | Open global search modal |
 | `t` | Add target |
-| `s` | Add service to active target |
+| `s` | Add service to active target (with Access Potential & Next Action) |
 | `f` | Record finding |
 | `c` | Record credential |
 | `n` | Add field note |
-| `k` | Add checklist item |
-| `m` | Apply static checklist template (`linux`, `windows`, `web`, `smb`, `privesc`, `pivoting`) |
+| `k` | Add custom checklist item |
+| `m` | Open interactive template picker (eJPTv2, pivoting, web, smb, privesc) |
 | `d` | Delete highlighted item |
 | `?` | View help and shortcut reference |
 | `q` | Exit CYB0X-S |
 
 ### Quick Command Bar (Bottom of TUI)
 You can also type single-line commands into the bottom input field:
-* `:n <text>` — Record a note
+* `:uflag <hash>` — Record user flag (`user.txt`)
+* `:rflag <hash>` — Record root flag (`root.txt`)
+* `:foothold <vuln>` — Record initial access vulnerability
+* `:privesc <vector>` — Record privilege escalation vector
+* `:stuck <reason>` — Record rabbit hole / dead end (Failure Log)
+* `:clue <breakthrough>` — Record breakthrough finding that unlocked the machine
+* `:s <port/proto> <service>` — Record a service
+* `:n <text>` — Record a field note
 * `:f <text>` — Record a finding
 * `:c <user:pass>` — Record a credential
-* `:s <port/proto> <service>` — Record a service
 * `:t <ip>` — Record a new target
 * `:q` — Quit
 

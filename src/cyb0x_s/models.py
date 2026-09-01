@@ -96,6 +96,14 @@ class Target(BaseModel):
     hostname: str = ""
     os: str = "Unknown"
     notes: str = ""
+    initial_access_vuln: str = ""
+    foothold_cmd: str = ""
+    foothold_context: str = ""
+    privesc_vector: str = ""
+    root_proof: str = ""
+    user_flag: str = ""
+    root_flag: str = ""
+    is_in_scope: bool = True
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
@@ -108,8 +116,21 @@ class Service(BaseModel):
     protocol: str = "tcp"
     service: str = "unknown"
     version: str = ""
+    access_potential: str = "MED"  # HIGH, MED, LOW, INFO
+    next_action: str = ""          # Immediate command or methodology step (e.g. gobuster...)
     status: ServiceStatus = ServiceStatus.CHECKED
     notes: str = ""
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class FailureLog(BaseModel):
+    """Record of rabbit holes, dead ends, and breakthrough discoveries (Notion Section 06)."""
+    id: Optional[int] = None
+    target_id: Optional[int] = None
+    where_stuck: str = ""        # What false path did I spend time on?
+    breakthrough_clue: str = ""  # What specific finding or command unlocked the box?
+    rule_for_next_time: str = "" # What will I check earlier next time to avoid this?
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
