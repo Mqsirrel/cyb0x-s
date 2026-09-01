@@ -130,3 +130,57 @@ def test_cli_search_and_export(cli_runner: CliRunner, temp_db_path: Path) -> Non
     assert res_export.exit_code == 0
     assert "# Target: 10.10.10.20" in res_export.output
     assert "archive.zip in backup share" in res_export.output
+
+
+def test_cli_flags_foothold_privesc_stuck(cli_runner: CliRunner, temp_db_path: Path) -> None:
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.30"])
+
+    # User flag
+    res_u = cli_runner.invoke(cli, ["--db", str(temp_db_path), "flag", "user", "eJPT{user_flag_123}"])
+    assert res_u.exit_code == 0
+    assert "Recorded user flag on 10.10.10.30" in res_u.output
+
+    # Root flag
+    res_r = cli_runner.invoke(cli, ["--db", str(temp_db_path), "flag", "root", "eJPT{root_flag_456}"])
+    assert res_r.exit_code == 0
+    assert "Recorded root flag on 10.10.10.30" in res_r.output
+
+    # Foothold
+    res_fh = cli_runner.invoke(
+        cli,
+        ["--db", str(temp_db_path), "foothold", "--vuln", "Tomcat Manager", "--cmd", "python3 exploit.py", "--context", "tomcat @ /opt/tomcat"],
+    )
+    assert res_fh.exit_code == 0
+    assert "Recorded initial foothold on 10.10.10.30" in res_fh.output
+
+    # PrivEsc
+    res_pe = cli_runner.invoke(
+        cli,
+        ["--db", str(temp_db_path), "privesc", "--vector", "sudo find", "--proof", "whoami && id && ip a"],
+    )
+    assert res_pe.exit_code == 0
+    assert "Recorded privilege escalation on 10.10.10.30" in res_pe.output
+
+    # Stuck / Failure log
+    res_st = cli_runner.invoke(
+        cli,
+        ["--db", str(temp_db_path), "stuck", "--stuck", "Spent 45 mins fuzzing /api", "--clue", "Found credentials in port 445 SMB share", "--rule", "Check SMB shares first"],
+    )
+    assert res_st.exit_code == 0
+    assert "Recorded breakthrough & rabbit hole analysis entry" in res_st.output
+
+    # Verify export includes all Notion-aligned sections
+    res_export = cli_runner.invoke(cli, ["--db", str(temp_db_path), "export", "--format", "md"])
+    assert res_export.exit_code == 0
+    assert "## 03 — Exploitation & Initial Foothold" in res_export.output
+    assert "Tomcat Manager" in res_export.output
+    assert "## 04 — Privilege Escalation" in res_export.output
+    assert "sudo find" in res_export.output
+    assert "## 05 — Captured Flags & Evidence" in res_export.output
+    assert "eJPT{user_flag_123}" in res_export.output
+    assert "eJPT{root_flag_456}" in res_export.output
+    assert "## 🧠 06 — Rabbit Hole & Breakthrough Analysis (Failure Log)" in res_export.output
+    assert "Spent 45 mins fuzzing /api" in res_export.output
+    assert "Found credentials in port 445 SMB share" in res_export.output
+    assert "Check SMB shares first" in res_export.output
+

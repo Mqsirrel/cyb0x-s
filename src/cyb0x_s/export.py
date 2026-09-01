@@ -41,26 +41,76 @@ def export_markdown(
 
     for target in targets:
         lines.append(f"# Target: {target.ip}")
-        meta_parts: List[str] = []
+        scope_tag = "IN-SCOPE" if target.is_in_scope else "OUT-OF-SCOPE"
+        meta_parts: List[str] = [f"`IP:` `{target.ip}`", f"`Scope:` `{scope_tag}`"]
         if target.hostname:
-            meta_parts.append(f"Hostname: `{target.hostname}`")
+            meta_parts.append(f"`Hostname:` `{target.hostname}`")
         if target.os and target.os != "Unknown":
-            meta_parts.append(f"OS: {target.os}")
-        if meta_parts:
-            lines.append(f"> {' | '.join(meta_parts)}")
+            meta_parts.append(f"`OS:` `{target.os}`")
+        lines.append(f"> **Target Scope:** {' | '.join(meta_parts)}")
         if target.notes:
-            lines.append(f"> Notes: {target.notes}")
+            lines.append(f"> **Notes:** {target.notes}")
         lines.append("")
 
-        # Services
+        # 01 — Services & Ports
         services = store.list_services(target_id=target.id)
         if services:
+            lines.append("## 01 — Open Ports & Discovered Services (Services)")
             lines.append("## Services")
             for s in services:
                 version_str = f" — {s.version}" if s.version else ""
                 status_str = f" [{s.status.value}]" if s.status.value != "CHECKED" else ""
+                pot_str = f" [{s.access_potential}]" if s.access_potential else ""
+                act_str = f" -> Next: `{s.next_action}`" if s.next_action else ""
                 notes_str = f" ({s.notes})" if s.notes else ""
-                lines.append(f"- {s.port}/{s.protocol} — {s.service}{version_str}{status_str}{notes_str}")
+                lines.append(f"- {s.port}/{s.protocol} — {s.service}{version_str}{pot_str}{status_str}{act_str}{notes_str}")
+            lines.append("")
+
+        # 02 — Credentials
+        creds = store.list_credentials(target_id=target.id)
+        if creds:
+            lines.append("## 02 — Discovered Credentials (Credentials)")
+            lines.append("## Credentials")
+            for c in creds:
+                secret_display = c.secret if reveal_creds else c.masked_secret
+                meta = []
+                if c.source:
+                    meta.append(f"Source: {c.source}")
+                if c.service_scope:
+                    meta.append(f"Scope: {c.service_scope}")
+                if c.status and c.status != "untested":
+                    meta.append(f"Status: {c.status}")
+                meta_str = f" ({', '.join(meta)})" if meta else ""
+                lines.append(f"- {c.username} : {secret_display}{meta_str}")
+            lines.append("")
+
+        # 03 — Exploitation & Initial Foothold
+        if target.initial_access_vuln or target.foothold_cmd or target.foothold_context:
+            lines.append("## 03 — Exploitation & Initial Foothold")
+            if target.initial_access_vuln:
+                lines.append(f"- **Attack Vector / CVE:** {target.initial_access_vuln}")
+            if target.foothold_cmd:
+                lines.append(f"- **Exploit Command / Tool:**\n```bash\n{target.foothold_cmd}\n```")
+            if target.foothold_context:
+                lines.append(f"- **Foothold Context:** `{target.foothold_context}`")
+            lines.append("")
+
+        # 04 — Privilege Escalation
+        if target.privesc_vector or target.root_proof:
+            lines.append("## 04 — Privilege Escalation")
+            if target.privesc_vector:
+                lines.append(f"- **PrivEsc Vector:** {target.privesc_vector}")
+            if target.root_proof:
+                lines.append(f"- **Root Shell Proof:**\n```bash\n{target.root_proof}\n```")
+            lines.append("")
+
+        # 05 — Captured Flags & Evidence
+        if target.user_flag or target.root_flag:
+            lines.append("## 05 — Captured Flags & Evidence")
+            if target.user_flag:
+                lines.append(f"- **User Flag (`user.txt`):** `{target.user_flag}`")
+            if target.root_flag:
+                lines.append(f"- **Root Flag (`root.txt`):** `{target.root_flag}`")
             lines.append("")
 
         # Findings
@@ -74,23 +124,6 @@ def export_markdown(
                     lines.append(f"  {f.description}")
                 if f.notes:
                     lines.append(f"  Note: {f.notes}")
-            lines.append("")
-
-        # Credentials
-        creds = store.list_credentials(target_id=target.id)
-        if creds:
-            lines.append("## Credentials")
-            for c in creds:
-                secret_display = c.secret if reveal_creds else c.masked_secret
-                meta = []
-                if c.source:
-                    meta.append(f"Source: {c.source}")
-                if c.service_scope:
-                    meta.append(f"Scope: {c.service_scope}")
-                if c.status and c.status != "untested":
-                    meta.append(f"Status: {c.status}")
-                meta_str = f" ({', '.join(meta)})" if meta else ""
-                lines.append(f"- {c.username} : {secret_display}{meta_str}")
             lines.append("")
 
         # Checklist
@@ -112,6 +145,19 @@ def export_markdown(
                     else ""
                 )
                 lines.append(f"- {box} {item.title}{status_suffix}")
+            lines.append("")
+
+        # Failure Log & Breakthroughs (Notion Section 06)
+        failures = store.list_failure_logs(target_id=target.id)
+        if failures:
+            lines.append("## 🧠 06 — Rabbit Hole & Breakthrough Analysis (Failure Log)")
+            for fl in failures:
+                if fl.where_stuck:
+                    lines.append(f"- **🕳️ Where I Got Stuck / Dead Ends:** {fl.where_stuck}")
+                if fl.breakthrough_clue:
+                    lines.append(f"- **🔑 Breakthrough Clue:** {fl.breakthrough_clue}")
+                if fl.rule_for_next_time:
+                    lines.append(f"- **📌 Permanent Rule for Next Time:** {fl.rule_for_next_time}")
             lines.append("")
 
         # Evidence

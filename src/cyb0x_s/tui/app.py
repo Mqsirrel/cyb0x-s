@@ -1,6 +1,7 @@
 """Main Textual application for CYB0X-S Worksheet.
 
 High-efficiency, keyboard-driven terminal field worksheet for security testing observations.
+Strictly passive: stores human-discovered data, never attacks or generates autonomous steps.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from cyb0x_s.models import (
     ChecklistStatus,
     Credential,
     Evidence,
+    FailureLog,
     Finding,
     Lead,
     Note,
@@ -54,6 +56,7 @@ class CyboxSafeApp(App):
         Binding("space", "toggle_selected", "Toggle", priority=True),
         Binding("enter", "activate_selected", "Action"),
         Binding("z", "toggle_zoom", "Zoom"),
+        Binding("g", "record_flags", "Flags", priority=True),
         Binding("slash", "open_search", "Search"),
         Binding("ctrl+f", "open_search", "Search"),
         Binding("t", "add_target", "Target"),
@@ -194,7 +197,7 @@ class CyboxSafeApp(App):
         with Horizontal(id="cmd-input-bar"):
             yield Label("[bold cyan]❯[/bold cyan] ", id="cmd-prompt")
             yield Input(
-                placeholder="Type quick command: :n note | :f finding | :s port/proto svc | :c user:pass | :t ip | / search...",
+                placeholder="Quick cmd: :s port/proto svc | :uflag <hash> | :rflag <hash> | :c user:pass | :n note | / search...",
                 id="cmd-input",
             )
         yield Footer()
@@ -269,7 +272,7 @@ class CyboxSafeApp(App):
         active_target = self.store.get_active_target()
         target_id = active_target.id if active_target else None
 
-        # 1. Services
+        # 1. Services & Ports (Notion 01 format with Potential and Next Action)
         svc_list = self.query_one("#list-services", ListView)
         svc_list.clear()
         services = self.store.list_services(target_id=target_id) if target_id else []
@@ -288,9 +291,15 @@ class CyboxSafeApp(App):
                 else:
                     txt.append("→ ", style="bold cyan")
                 txt.append(f"{s.port}/{s.protocol:<4} ", style="bold white")
-                txt.append(f"{s.service:<12} ", style="bold cyan")
+                txt.append(f"{s.service:<10} ", style="bold cyan")
+                if s.access_potential in ("HIGH", "CRITICAL"):
+                    txt.append(f"[{s.access_potential}] ", style="bold red")
+                elif s.access_potential == "LOW":
+                    txt.append("[LOW] ", style="dim")
                 if s.version:
                     txt.append(f"{s.version} ", style="bright_white")
+                if s.next_action:
+                    txt.append(f"→ `{s.next_action}` ", style="bold yellow")
                 if s.notes:
                     txt.append(f"({s.notes})", style="dim italic")
                 svc_list.append(DataListItem(data_obj=s, display_text=txt))
@@ -348,7 +357,6 @@ class CyboxSafeApp(App):
         total_items = len(items)
         pct = int((checked_count / total_items * 100)) if total_items > 0 else 0
 
-        # Render progress bar in header
         bar_len = 10
         filled = int(bar_len * (checked_count / total_items)) if total_items > 0 else 0
         bar_str = "█" * filled + "░" * (bar_len - filled)
@@ -375,22 +383,32 @@ class CyboxSafeApp(App):
             txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
             ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
-        # 5. Combined Field Notes, Evidence & Leads
+        # 5. Combined Field Notes, Evidence, Leads & Failure Log
         n_list = self.query_one("#list-notes", ListView)
         n_list.clear()
         notes = self.store.list_notes(target_id=target_id)
         evidences = self.store.list_evidence(target_id=target_id)
         leads = self.store.list_leads(target_id=target_id)
-        total_notes_ev = len(notes) + len(evidences) + len(leads)
+        failures = self.store.list_failure_logs(target_id=target_id)
+        total_notes_ev = len(notes) + len(evidences) + len(leads) + len(failures)
         self.query_one("#hdr-notes", Label).update(
             f"FIELD NOTES & EVIDENCE ({total_notes_ev})" if total_notes_ev else "FIELD NOTES & EVIDENCE"
         )
-        if notes or evidences or leads:
+        if notes or evidences or leads or failures:
             for n in notes:
                 txt = Text()
                 txt.append("📝 > ", style="bold magenta")
                 txt.append(n.content, style="white")
                 n_list.append(DataListItem(data_obj=n, display_text=txt))
+            for fl in failures:
+                txt = Text()
+                txt.append("🕳️ [DEAD-END] ", style="bold red")
+                txt.append(fl.where_stuck, style="white")
+                if fl.breakthrough_clue:
+                    txt.append(f" → 🔑 Clue: {fl.breakthrough_clue}", style="bold green")
+                if fl.rule_for_next_time:
+                    txt.append(f" (📌 Rule: {fl.rule_for_next_time})", style="dim italic")
+                n_list.append(DataListItem(data_obj=fl, display_text=txt))
             for ev in evidences:
                 txt = Text()
                 txt.append("📷 [EVID] ", style="bold cyan")
@@ -421,7 +439,6 @@ class CyboxSafeApp(App):
             if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 obj = item.data_obj
                 if isinstance(obj, ChecklistItem):
-                    # Enter on checklist item copies its recommended guidance command
                     active = self.store.get_active_target()
                     target_ip = active.ip if active else ""
                     guidance = get_template_guidance_for_title(obj.title)
@@ -434,7 +451,6 @@ class CyboxSafeApp(App):
                         self.notify(f"Copied command: {cmd}")
                         return
 
-        # Fallback to normal action
         self.action_copy_selected()
 
     def action_copy_selected(self) -> None:
@@ -443,6 +459,11 @@ class CyboxSafeApp(App):
         if isinstance(focused, ListView) and focused.highlighted_child:
             item = focused.highlighted_child
             if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
+                obj = item.data_obj
+                if isinstance(obj, Service) and obj.next_action:
+                    copy_to_clipboard(obj.next_action)
+                    self.notify(f"Copied Next Action: {obj.next_action}")
+                    return
                 active = self.store.get_active_target()
                 target_ip = active.ip if active else None
                 val = extract_copy_value(item.data_obj, target_ip=target_ip)
@@ -475,7 +496,6 @@ class CyboxSafeApp(App):
         """Toggle maximize/fullscreen view on the active panel."""
         focused = self.focused
         if self.is_zoomed and self.zoomed_widget:
-            # Restore normal layout
             self.zoomed_widget.remove_class("maximized")
             self.query_one("#col-left").styles.display = "block"
             self.query_one("#col-right").styles.display = "block"
@@ -484,7 +504,6 @@ class CyboxSafeApp(App):
             self.notify("Restored standard view")
             return
 
-        # Find closest parent panel-box
         curr = focused
         target_box = None
         while curr and curr != self:
@@ -498,6 +517,33 @@ class CyboxSafeApp(App):
             self.is_zoomed = True
             target_box.add_class("maximized")
             self.notify("Maximized panel (Press 'z' again to restore)")
+
+    def action_record_flags(self) -> None:
+        """Record user and root flags for active target."""
+        active = self.store.get_active_target()
+        if not active:
+            self.notify("Create or select a target first (Press 't')", severity="warning")
+            return
+
+        def on_result(data: Optional[dict]) -> None:
+            if data:
+                uflag = data.get("user", "").strip()
+                rflag = data.get("root", "").strip()
+                self.store.update_target_details(active.id, user_flag=uflag, root_flag=rflag)
+                self.refresh_targets()
+                self.refresh_all()
+                self.notify(f"Flags updated for {active.ip}")
+
+        self.push_screen(
+            FastInputModal(
+                title=f"Record Flags for {active.ip}",
+                fields=[
+                    ("user", "User Flag (user.txt)", active.user_flag),
+                    ("root", "Root Flag (root.txt)", active.root_flag),
+                ],
+            ),
+            callback=on_result,
+        )
 
     def action_delete_selected(self) -> None:
         """Delete highlighted item."""
@@ -520,6 +566,8 @@ class CyboxSafeApp(App):
                     self.store.delete_evidence(obj.id)
                 elif isinstance(obj, Lead):
                     self.store.delete_lead(obj.id)
+                elif isinstance(obj, FailureLog):
+                    self.store.delete_failure_log(obj.id)
                 self.notify("Item deleted")
                 self.refresh_all()
 
@@ -577,6 +625,8 @@ class CyboxSafeApp(App):
                         protocol=data.get("protocol", "tcp") or "tcp",
                         service=data.get("service", "unknown") or "unknown",
                         version=data.get("version", ""),
+                        access_potential=data.get("potential", "MED") or "MED",
+                        next_action=data.get("next", ""),
                         notes=data.get("notes", ""),
                     )
                     self.refresh_all()
@@ -592,6 +642,8 @@ class CyboxSafeApp(App):
                     ("protocol", "Protocol (tcp/udp)", "tcp"),
                     ("service", "Service Name (e.g. HTTP, SSH)", "HTTP"),
                     ("version", "Version / Banner", ""),
+                    ("potential", "Initial Access Potential (HIGH, MED, LOW)", "MED"),
+                    ("next", "Next Action / Command (e.g. gobuster)", ""),
                     ("notes", "Observations", ""),
                 ],
             ),
@@ -733,7 +785,42 @@ class CyboxSafeApp(App):
         active = self.store.get_active_target()
         target_id = active.id if active else None
 
-        if val.startswith(":n "):
+        if val.startswith(":uflag ") or val.startswith(":flag user "):
+            uflag = val.split(maxsplit=1)[1].replace("user ", "").strip()
+            if active:
+                self.store.update_target_details(active.id, user_flag=uflag)
+                self.refresh_targets()
+                self.notify(f"User flag saved: {uflag}")
+            else:
+                self.notify("No active target set", severity="error")
+        elif val.startswith(":rflag ") or val.startswith(":flag root "):
+            rflag = val.split(maxsplit=1)[1].replace("root ", "").strip()
+            if active:
+                self.store.update_target_details(active.id, root_flag=rflag)
+                self.refresh_targets()
+                self.notify(f"Root flag saved: {rflag}")
+            else:
+                self.notify("No active target set", severity="error")
+        elif val.startswith(":foothold "):
+            fh = val[10:].strip()
+            if active:
+                self.store.update_target_details(active.id, initial_access_vuln=fh)
+                self.refresh_targets()
+                self.notify(f"Foothold saved: {fh}")
+        elif val.startswith(":privesc "):
+            pe = val[9:].strip()
+            if active:
+                self.store.update_target_details(active.id, privesc_vector=pe)
+                self.notify(f"PrivEsc saved: {pe}")
+        elif val.startswith(":stuck ") or val.startswith(":dead "):
+            stuck_txt = val.split(maxsplit=1)[1].strip()
+            self.store.add_failure_log(target_id=target_id, where_stuck=stuck_txt)
+            self.notify(f"Dead-end logged: {stuck_txt}")
+        elif val.startswith(":clue "):
+            clue_txt = val[6:].strip()
+            self.store.add_failure_log(target_id=target_id, breakthrough_clue=clue_txt)
+            self.notify(f"Breakthrough clue logged: {clue_txt}")
+        elif val.startswith(":n "):
             note_text = val[3:].strip()
             self.store.add_note(content=note_text, target_id=target_id)
             self.notify(f"Note added: {note_text}")

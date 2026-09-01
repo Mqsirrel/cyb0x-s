@@ -18,6 +18,7 @@ from cyb0x_s.models import (
     CommandRecord,
     Credential,
     Evidence,
+    FailureLog,
     Finding,
     Lead,
     Note,
@@ -93,6 +94,26 @@ class NotebookStore:
                     "INSERT INTO settings (key, value) VALUES ('active_workspace', ?)",
                     (str(ws_id),),
                 )
+
+        # Non-destructive migrations for existing databases
+        migration_cols = [
+            ("targets", "initial_access_vuln", "TEXT DEFAULT ''"),
+            ("targets", "foothold_cmd", "TEXT DEFAULT ''"),
+            ("targets", "foothold_context", "TEXT DEFAULT ''"),
+            ("targets", "privesc_vector", "TEXT DEFAULT ''"),
+            ("targets", "root_proof", "TEXT DEFAULT ''"),
+            ("targets", "user_flag", "TEXT DEFAULT ''"),
+            ("targets", "root_flag", "TEXT DEFAULT ''"),
+            ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
+            ("services", "access_potential", "TEXT DEFAULT 'MED'"),
+            ("services", "next_action", "TEXT DEFAULT ''"),
+        ]
+        for tbl, col, ctype in migration_cols:
+            try:
+                with self.conn:
+                    self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {ctype};")
+            except Exception:
+                pass
 
     def close(self) -> None:
         """Close SQLite database connection."""
@@ -288,6 +309,8 @@ class NotebookStore:
         protocol: str = "tcp",
         service: str = "unknown",
         version: str = "",
+        access_potential: str = "MED",
+        next_action: str = "",
         status: Union[str, ServiceStatus] = ServiceStatus.CHECKED,
         notes: str = "",
     ) -> Service:
@@ -306,25 +329,29 @@ class NotebookStore:
             svc_id = row["id"]
             new_service = service if service != "unknown" else row["service"]
             new_version = version if version else row["version"]
+            new_pot = access_potential if access_potential != "MED" or not row.get("access_potential") else row["access_potential"]
+            new_act = next_action if next_action else (row["next_action"] if "next_action" in row.keys() else "")
             new_notes = notes if notes else row["notes"]
             with self.conn:
                 self.conn.execute(
                     """UPDATE services
-                       SET service = ?, version = ?, status = ?, notes = ?, updated_at = ?
+                       SET service = ?, version = ?, access_potential = ?, next_action = ?, status = ?, notes = ?, updated_at = ?
                        WHERE id = ?""",
-                    (new_service, new_version, stat_clean, new_notes, now, svc_id),
+                    (new_service, new_version, new_pot, new_act, stat_clean, new_notes, now, svc_id),
                 )
         else:
             with self.conn:
                 cur.execute(
-                    """INSERT INTO services (target_id, port, protocol, service, version, status, notes, created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT INTO services (target_id, port, protocol, service, version, access_potential, next_action, status, notes, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         target_id,
                         port,
                         proto_clean,
                         service.strip(),
                         version.strip(),
+                        access_potential.strip().upper(),
+                        next_action.strip(),
                         stat_clean,
                         notes.strip(),
                         now,
@@ -717,3 +744,82 @@ class NotebookStore:
             cur.execute("SELECT * FROM command_history ORDER BY id DESC LIMIT ?", (limit,))
         rows = cur.fetchall()
         return [CommandRecord(**dict(r)) for r in reversed(rows)]
+
+    # -------------------------------------------------------------------------
+    # Target Scope, Foothold, PrivEsc & Flags Helpers
+    # -------------------------------------------------------------------------
+
+    def update_target_details(
+        self,
+        target_id: int,
+        initial_access_vuln: Optional[str] = None,
+        foothold_cmd: Optional[str] = None,
+        foothold_context: Optional[str] = None,
+        privesc_vector: Optional[str] = None,
+        root_proof: Optional[str] = None,
+        user_flag: Optional[str] = None,
+        root_flag: Optional[str] = None,
+        is_in_scope: Optional[bool] = None,
+    ) -> Optional[Target]:
+        target = self.get_target(target_id)
+        if not target:
+            return None
+
+        new_vuln = initial_access_vuln if initial_access_vuln is not None else target.initial_access_vuln
+        new_cmd = foothold_cmd if foothold_cmd is not None else target.foothold_cmd
+        new_ctx = foothold_context if foothold_context is not None else target.foothold_context
+        new_priv = privesc_vector if privesc_vector is not None else target.privesc_vector
+        new_proof = root_proof if root_proof is not None else target.root_proof
+        new_uflag = user_flag if user_flag is not None else target.user_flag
+        new_rflag = root_flag if root_flag is not None else target.root_flag
+        new_scope = int(is_in_scope) if is_in_scope is not None else int(target.is_in_scope)
+        now = _iso_now()
+
+        with self.conn:
+            self.conn.execute(
+                """UPDATE targets
+                   SET initial_access_vuln = ?, foothold_cmd = ?, foothold_context = ?,
+                       privesc_vector = ?, root_proof = ?, user_flag = ?, root_flag = ?,
+                       is_in_scope = ?, updated_at = ?
+                   WHERE id = ?""",
+                (new_vuln, new_cmd, new_ctx, new_priv, new_proof, new_uflag, new_rflag, new_scope, now, target_id),
+            )
+        return self.get_target(target_id)
+
+    # -------------------------------------------------------------------------
+    # Failure Log & Breakthrough Tracking (Notion Section 06)
+    # -------------------------------------------------------------------------
+
+    def add_failure_log(
+        self,
+        target_id: Optional[int] = None,
+        where_stuck: str = "",
+        breakthrough_clue: str = "",
+        rule_for_next_time: str = "",
+    ) -> FailureLog:
+        now = _iso_now()
+        cur = self.conn.cursor()
+        with self.conn:
+            cur.execute(
+                """INSERT INTO failure_log (target_id, where_stuck, breakthrough_clue, rule_for_next_time, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (target_id, where_stuck.strip(), breakthrough_clue.strip(), rule_for_next_time.strip(), now, now),
+            )
+            log_id = cur.lastrowid
+        cur.execute("SELECT * FROM failure_log WHERE id = ?", (log_id,))
+        row = cur.fetchone()
+        return FailureLog(**dict(row))
+
+    def list_failure_logs(self, target_id: Optional[int] = None) -> List[FailureLog]:
+        cur = self.conn.cursor()
+        if target_id is not None:
+            cur.execute("SELECT * FROM failure_log WHERE target_id = ? ORDER BY id ASC", (target_id,))
+        else:
+            cur.execute("SELECT * FROM failure_log ORDER BY id ASC")
+        return [FailureLog(**dict(r)) for r in cur.fetchall()]
+
+    def delete_failure_log(self, log_id: int) -> bool:
+        with self.conn:
+            res = self.conn.execute("DELETE FROM failure_log WHERE id = ?", (log_id,))
+            return res.rowcount > 0
+

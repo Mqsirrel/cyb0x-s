@@ -26,6 +26,14 @@ CREATE TABLE IF NOT EXISTS targets (
     hostname TEXT DEFAULT '',
     os TEXT DEFAULT 'Unknown',
     notes TEXT DEFAULT '',
+    initial_access_vuln TEXT DEFAULT '',
+    foothold_cmd TEXT DEFAULT '',
+    foothold_context TEXT DEFAULT '',
+    privesc_vector TEXT DEFAULT '',
+    root_proof TEXT DEFAULT '',
+    user_flag TEXT DEFAULT '',
+    root_flag TEXT DEFAULT '',
+    is_in_scope INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -39,12 +47,25 @@ CREATE TABLE IF NOT EXISTS services (
     protocol TEXT NOT NULL DEFAULT 'tcp',
     service TEXT NOT NULL DEFAULT 'unknown',
     version TEXT DEFAULT '',
+    access_potential TEXT DEFAULT 'MED',
+    next_action TEXT DEFAULT '',
     status TEXT DEFAULT 'CHECKED',
     notes TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE,
     UNIQUE(target_id, port, protocol)
+);
+
+CREATE TABLE IF NOT EXISTS failure_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_id INTEGER,
+    where_stuck TEXT DEFAULT '',
+    breakthrough_clue TEXT DEFAULT '',
+    rule_for_next_time TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS findings (
