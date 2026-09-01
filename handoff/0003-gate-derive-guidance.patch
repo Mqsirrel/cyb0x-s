@@ -1,0 +1,365 @@
+From 2c3cc3037e51beca223de6ce2322b655719e9a99 Mon Sep 17 00:00:00 2001
+From: Mqsirrel <68720462+Mqsirrel@users.noreply.github.com>
+Date: Tue, 1 Sep 2026 23:01:37 +0000
+Subject: [PATCH] feat(settings): gate derive guidance behind an opt-in switch
+
+Make CYB0X-S match its passive promise by default: nothing is derived on
+import unless the operator opts in.
+
+- Add src/cyb0x_s/settings.py with derive_guidance_enabled() / set_derive_guidance()
+  / describe_derive_guidance(), reading CYB0X_DERIVE_GUIDANCE (off by default)
+  and a session override for the TUI toggle.
+- Gate derive_potential_and_next() so it returns ('', '') when disabled,
+  leaving access_potential and next_action blank on imported services.
+- Default access_potential to '' in the model, schema and store (was 'MED'),
+  and update the upsert logic to keep an existing rating unless overridden.
+- Wire a 'G' binding + action_toggle_derive_guidance() in the TUI.
+- Update parser tests for the gated default and add tests/test_settings.py.
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ README.md                |  2 ++
+ src/cyb0x_s/db/schema.py |  2 +-
+ src/cyb0x_s/db/store.py  | 10 ++++---
+ src/cyb0x_s/models.py    |  2 +-
+ src/cyb0x_s/parsers.py   | 13 +++++++-
+ src/cyb0x_s/settings.py  | 64 ++++++++++++++++++++++++++++++++++++++++
+ src/cyb0x_s/tui/app.py   | 13 +++++++-
+ tests/test_parsers.py    | 25 +++++++++++-----
+ tests/test_settings.py   | 55 ++++++++++++++++++++++++++++++++++
+ 9 files changed, 171 insertions(+), 15 deletions(-)
+ create mode 100644 src/cyb0x_s/settings.py
+ create mode 100644 tests/test_settings.py
+
+diff --git a/README.md b/README.md
+index e733e2a..161f07e 100644
+--- a/README.md
++++ b/README.md
+@@ -46,6 +46,7 @@ A fast, lightweight, keyboard-driven digital field notebook designed to replace
+ * **NO Automatic Credential Harvesting**: Does not scrape commands or outputs for passwords.
+ * **NO Command Generation**: Does not formulate exploit payloads or automated commands based on target ports.
+ * **NO Behavioral Monitoring / Hidden Logic**: Completely transparent, local-first code that does exactly what the operator types.
++* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `CYB0X_DERIVE_GUIDANCE=1` or press **`G`** in the TUI, so `access_potential` stays blank on imported services unless you ask CYB0X-S to derive it.
+ 
+ ---
+ 
+@@ -291,6 +292,7 @@ Below 110 columns the workbench stacks into a single column so rows stay readabl
+ | `m` | Methodology template picker |
+ | `d` | Delete highlighted item (asks for confirmation) |
+ | `T` | Cycle theme |
++| `G` | Toggle derive guidance (auto access-potential / next-step) — **off** by default |
+ | `?` | Help and shortcut reference |
+ | `q` | Exit CYB0X-S |
+ 
+diff --git a/src/cyb0x_s/db/schema.py b/src/cyb0x_s/db/schema.py
+index 390c401..14a08b2 100644
+--- a/src/cyb0x_s/db/schema.py
++++ b/src/cyb0x_s/db/schema.py
+@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS services (
+     protocol TEXT NOT NULL DEFAULT 'tcp',
+     service TEXT NOT NULL DEFAULT 'unknown',
+     version TEXT DEFAULT '',
+-    access_potential TEXT DEFAULT 'MED',
++    access_potential TEXT DEFAULT '',
+     next_action TEXT DEFAULT '',
+     status TEXT DEFAULT 'CHECKED',
+     notes TEXT DEFAULT '',
+diff --git a/src/cyb0x_s/db/store.py b/src/cyb0x_s/db/store.py
+index 68ad649..eefcf94 100644
+--- a/src/cyb0x_s/db/store.py
++++ b/src/cyb0x_s/db/store.py
+@@ -105,7 +105,7 @@ class NotebookStore:
+             ("targets", "user_flag", "TEXT DEFAULT ''"),
+             ("targets", "root_flag", "TEXT DEFAULT ''"),
+             ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
+-            ("services", "access_potential", "TEXT DEFAULT 'MED'"),
++            ("services", "access_potential", "TEXT DEFAULT ''"),
+             ("services", "next_action", "TEXT DEFAULT ''"),
+         ]
+         for tbl, col, ctype in migration_cols:
+@@ -348,7 +348,7 @@ class NotebookStore:
+                         protocol=proto,
+                         service=s.get("name", "unknown"),
+                         version=s.get("version", ""),
+-                        access_potential=s.get("access_potential", "MED"),
++                        access_potential=s.get("access_potential", ""),
+                         next_action=s.get("next_action", ""),
+                         status=ServiceStatus.CHECKED,
+                     )
+@@ -367,7 +367,7 @@ class NotebookStore:
+         protocol: str = "tcp",
+         service: str = "unknown",
+         version: str = "",
+-        access_potential: str = "MED",
++        access_potential: str = "",
+         next_action: str = "",
+         status: Union[str, ServiceStatus] = ServiceStatus.CHECKED,
+         notes: str = "",
+@@ -387,7 +387,9 @@ class NotebookStore:
+             svc_id = row["id"]
+             new_service = service if service != "unknown" else row["service"]
+             new_version = version if version else row["version"]
+-            new_pot = access_potential if access_potential != "MED" or not row.get("access_potential") else row["access_potential"]
++            # Blank means "not rated": keep any existing rating unless the caller
++            # explicitly supplies a new (non-empty) one.
++            new_pot = access_potential or (row.get("access_potential") or "")
+             new_act = next_action if next_action else (row["next_action"] if "next_action" in row.keys() else "")
+             new_notes = notes if notes else row["notes"]
+             with self.conn:
+diff --git a/src/cyb0x_s/models.py b/src/cyb0x_s/models.py
+index 4b4ed02..e59f215 100644
+--- a/src/cyb0x_s/models.py
++++ b/src/cyb0x_s/models.py
+@@ -116,7 +116,7 @@ class Service(BaseModel):
+     protocol: str = "tcp"
+     service: str = "unknown"
+     version: str = ""
+-    access_potential: str = "MED"  # HIGH, MED, LOW, INFO
++    access_potential: str = ""  # HIGH, MED, LOW, INFO; blank = not rated
+     next_action: str = ""          # Immediate command or methodology step (e.g. gobuster...)
+     status: ServiceStatus = ServiceStatus.CHECKED
+     notes: str = ""
+diff --git a/src/cyb0x_s/parsers.py b/src/cyb0x_s/parsers.py
+index dcbf9f6..5ea54cc 100644
+--- a/src/cyb0x_s/parsers.py
++++ b/src/cyb0x_s/parsers.py
+@@ -11,9 +11,20 @@ import xml.etree.ElementTree as ET
+ from pathlib import Path
+ from typing import Any, Dict, List, Optional, Union
+ 
++from cyb0x_s.settings import derive_guidance_enabled
++
+ 
+ def derive_potential_and_next(service_name: str, port: int, target_ip: str = "") -> tuple[str, str]:
+-    """Derive initial access potential (HIGH/MED/LOW) and tactical next action."""
++    """Derive initial access potential (HIGH/MED/LOW) and tactical next action.
++
++    Derivation is **gated behind ``derive_guidance_enabled()``**, which is off by
++    default (see :mod:`cyb0x_s.settings`). When disabled this returns
++    ``("", "")`` so CYB0X-S never classifies a recorded service or proposes a
++    next step on its own.
++    """
++    if not derive_guidance_enabled():
++        return "", ""
++
+     s = service_name.lower().strip()
+     ip_str = target_ip or "<TARGET_IP>"
+     
+diff --git a/src/cyb0x_s/settings.py b/src/cyb0x_s/settings.py
+new file mode 100644
+index 0000000..3c1eef1
+--- /dev/null
++++ b/src/cyb0x_s/settings.py
+@@ -0,0 +1,64 @@
++"""Runtime switches that control how much CYB0X-S derives on its own.
++
++CYB0X-S is a *passive* notebook. Some convenience helpers would make it do more
++than record: rating a newly imported service (``HIGH``/``MED``/``LOW`` "access
++potential") and pre-filling a suggested command for it are both derived from
++data you captured during an assessment.
++
++They are genuinely useful in a practice lab, so they still exist — but they are
++**off by default**. With them off the tool never classifies what you recorded
++and never proposes a next step; it only stores, organises, searches and exports
++what you typed, and looks up references when *you* ask for them.
++
++Enable them explicitly with::
++
++    export CYB0X_DERIVE_GUIDANCE=1      # shell / shell profile
++    CYB0X_DERIVE_GUIDANCE=1 cyb0x-s     # single run
++
++or press ``G`` inside the TUI to toggle for the current session.
++
++This module is deliberately dependency-free and side-effect free at import time
++(apart from reading the environment once).
++"""
++
++from __future__ import annotations
++
++import os
++from typing import Optional
++
++ENV_VAR = "CYB0X_DERIVE_GUIDANCE"
++
++_TRUTHY = {"1", "true", "yes", "on", "enabled"}
++_FALSY = {"0", "false", "no", "off", "disabled", ""}
++
++# Session-level override, set by set_derive_guidance() (e.g. the TUI toggle).
++_override: Optional[bool] = None
++
++
++def _from_env() -> bool:
++    raw = os.environ.get(ENV_VAR, "")
++    return raw.strip().lower() in _TRUTHY
++
++
++def derive_guidance_enabled() -> bool:
++    """True when CYB0X-S may derive ratings/suggestions from recorded data.
++
++    Default: **False** (exam-safe posture).
++    """
++    if _override is not None:
++        return _override
++    return _from_env()
++
++
++def set_derive_guidance(enabled: Optional[bool]) -> None:
++    """Override the environment for the current process/session.
++
++    Pass ``None`` to fall back to the environment variable.
++    """
++    global _override
++    _override = None if enabled is None else bool(enabled)
++
++
++def describe_derive_guidance() -> str:
++    """Short human-readable state, for UI notifications and exports."""
++    return "on" if derive_guidance_enabled() else "off"
+diff --git a/src/cyb0x_s/tui/app.py b/src/cyb0x_s/tui/app.py
+index d1fe716..b7c366e 100644
+--- a/src/cyb0x_s/tui/app.py
++++ b/src/cyb0x_s/tui/app.py
+@@ -46,6 +46,11 @@ from cyb0x_s.templates import (
+     get_guidance_for_service,
+     get_template_guidance_for_title,
+ )
++from cyb0x_s.settings import (
++    describe_derive_guidance,
++    derive_guidance_enabled,
++    set_derive_guidance,
++)
+ from cyb0x_s.tui.theme import (
+     APP_CSS,
+     DEFAULT_PALETTE,
+@@ -114,6 +119,7 @@ class CyboxSafeApp(App):
+         Binding("m", "apply_template", "Template", show=False),
+         Binding("d", "delete_selected", "Delete", show=False),
+         Binding("T", "cycle_theme", "Theme", show=False),
++        Binding("G", "toggle_derive_guidance", "Guide", show=False),
+     ]
+ 
+     CSS = APP_CSS
+@@ -756,6 +762,11 @@ class CyboxSafeApp(App):
+         self.refresh_all()
+         self.notify(f"Theme: {palette.label}")
+ 
++    def action_toggle_derive_guidance(self) -> None:
++        """Toggle on/off whether CYB0X-S derives ratings/next-steps (off = safe)."""
++        set_derive_guidance(not derive_guidance_enabled())
++        self.notify(f"Derive guidance: {describe_derive_guidance()}")
++
+     def action_show_reference(self) -> None:
+         """Open searchable cheat sheet and command reference modal."""
+         active = self.store.get_active_target()
+@@ -901,7 +912,7 @@ class CyboxSafeApp(App):
+                         protocol=data.get("protocol", "tcp") or "tcp",
+                         service=data.get("service", "unknown") or "unknown",
+                         version=data.get("version", ""),
+-                        access_potential=data.get("potential", "MED") or "MED",
++                        access_potential=data.get("potential", "") or "",
+                         next_action=data.get("next", ""),
+                     )
+                     self.refresh_targets()
+diff --git a/tests/test_parsers.py b/tests/test_parsers.py
+index beb4996..bf2b2b4 100644
+--- a/tests/test_parsers.py
++++ b/tests/test_parsers.py
+@@ -2,16 +2,27 @@
+ 
+ import pytest
+ from cyb0x_s.parsers import parse_nmap_xml, parse_nmap_gnmap, parse_netexec_output, derive_potential_and_next
++from cyb0x_s.settings import set_derive_guidance
+ 
+ 
+-def test_derive_potential_and_next() -> None:
+-    pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20")
+-    assert pot == "HIGH"
+-    assert "10.10.10.20" in nxt
++def test_derive_potential_and_next_gated_off_by_default() -> None:
++    """Nothing is derived unless the operator opts in (default: exam-safe)."""
++    assert derive_potential_and_next("smb", 445, "10.10.10.20") == ("", "")
++    assert derive_potential_and_next("http", 80, "10.10.10.20") == ("", "")
+ 
+-    pot_http, nxt_http = derive_potential_and_next("http", 80, "10.10.10.20")
+-    assert pot_http == "HIGH"
+-    assert "feroxbuster" in nxt_http
++
++def test_derive_potential_and_next_when_enabled() -> None:
++    set_derive_guidance(True)
++    try:
++        pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20")
++        assert pot == "HIGH"
++        assert "10.10.10.20" in nxt
++
++        pot_http, nxt_http = derive_potential_and_next("http", 80, "10.10.10.20")
++        assert pot_http == "HIGH"
++        assert "feroxbuster" in nxt_http
++    finally:
++        set_derive_guidance(None)
+ 
+ 
+ def test_parse_nmap_xml_string() -> None:
+diff --git a/tests/test_settings.py b/tests/test_settings.py
+new file mode 100644
+index 0000000..9b132b1
+--- /dev/null
++++ b/tests/test_settings.py
+@@ -0,0 +1,55 @@
++"""Tests for the derive-guidance runtime gate (`cyb0x_s.settings`)."""
++
++import pytest
++
++from cyb0x_s.settings import (
++    ENV_VAR,
++    describe_derive_guidance,
++    derive_guidance_enabled,
++    set_derive_guidance,
++)
++
++
++@pytest.fixture(autouse=True)
++def _reset_override(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.delenv(ENV_VAR, raising=False)
++    set_derive_guidance(None)
++    yield
++    set_derive_guidance(None)
++
++
++def test_off_by_default_when_env_unset() -> None:
++    assert derive_guidance_enabled() is False
++
++
++@pytest.mark.parametrize("truthy", ["1", "true", "yes", "on", "enabled", " True "])
++def test_env_truthy(monkeypatch: pytest.MonkeyPatch, truthy: str) -> None:
++    monkeypatch.setenv(ENV_VAR, truthy)
++    assert derive_guidance_enabled() is True
++
++
++@pytest.mark.parametrize("falsy", ["0", "false", "no", "off", "disabled"])
++def test_env_falsy(monkeypatch: pytest.MonkeyPatch, falsy: str) -> None:
++    monkeypatch.setenv(ENV_VAR, falsy)
++    assert derive_guidance_enabled() is False
++
++
++def test_override_wins_and_clears(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setenv(ENV_VAR, "1")
++    assert derive_guidance_enabled() is True
++
++    set_derive_guidance(False)
++    assert derive_guidance_enabled() is False
++
++    set_derive_guidance(None)
++    assert derive_guidance_enabled() is True
++
++
++def test_describe_and_coercion() -> None:
++    set_derive_guidance(True)
++    assert describe_derive_guidance() == "on"
++    assert derive_guidance_enabled() is True
++
++    set_derive_guidance(0)
++    assert derive_guidance_enabled() is False
++    assert describe_derive_guidance() == "off"
+-- 
+2.39.5
+

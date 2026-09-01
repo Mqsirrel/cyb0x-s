@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS services (
     protocol TEXT NOT NULL DEFAULT 'tcp',
     service TEXT NOT NULL DEFAULT 'unknown',
     version TEXT DEFAULT '',
-    access_potential TEXT DEFAULT 'MED',
+    access_potential TEXT DEFAULT '',
     next_action TEXT DEFAULT '',
     status TEXT DEFAULT 'CHECKED',
     notes TEXT DEFAULT '',

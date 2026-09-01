@@ -46,6 +46,11 @@ from cyb0x_s.templates import (
     get_guidance_for_service,
     get_template_guidance_for_title,
 )
+from cyb0x_s.settings import (
+    describe_derive_guidance,
+    derive_guidance_enabled,
+    set_derive_guidance,
+)
 from cyb0x_s.tui.theme import (
     APP_CSS,
     DEFAULT_PALETTE,
@@ -72,6 +77,7 @@ from cyb0x_s.tui.widgets import (
     SearchModal,
     TargetTreeWidget,
     TemplateSelectionModal,
+    ThemePickerModal,
     WorksheetHeader,
     substitute_command_placeholders,
 )
@@ -113,7 +119,8 @@ class CyboxSafeApp(App):
         Binding("K", "add_checklist", "Checklist", show=False),
         Binding("m", "apply_template", "Template", show=False),
         Binding("d", "delete_selected", "Delete", show=False),
-        Binding("T", "cycle_theme", "Theme", show=False),
+        Binding("T", "open_theme_picker", "Theme", show=False),
+        Binding("G", "toggle_guidance", "Suggestions", show=False),
     ]
 
     CSS = APP_CSS
@@ -269,7 +276,11 @@ class CyboxSafeApp(App):
 
     def _guidance_for_service(self, svc: Service, target_ip: str) -> None:
         """Push a service's static reference command into the guidance drawer."""
-        svc_guidance = get_guidance_for_service(svc.service, svc.port)
+        svc_guidance = (
+            get_guidance_for_service(svc.service, svc.port)
+            if derive_guidance_enabled()
+            else None
+        )
         try:
             guidance_box = self.query_one("#guidance-box", ConsoleBar)
         except Exception:
@@ -607,12 +618,15 @@ class CyboxSafeApp(App):
                         copy_to_clipboard(obj.next_action)
                         self.notify(f"Copied Next Action: {obj.next_action}")
                         return
-                    svc_guidance = get_guidance_for_service(obj.service, obj.port)
-                    if svc_guidance and svc_guidance.get("command"):
-                        cmd = substitute_command_placeholders(svc_guidance["command"], target_ip)
-                        copy_to_clipboard(cmd)
-                        self.notify(f"Copied Service Command: {cmd}")
-                        return
+                    # Only auto-suggest a command for a recorded service when the
+                    # operator has opted in; otherwise CYB0X-S stays passive.
+                    if derive_guidance_enabled():
+                        svc_guidance = get_guidance_for_service(obj.service, obj.port)
+                        if svc_guidance and svc_guidance.get("command"):
+                            cmd = substitute_command_placeholders(svc_guidance["command"], target_ip)
+                            copy_to_clipboard(cmd)
+                            self.notify(f"Copied Service Command: {cmd}")
+                            return
 
         self.action_copy_selected()
 
@@ -744,8 +758,8 @@ class CyboxSafeApp(App):
         current = names.index(self.theme_name) if self.theme_name in names else 0
         self.apply_theme(names[(current + 1) % len(names)])
 
-    def apply_theme(self, name: str) -> None:
-        """Activate a palette by name, live."""
+    def apply_theme(self, name: str, quiet: bool = False) -> None:
+        """Activate a palette by name, live. ``quiet`` skips the toast (preview)."""
         if name not in PALETTES:
             self.notify(f"Unknown theme '{name}'. Available: {', '.join(PALETTES)}", severity="warning")
             return
@@ -754,7 +768,27 @@ class CyboxSafeApp(App):
         self.theme = palette.textual_theme().name
         self.refresh_targets()
         self.refresh_all()
-        self.notify(f"Theme: {palette.label}")
+        if not quiet:
+            self.notify(f"Theme: {palette.label}")
+
+    def action_open_theme_picker(self) -> None:
+        """Open the palette picker (live preview, Esc restores the old one)."""
+        self.push_screen(ThemePickerModal(self.theme_name))
+
+    def action_toggle_guidance(self) -> None:
+        """Switch derived suggestions (access potential / next command) on or off.
+
+        Off is the default and the exam-safe posture: CYB0X-S then only records
+        what you tell it and looks up references when you ask.
+        """
+        set_derive_guidance(not derive_guidance_enabled())
+        state = describe_derive_guidance()
+        self.notify(
+            f"Derived suggestions: {state}"
+            + ("" if state == "on" else " — notebook records only what you enter")
+        )
+        self.refresh_targets()
+        self.refresh_all()
 
     def action_show_reference(self) -> None:
         """Open searchable cheat sheet and command reference modal."""
@@ -901,7 +935,7 @@ class CyboxSafeApp(App):
                         protocol=data.get("protocol", "tcp") or "tcp",
                         service=data.get("service", "unknown") or "unknown",
                         version=data.get("version", ""),
-                        access_potential=data.get("potential", "MED") or "MED",
+                        access_potential=data.get("potential", "") or "",
                         next_action=data.get("next", ""),
                     )
                     self.refresh_targets()
