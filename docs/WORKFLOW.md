@@ -4,8 +4,8 @@ This guide walks through using **CYB0X-S** during a real cybersecurity lab, CTF,
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ CYB0X-S                              MODE: SAFE             │
-│ Passive field notebook               Human-controlled       │
+│ CYB0X-S WORKSHEET                                           │
+│ Field notes & methodology tracker    Human-controlled       │
 └─────────────────────────────────────────────────────────────┘
 ```
 

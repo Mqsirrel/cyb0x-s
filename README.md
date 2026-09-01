@@ -132,18 +132,39 @@ cyb0x-s cred admin:secret123 --source "backup.zip" --scope "SMB"
 cyb0x-s c user:Summer2024!
 ```
 
-### Manage Checklists & Static Methodology Templates
+### Manage Checklists & Ready Methodology Templates
+CYB0X-S includes ready-to-use, community-curated methodology templates (eJPTv2, OSCP, r/eJPT, r/oscp standard). These are 100% static cognitive safety nets and are fully permitted during timed hands-on assessments.
+
+| Template | Focus Area | Items | Description |
+|---|---|---|---|
+| `ejpt` | Master Workflow | 14 | Full eJPTv2 assessment flow (Scope → Discovery → Foothold → Pivoting → PrivEsc) |
+| `discovery` | Network Discovery | 7 | Local subnets, ARP scans, ICMP sweeps, TTL OS guesses, dual-homed machine discovery |
+| `pivoting` | Pivoting & Routing | 13 | Dual-homed detection, Metasploit autoroute, SOCKS5 proxy, SSH tunnels, Chisel, Proxychains |
+| `web` | Web Applications | 14 | Headers, robots.txt, directory fuzzing, SQLi, LFI, XSS, Command Injection, uploads |
+| `smb` | SMB & Shares | 9 | Null sessions, share permissions, backups/configs, enum4linux, RID cycling |
+| `ftp` | FTP Services | 8 | Anonymous login, banner CVEs, binary mode, writable folders, web shell uploads |
+| `ssh` | SSH Services | 7 | OpenSSH banner CVEs, key permissions, root login, discovered credential spraying |
+| `snmp` | SNMP (UDP 161) | 9 | Community strings, MIB walk, running processes, installed software, interfaces |
+| `databases` | Databases (MySQL/MSSQL)| 9 | Blank root logins, table dumping, MySQL `LOAD_FILE`, MSSQL `xp_cmdshell` |
+| `linux` | Linux PrivEsc | 14 | SUID/SGID, `sudo -l`, cron jobs, capabilities, writable passwd, shadow leaks |
+| `windows` | Windows PrivEsc | 14 | `whoami /priv` (SeImpersonate), unquoted paths, AlwaysInstallElevated, scheduled tasks |
+| `cracking` | Password Cracking | 9 | Hash identification, John the Ripper, Hashcat modes, Hydra online brute-forcing |
+
 ```bash
-# Apply a static methodology checklist template:
-cyb0x-s checklist template linux
-cyb0x-s checklist template smb
+# Apply eJPT master methodology to active target:
+cyb0x-s checklist template ejpt
+
+# Apply pivoting checklist for an internal host:
+cyb0x-s checklist template pivoting
 
 # Check off an item:
-cyb0x-s checklist check "null session"
+cyb0x-s checklist check "Directory and file fuzzing"
 
-# List items:
+# List current checklist items:
 cyb0x-s checklist list
 ```
+
+*(In the TUI, press **`m`** to open the interactive template picker)*
 
 ### Search Across Everything
 ```bash
