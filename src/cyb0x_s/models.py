@@ -116,7 +116,7 @@ class Service(BaseModel):
     protocol: str = "tcp"
     service: str = "unknown"
     version: str = ""
-    access_potential: str = "MED"  # HIGH, MED, LOW, INFO
+    access_potential: str = ""  # HIGH, MED, LOW, INFO; blank = not rated
     next_action: str = ""          # Immediate command or methodology step (e.g. gobuster...)
     status: ServiceStatus = ServiceStatus.CHECKED
     notes: str = ""

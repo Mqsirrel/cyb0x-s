@@ -46,6 +46,7 @@ A fast, lightweight, keyboard-driven digital field notebook designed to replace 
 * **NO Automatic Credential Harvesting**: Does not scrape commands or outputs for passwords.
 * **NO Command Generation**: Does not formulate exploit payloads or automated commands based on target ports.
 * **NO Behavioral Monitoring / Hidden Logic**: Completely transparent, local-first code that does exactly what the operator types.
+* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `CYB0X_DERIVE_GUIDANCE=1` or press **`G`** in the TUI, so `access_potential` stays blank on imported services unless you ask CYB0X-S to derive it.
 
 ---
 
@@ -249,15 +250,33 @@ credential vault, **4** flags / foothold / rabbit-hole log.
 
 ### Themes
 
-Two palettes ship with the app and can be swapped live:
+Seven palettes ship with the app and can be swapped live:
 
 | Name | Look | Command |
 |---|---|---|
 | `slate` | graphite chrome, cyan/mint data, amber warnings — **default** | `:theme slate` |
+| `midnight` | indigo / periwinkle, calm low-flare for long labs | `:theme midnight` |
+| `ember` | amber CRT, warm reading glow | `:theme ember` |
+| `moss` | forest / lime, low-eye-strain green | `:theme moss` |
+| `neon` | magenta / electric, high-energy accent | `:theme neon` |
+| `mono` | luminance only, colour-blind safe (no hue) | `:theme mono` |
 | `warm` | the original charcoal / terracotta / kraft identity | `:theme warm` |
 
-Press **`T`** to cycle, or use `:theme <name>` in the command bar.
+Press **`T`** to open the interactive theme picker (live preview; `↑`/`↓` or
+`j`/`k` to move, `Enter` to keep, `Esc` to restore), or use `:theme <name>` in
+the command bar. `:theme` with no argument still cycles, and `T` re-opens the
+picker.
+Every palette keeps its body text at WCAG **AAA** (≥7:1) and muted text at
+**AA** (≥4.5:1) against its background. `mono` carries no hue at all — status
+is still conveyed by the UI symbols (✓ ⚠ ✗, `DEAD-END`, `[HIGH]`), so it is
+colour-blind safe rather than ambiguous.
 Below 110 columns the workbench stacks into a single column so rows stay readable.
+
+To see every palette at once, render the gallery:
+
+```bash
+python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png (needs Pillow)
+```
 
 ### TUI Keyboard Shortcuts
 
@@ -281,7 +300,8 @@ Below 110 columns the workbench stacks into a single column so rows stay readabl
 | `K` (`Shift+k`) | Add custom checklist item (`k` is list navigation) |
 | `m` | Methodology template picker |
 | `d` | Delete highlighted item (asks for confirmation) |
-| `T` | Cycle theme |
+| `T` | Open the theme picker (live preview, Esc restores) |
+| `G` | Toggle derive guidance (auto access-potential / next-step) — **off** by default |
 | `?` | Help and shortcut reference |
 | `q` | Exit CYB0X-S |
 
@@ -303,7 +323,7 @@ press `?` for the complete reference.
 * `:clue <breakthrough>` — log the breakthrough clue that unlocked progress
 * `:ev <path>` — log evidence
 * `:ref <term>` — pop up the offline cheat sheet (e.g. `:ref winrm`)
-* `:theme <name>` — switch palette (`slate`, `warm`); `:theme` alone cycles
+* `:theme <name>` — switch palette (`slate`, `midnight`, `ember`, `moss`, `neon`, `mono`, `warm`); `:theme` alone cycles
 * `:q` — quit
 
 Anything else you type is recorded as a field note, so the bar never blocks you.

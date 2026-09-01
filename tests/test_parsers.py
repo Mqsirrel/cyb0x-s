@@ -2,16 +2,61 @@
 
 import pytest
 from cyb0x_s.parsers import parse_nmap_xml, parse_nmap_gnmap, parse_netexec_output, derive_potential_and_next
+from cyb0x_s.settings import set_derive_guidance
 
 
-def test_derive_potential_and_next() -> None:
-    pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20")
+def test_derive_potential_and_next_gated_off_by_default() -> None:
+    """Nothing is derived unless the operator opts in (default: exam-safe)."""
+    assert derive_potential_and_next("smb", 445, "10.10.10.20") == ("", "")
+    assert derive_potential_and_next("http", 80, "10.10.10.20") == ("", "")
+
+
+def test_derive_potential_and_next_when_enabled() -> None:
+    set_derive_guidance(True)
+    try:
+        pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20")
+        assert pot == "HIGH"
+        assert "10.10.10.20" in nxt
+
+        pot_http, nxt_http = derive_potential_and_next("http", 80, "10.10.10.20")
+        assert pot_http == "HIGH"
+        assert "feroxbuster" in nxt_http
+    finally:
+        set_derive_guidance(None)
+
+
+def test_derive_potential_and_next_enabled_parameter() -> None:
+    """The per-call ``enabled`` flag overrides the global switch."""
+    set_derive_guidance(False)
+    # Explicit opt-in restores ratings even when the global switch is off.
+    pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20", enabled=True)
     assert pot == "HIGH"
     assert "10.10.10.20" in nxt
 
-    pot_http, nxt_http = derive_potential_and_next("http", 80, "10.10.10.20")
-    assert pot_http == "HIGH"
-    assert "feroxbuster" in nxt_http
+    # Explicit opt-out suppresses even when the global switch is on.
+    set_derive_guidance(True)
+    pot_off, nxt_off = derive_potential_and_next("http", 80, "10.10.10.20", enabled=False)
+    assert pot_off == ""
+    assert nxt_off == ""
+    set_derive_guidance(None)
+
+
+def test_parse_functions_accept_derive_guidance_flag() -> None:
+    """Parsers thread the opt-in flag through to derivation."""
+    xml_data = (
+        '<?xml version="1.0"?><nmaprun><host><status state="up"/>'
+        '<address addr="10.10.11.50" addrtype="ipv4"/>'
+        '<ports><port protocol="tcp" portid="445"><state state="open"/>'
+        '<service name="smb" product="Samba" version="4.3"/></port></ports>'
+        "</host></nmaprun>"
+    )
+    off = parse_nmap_xml(xml_data, derive_guidance=False)
+    assert off[0]["services"][0]["access_potential"] == ""
+    assert off[0]["services"][0]["next_action"] == ""
+
+    on = parse_nmap_xml(xml_data, derive_guidance=True)
+    assert on[0]["services"][0]["access_potential"] == "HIGH"
+    assert on[0]["services"][0]["next_action"]
 
 
 def test_parse_nmap_xml_string() -> None:

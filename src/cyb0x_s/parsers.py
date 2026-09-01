@@ -11,9 +11,26 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from cyb0x_s.settings import derive_guidance_enabled
 
-def derive_potential_and_next(service_name: str, port: int, target_ip: str = "") -> tuple[str, str]:
-    """Derive initial access potential (HIGH/MED/LOW) and tactical next action."""
+
+def derive_potential_and_next(
+    service_name: str,
+    port: int,
+    target_ip: str = "",
+    enabled: Optional[bool] = None,
+) -> tuple[str, str]:
+    """Derive initial access potential (HIGH/MED/LOW) and tactical next action.
+
+    Derivation is **gated behind the settings switch**, which is off by default
+    (see :mod:`cyb0x_s.settings`). ``enabled`` overrides the global switch for a
+    single call/parse; when effectively disabled this returns ``("", "")`` so
+    CYB0X-S never classifies a recorded service or proposes a next step on its
+    own.
+    """
+    if not (derive_guidance_enabled() if enabled is None else enabled):
+        return "", ""
+
     s = service_name.lower().strip()
     ip_str = target_ip or "<TARGET_IP>"
     
@@ -40,7 +57,9 @@ def derive_potential_and_next(service_name: str, port: int, target_ip: str = "")
     return "LOW", ""
 
 
-def parse_nmap_xml(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
+def parse_nmap_xml(
+    content_or_path: Union[str, Path], derive_guidance: Optional[bool] = None
+) -> List[Dict[str, Any]]:
     """Parse Nmap XML output (-oX) into structured target data."""
     if isinstance(content_or_path, Path) or (
         isinstance(content_or_path, str)
@@ -105,7 +124,9 @@ def parse_nmap_xml(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
                     version = service_elem.get("version", "")
 
                 banner = f"{product} {version}".strip()
-                potential, next_act = derive_potential_and_next(svc_name, port_id, target_ip=ip)
+                potential, next_act = derive_potential_and_next(
+                    svc_name, port_id, target_ip=ip, enabled=derive_guidance
+                )
 
                 services.append({
                     "port": port_id,
@@ -127,7 +148,9 @@ def parse_nmap_xml(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
     return results
 
 
-def parse_nmap_text(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
+def parse_nmap_text(
+    content_or_path: Union[str, Path], derive_guidance: Optional[bool] = None
+) -> List[Dict[str, Any]]:
     """Parse standard Nmap normal text output (-oN) into structured targets."""
     if isinstance(content_or_path, Path) or (
         isinstance(content_or_path, str) and Path(content_or_path).exists()
@@ -168,7 +191,9 @@ def parse_nmap_text(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
                 svc_name = m.group(3)
                 ver_info = (m.group(4) or "").strip()
 
-                potential, next_act = derive_potential_and_next(svc_name, port, target_ip=ip)
+                potential, next_act = derive_potential_and_next(
+                    svc_name, port, target_ip=ip, enabled=derive_guidance
+                )
                 services.append({
                     "port": port,
                     "protocol": proto,
@@ -190,7 +215,9 @@ def parse_nmap_text(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
     return results
 
 
-def parse_nmap_gnmap(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
+def parse_nmap_gnmap(
+    content_or_path: Union[str, Path], derive_guidance: Optional[bool] = None
+) -> List[Dict[str, Any]]:
     """Parse Nmap Greppable output (-oG) into structured targets."""
     if isinstance(content_or_path, Path) or (
         isinstance(content_or_path, str) and Path(content_or_path).exists()
@@ -234,7 +261,9 @@ def parse_nmap_gnmap(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
                     proto = parts[2] if len(parts) > 2 and parts[2] else "tcp"
                     svc_name = parts[4] if len(parts) > 4 and parts[4] else "unknown"
                     version = parts[6] if len(parts) > 6 else ""
-                    pot, nxt = derive_potential_and_next(svc_name, port, target_ip=ip)
+                    pot, nxt = derive_potential_and_next(
+                        svc_name, port, target_ip=ip, enabled=derive_guidance
+                    )
                     host_entry["services"].append({
                         "port": port,
                         "protocol": proto,
@@ -248,7 +277,9 @@ def parse_nmap_gnmap(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
     return list(results_map.values())
 
 
-def parse_netexec_output(content_or_path: Union[str, Path]) -> List[Dict[str, Any]]:
+def parse_netexec_output(
+    content_or_path: Union[str, Path], derive_guidance: Optional[bool] = None
+) -> List[Dict[str, Any]]:
     """Parse NetExec (nxc) CLI output into structured targets."""
     if isinstance(content_or_path, Path) or (
         isinstance(content_or_path, str) and Path(content_or_path).exists()
@@ -276,7 +307,9 @@ def parse_netexec_output(content_or_path: Union[str, Path]) -> List[Dict[str, An
             if hostname and hostname != "-" and not entry["hostname"]:
                 entry["hostname"] = hostname
 
-            pot, nxt = derive_potential_and_next(proto_svc, port, target_ip=ip)
+            pot, nxt = derive_potential_and_next(
+                proto_svc, port, target_ip=ip, enabled=derive_guidance
+            )
             entry["services"].append({
                 "port": port,
                 "protocol": "tcp",
@@ -290,7 +323,9 @@ def parse_netexec_output(content_or_path: Union[str, Path]) -> List[Dict[str, An
     return list(results_map.values())
 
 
-def parse_scan_file(file_path: Union[str, Path]) -> List[Dict[str, Any]]:
+def parse_scan_file(
+    file_path: Union[str, Path], derive_guidance: Optional[bool] = None
+) -> List[Dict[str, Any]]:
     """Auto-detect format (XML vs Text vs Gnmap vs NetExec) and parse scan file."""
     p = Path(file_path)
     if not p.exists():
@@ -300,8 +335,8 @@ def parse_scan_file(file_path: Union[str, Path]) -> List[Dict[str, Any]]:
         head = f.read(500)
 
     if "<nmaprun" in head or "<!DOCTYPE nmaprun" in head:
-        return parse_nmap_xml(p)
+        return parse_nmap_xml(p, derive_guidance=derive_guidance)
     elif "# Nmap" in head and "Ports:" in head:
-        return parse_nmap_gnmap(p)
-    return parse_nmap_text(p)
+        return parse_nmap_gnmap(p, derive_guidance=derive_guidance)
+    return parse_nmap_text(p, derive_guidance=derive_guidance)
 

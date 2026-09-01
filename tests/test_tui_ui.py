@@ -12,6 +12,7 @@ from textual.widgets import Input, ListView
 
 from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.tui.app import CyboxSafeApp
+from cyb0x_s.settings import set_derive_guidance
 from cyb0x_s.tui.theme import current_palette
 from cyb0x_s.tui.widgets import (
     ConfirmModal,
@@ -55,17 +56,21 @@ async def test_active_tab_label_is_visible(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_highlighting_a_service_updates_drawer(seeded_store: NotebookStore) -> None:
     """Highlighting a service fills the guidance drawer instead of raising."""
-    app = CyboxSafeApp(store=seeded_store)
-    async with app.run_test(size=(160, 44)) as pilot:
-        svc_list = app.query_one("#list-services", ListView)
-        svc_list.focus()
-        await pilot.press("down")
-        await pilot.pause()
+    set_derive_guidance(True)
+    try:
+        app = CyboxSafeApp(store=seeded_store)
+        async with app.run_test(size=(160, 44)) as pilot:
+            svc_list = app.query_one("#list-services", ListView)
+            svc_list.focus()
+            await pilot.press("down")
+            await pilot.pause()
 
-        console = app.query_one("#guidance-box", ConsoleBar)
-        text = console.query_one("#console-cmd").render().plain
-        assert "10.10.10.20" in text, "target IP should be substituted into the command"
-        assert console.size.height >= 1
+            console = app.query_one("#guidance-box", ConsoleBar)
+            text = console.query_one("#console-cmd").render().plain
+            assert "10.10.10.20" in text, "target IP should be substituted into the command"
+            assert console.size.height >= 1
+    finally:
+        set_derive_guidance(None)
 
 
 @pytest.mark.asyncio
