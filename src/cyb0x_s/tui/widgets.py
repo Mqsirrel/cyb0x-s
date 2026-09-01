@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Set
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView, Static
+from textual.widgets import Button, Input, Label, ListItem, ListView, Static, Tree
 
 from cyb0x_s.clipboard import copy_to_clipboard, extract_copy_value
 from cyb0x_s.models import (
@@ -22,6 +22,63 @@ from cyb0x_s.models import (
     Target,
 )
 from cyb0x_s.search import SearchMatch, search_notebook
+
+
+class TargetTreeWidget(Tree):
+    """Sidebar Tree displaying targets and their listening services."""
+
+    DEFAULT_CSS = """
+    TargetTreeWidget {
+        background: #161b22;
+        padding: 0 1;
+        height: 1fr;
+        border: round #30363d;
+    }
+    TargetTreeWidget:focus {
+        border: round #58a6ff;
+    }
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__("Targets & Attack Surface", **kwargs)
+        self.show_root = False
+
+    def populate(
+        self,
+        targets: List[Target],
+        services: List[Service],
+        selected_target_id: Optional[int] = None,
+    ) -> None:
+        self.clear()
+        root = self.root
+
+        svc_map: dict[int, list[Service]] = {}
+        for s in services:
+            svc_map.setdefault(s.target_id, []).append(s)
+
+        for target in targets:
+            target_svcs = svc_map.get(target.id or 0, [])
+            icon = "✔" if target.root_flag else ("★" if target.initial_access_vuln or target.user_flag else "○")
+            safe_ip = target.ip
+            safe_host = f" ({target.hostname})" if target.hostname else ""
+            label = f"{icon} [bold]{safe_ip}[/bold]{safe_host} [dim]({len(target_svcs)} ports)[/dim]"
+            if not target.is_in_scope:
+                label = f"[dim strike]{label} ⃠ OUT-OF-SCOPE[/dim strike]"
+
+            target_node = root.add(label, data={"type": "target", "id": target.id, "target": target})
+
+            for svc in target_svcs:
+                svc_icon = "✓" if svc.status.value == "CHECKED" else ("✗" if svc.status.value == "DEAD-END" else "→")
+                pot_badge = f" [bold red][{svc.access_potential}][/bold red]" if svc.access_potential in ("HIGH", "CRITICAL") else ""
+                svc_label = f"  {svc_icon} [bold magenta]{svc.port}/{svc.protocol}[/bold magenta] [bold white]{svc.service}[/bold white]{pot_badge}"
+                if svc.version:
+                    svc_label += f" [dim]{svc.version[:20]}[/dim]"
+                target_node.add_leaf(
+                    svc_label,
+                    data={"type": "service", "id": svc.id, "target_id": target.id, "service": svc, "target": target},
+                )
+
+            target_node.expand()
 
 
 class WorksheetHeader(Static):
@@ -793,6 +850,77 @@ class LootAndFlagsWidget(Static):
         else:
             txt = Text("  • No rabbit holes or failure logs recorded. Type :stuck <where> / :clue <breakthrough>", style="dim italic")
             f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+
+class CredentialMatrixWidget(Static):
+    """Full-screen matrix of discovered credentials, lateral movement targets, and spray gaps."""
+
+    DEFAULT_CSS = """
+    CredentialMatrixWidget {
+        height: 1fr;
+        layout: vertical;
+        padding: 0 1;
+    }
+    #cred-matrix-hdr {
+        height: 2;
+        margin-bottom: 1;
+    }
+    #cred-matrix-list {
+        height: 1fr;
+        border: round #30363d;
+        background: #161b22;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Label(
+            Text("CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX [Space=Reveal | y=Copy | c=Add]"),
+            id="cred-matrix-hdr",
+            classes="panel-header",
+        )
+        yield ListView(id="cred-matrix-list")
+
+    def update_data(
+        self,
+        credentials: List[Credential],
+        targets: List[Target],
+        services: List[Service],
+        revealed_ids: Set[int],
+    ) -> None:
+        c_list = self.query_one("#cred-matrix-list", ListView)
+        c_list.clear()
+
+        # Build in-scope targets mapping per service
+        in_scope_targets = [t for t in targets if t.is_in_scope]
+        svc_target_map: dict[str, list[str]] = {}
+        for s in services:
+            t = next((tgt for tgt in in_scope_targets if tgt.id == s.target_id), None)
+            if t:
+                svc_target_map.setdefault(s.service.lower(), []).append(t.ip)
+
+        if credentials:
+            for c in credentials:
+                txt = Text()
+                txt.append("🔑 ", style="bold green")
+                txt.append(f"[{c.service_scope or 'GLOBAL':<8}] ", style="bold magenta")
+                txt.append(f"{c.username:<16} : ", style="bold cyan")
+                secret = c.secret if c.id in revealed_ids else c.masked_secret
+                txt.append(f"{secret:<20} ", style="bold white")
+
+                # Tested vs Unsprayed
+                scope_key = (c.service_scope or "").lower()
+                applicable_hosts = svc_target_map.get(scope_key, [t.ip for t in in_scope_targets])
+                if c.source:
+                    txt.append(f" Source: {c.source} │ ", style="dim")
+                txt.append(f"Status: {c.status.upper()} │ ", style="bold yellow")
+                if len(applicable_hosts) > 1:
+                    txt.append(f"⚠ Spray Target(s): {', '.join(applicable_hosts[:3])}", style="bold yellow")
+
+                c_list.append(DataListItem(data_obj=c, display_text=txt))
+        else:
+            txt = Text("  • No credentials recorded yet. Press 'c' to record a new credential.", style="dim italic")
+            c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
 
 
 

@@ -23,6 +23,7 @@ from textual.widgets import (
     TabbedContent,
     TabPane,
     Tabs,
+    Tree,
 )
 
 from cyb0x_s.clipboard import copy_to_clipboard, extract_copy_value
@@ -42,9 +43,11 @@ from cyb0x_s.models import (
 from cyb0x_s.templates import (
     apply_template_to_store,
     get_available_templates,
+    get_guidance_for_service,
     get_template_guidance_for_title,
 )
 from cyb0x_s.tui.widgets import (
+    CredentialMatrixWidget,
     DataListItem,
     FastInputModal,
     GuidanceDrawer,
@@ -54,6 +57,7 @@ from cyb0x_s.tui.widgets import (
     ReferenceModal,
     SearchModal,
     TargetInfoPanel,
+    TargetTreeWidget,
     TemplateSelectionModal,
     WorksheetHeader,
 )
@@ -73,6 +77,7 @@ class CyboxSafeApp(App):
         Binding("z", "toggle_zoom", "Zoom"),
         Binding("g", "record_flags", "Flags", priority=True),
         Binding("r", "show_reference", "CheatSheet", priority=True),
+        Binding("o", "toggle_scope", "Scope Toggle", priority=True),
         Binding("1", "switch_tab('tab-worksheet')", "Worksheet", show=False),
         Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
         Binding("3", "switch_tab('tab-creds')", "Creds", show=False),
@@ -128,6 +133,16 @@ class CyboxSafeApp(App):
     }
     #main-container {
         height: 1fr;
+        layout: horizontal;
+    }
+    #sidebar-tree-pane {
+        width: 28%;
+        height: 100%;
+        padding-right: 1;
+    }
+    #workbench-pane {
+        width: 72%;
+        height: 100%;
         layout: horizontal;
     }
     .column {
@@ -192,12 +207,6 @@ class CyboxSafeApp(App):
         border: double #58a6ff !important;
         layer: top;
     }
-    #creds-fullscreen-panel {
-        height: 1fr;
-        border: round #30363d;
-        background: #161b22;
-        padding: 0 1;
-    }
     """
 
     def __init__(self, store: Optional[NotebookStore] = None, **kwargs: Any) -> None:
@@ -211,40 +220,39 @@ class CyboxSafeApp(App):
         active_ws = self.store.get_active_workspace()
         yield WorksheetHeader(workspace_name=active_ws.name if active_ws else "default")
         yield TargetInfoPanel(id="target-info")
-        with Horizontal(id="target-bar"):
-            yield Tabs(id="target-tabs")
 
         with TabbedContent(initial="tab-worksheet", id="tabs"):
-            # Tab 1: Active Target Worksheet
+            # Tab 1: Active Target Worksheet (Target Tree + Workbench)
             with TabPane("1. 📝 Field Worksheet", id="tab-worksheet"):
                 with Horizontal(id="main-container"):
-                    # Left column: Recon & Intel (Services + Creds)
-                    with Vertical(id="col-left", classes="column"):
-                        with Vertical(id="panel-services", classes="panel-box"):
-                            yield Label("SERVICES & PORTS", id="hdr-services", classes="panel-header")
-                            yield ListView(id="list-services", classes="panel-list")
-                        with Vertical(id="panel-creds-preview", classes="panel-box"):
-                            yield Label("CREDENTIAL VAULT", id="hdr-creds", classes="panel-header")
-                            yield ListView(id="list-creds", classes="panel-list")
-                    # Right column: Methodology Roadmap & Field Notes
-                    with Vertical(id="col-right", classes="column"):
-                        with Vertical(id="panel-checklist", classes="panel-box"):
-                            yield Label("METHODOLOGY ROADMAP", id="hdr-checklist", classes="panel-header")
-                            yield ListView(id="list-checklist", classes="panel-list")
-                            yield GuidanceDrawer(id="guidance-box")
-                        with Vertical(id="panel-notes", classes="panel-box"):
-                            yield Label("FIELD NOTES & EVIDENCE", id="hdr-notes", classes="panel-header")
-                            yield ListView(id="list-notes", classes="panel-list")
+                    # Sidebar: Target & Attack Surface Tree
+                    with Vertical(id="sidebar-tree-pane"):
+                        yield TargetTreeWidget(id="target-tree")
+                    # Main Workbench: Dual Column Recon & Roadmap
+                    with Horizontal(id="workbench-pane"):
+                        with Vertical(id="col-left", classes="column"):
+                            with Vertical(id="panel-services", classes="panel-box"):
+                                yield Label("SERVICES & PORTS", id="hdr-services", classes="panel-header")
+                                yield ListView(id="list-services", classes="panel-list")
+                            with Vertical(id="panel-creds-preview", classes="panel-box"):
+                                yield Label("CREDENTIAL VAULT", id="hdr-creds", classes="panel-header")
+                                yield ListView(id="list-creds", classes="panel-list")
+                        with Vertical(id="col-right", classes="column"):
+                            with Vertical(id="panel-checklist", classes="panel-box"):
+                                yield Label("METHODOLOGY ROADMAP", id="hdr-checklist", classes="panel-header")
+                                yield ListView(id="list-checklist", classes="panel-list")
+                                yield GuidanceDrawer(id="guidance-box")
+                            with Vertical(id="panel-notes", classes="panel-box"):
+                                yield Label("FIELD NOTES & EVIDENCE", id="hdr-notes", classes="panel-header")
+                                yield ListView(id="list-notes", classes="panel-list")
 
             # Tab 2: Cheatsheet & Ready-to-Paste Playbooks
             with TabPane("2. 📖 Playbooks & Cheatsheet", id="tab-playbooks"):
                 yield PlaybookBrowserWidget(id="playbook-browser")
 
-            # Tab 3: Dedicated Full-Screen Credential Vault
+            # Tab 3: Dedicated Full-Screen Credential Vault Matrix
             with TabPane("3. 🔑 Credential Matrix", id="tab-creds"):
-                with Vertical(id="creds-fullscreen-panel"):
-                    yield Label(Text("CREDENTIAL VAULT & HASH MATRIX [Space=Reveal | y=Copy | c=Add]"), id="hdr-creds-full", classes="panel-header")
-                    yield ListView(id="list-creds-full", classes="panel-list")
+                yield CredentialMatrixWidget(id="cred-matrix-widget")
 
             # Tab 4: Flags, Foothold & Failure Log
             with TabPane("4. 🏁 Flags & Failure Log", id="tab-loot"):
@@ -270,36 +278,41 @@ class CyboxSafeApp(App):
         """Switch active TabbedContent pane."""
         tabbed = self.query_one("#tabs", TabbedContent)
         tabbed.active = tab_id
+        active = self.store.get_active_target()
+        target_ip = active.ip if active else ""
+
         if tab_id == "tab-playbooks":
-            active = self.store.get_active_target()
-            target_ip = active.ip if active else ""
-            self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
+            try:
+                self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
+            except Exception:
+                pass
+        elif tab_id == "tab-creds":
+            try:
+                creds = self.store.list_credentials()
+                targets = self.store.list_targets()
+                services = self.store.list_services()
+                self.query_one("#cred-matrix-widget", CredentialMatrixWidget).update_data(
+                    creds, targets, services, self.revealed_creds
+                )
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------------
-    # Target Management & Tabs
+    # Target Management & Sidebar Tree
     # -------------------------------------------------------------------------
 
     def refresh_targets(self) -> None:
-        """Update target tabs and active target panel."""
-        tabs = self.query_one("#target-tabs", Tabs)
-        target_bar = self.query_one("#target-bar", Horizontal)
-        tabs.clear()
+        """Update target tree, target tabs, and active target panel."""
         targets = self.store.list_targets()
+        services = self.store.list_services()
         active = self.store.get_active_target()
 
-        if len(targets) > 1:
-            target_bar.styles.display = "block"
-            active_tab_id = None
-            for t in targets:
-                tab_id = f"target-{t.id}"
-                label = f"{t.ip} ({t.hostname})" if t.hostname else t.ip
-                tabs.add_tab(Tab(label, id=tab_id))
-                if active and active.id == t.id:
-                    active_tab_id = tab_id
-            if active_tab_id:
-                tabs.active = active_tab_id
-        else:
-            target_bar.styles.display = "none"
+        # Update Tree Sidebar
+        try:
+            tree = self.query_one("#target-tree", TargetTreeWidget)
+            tree.populate(targets, services, selected_target_id=active.id if active else None)
+        except Exception:
+            pass
 
         target_panel = self.query_one("#target-info", TargetInfoPanel)
         target_panel.update_target(active)
@@ -310,6 +323,39 @@ class CyboxSafeApp(App):
             self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
         except Exception:
             pass
+
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        """Dynamically preview service guidance when moving through the target tree."""
+        if event.node and event.node.data:
+            d = event.node.data
+            if d.get("type") == "service":
+                svc = d.get("service")
+                target = d.get("target")
+                if svc and target:
+                    target_ip = target.ip
+                    try:
+                        guidance_box = self.query_one("#guidance-box", GuidanceDrawer)
+                        svc_guidance = get_guidance_for_service(svc.service, svc.port)
+                        if svc_guidance:
+                            cmd = svc_guidance.get("command", "")
+                            if target_ip:
+                                cmd = cmd.replace("<TARGET_IP>", target_ip)
+                                cmd = cmd.replace("<TARGET_SUBNET>", f"{target_ip.rsplit('.', 1)[0]}.0/24")
+                            guidance_box.query_one("#drawer-cmd", Static).update(f"❯ {cmd}" if cmd else "No command syntax")
+                            guidance_box.query_one("#drawer-tip", Static).update(f"💡 {svc_guidance.get('tip', '')}")
+                    except Exception:
+                        pass
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Switch active target when selected in Tree."""
+        if event.node and event.node.data:
+            d = event.node.data
+            target_id = d.get("target_id") or d.get("id")
+            if target_id:
+                self.store.set_active_target(int(target_id))
+                active = self.store.get_target(int(target_id))
+                self.query_one("#target-info", TargetInfoPanel).update_target(active)
+                self.refresh_all()
 
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Switch active target when tab changes."""
@@ -347,8 +393,6 @@ class CyboxSafeApp(App):
             title = obj.title if isinstance(obj, ChecklistItem) else str(obj)
             guidance_box.update_guidance(title, target_ip=target_ip)
         elif event.list_view.id == "list-services" and isinstance(obj, Service):
-            from cyb0x_s.templates import get_guidance_for_service
-
             svc_guidance = get_guidance_for_service(obj.service, obj.port)
             if svc_guidance:
                 cmd = svc_guidance.get("command", "")
@@ -408,16 +452,9 @@ class CyboxSafeApp(App):
         # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
         c_list = self.query_one("#list-creds", ListView)
         c_list.clear()
-        c_full_list = self.query_one("#list-creds-full", ListView)
-        c_full_list.clear()
         creds = self.store.list_credentials(target_id=target_id)
         self.query_one("#hdr-creds", Label).update(
             f"CREDENTIAL VAULT ({len(creds)})" if creds else "CREDENTIAL VAULT"
-        )
-        self.query_one("#hdr-creds-full", Label).update(
-            Text(f"CREDENTIAL VAULT & HASH MATRIX ({len(creds)}) [Space=Reveal | y=Copy | c=Add]")
-            if creds
-            else Text("CREDENTIAL VAULT & HASH MATRIX [Space=Reveal | y=Copy | c=Add]")
         )
         if creds:
             for c in creds:
@@ -431,11 +468,20 @@ class CyboxSafeApp(App):
                 if c.source:
                     txt.append(f" ({c.source})", style="dim")
                 c_list.append(DataListItem(data_obj=c, display_text=txt))
-                c_full_list.append(DataListItem(data_obj=c, display_text=txt))
         else:
             txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
             c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-            c_full_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+        # Tab 3 Credential Matrix Update
+        try:
+            all_creds = self.store.list_credentials()
+            all_targets = self.store.list_targets()
+            all_services = self.store.list_services()
+            self.query_one("#cred-matrix-widget", CredentialMatrixWidget).update_data(
+                all_creds, all_targets, all_services, self.revealed_creds
+            )
+        except Exception:
+            pass
 
         # 3. Checklist & Progress Bar
         ck_list = self.query_one("#list-checklist", ListView)
@@ -527,6 +573,18 @@ class CyboxSafeApp(App):
     # Hotkey Actions
     # -------------------------------------------------------------------------
 
+    def action_toggle_scope(self) -> None:
+        """Toggle in-scope vs out-of-scope for active target."""
+        active = self.store.get_active_target()
+        if active:
+            new_scope = not active.is_in_scope
+            self.store.update_target_details(active.id, is_in_scope=new_scope)
+            active.is_in_scope = new_scope
+            self.query_one("#target-info", TargetInfoPanel).update_target(active)
+            self.refresh_targets()
+            tag = "[bold green]IN-SCOPE[/bold green]" if new_scope else "[bold red]OUT-OF-SCOPE[/bold red]"
+            self.notify(f"Target {active.ip} marked {tag}")
+
     def action_activate_selected(self) -> None:
         """Handle Enter key on highlighted list item."""
         focused = self.focused
@@ -552,7 +610,6 @@ class CyboxSafeApp(App):
                         copy_to_clipboard(obj.next_action)
                         self.notify(f"Copied Next Action: {obj.next_action}")
                         return
-                    from cyb0x_s.templates import get_guidance_for_service
                     svc_guidance = get_guidance_for_service(obj.service, obj.port)
                     if svc_guidance and svc_guidance.get("command"):
                         cmd = svc_guidance["command"]
@@ -693,6 +750,7 @@ class CyboxSafeApp(App):
                 elif isinstance(obj, FailureLog):
                     self.store.delete_failure_log(obj.id)
                 self.notify("Item deleted")
+                self.refresh_targets()
                 self.refresh_all()
 
     def action_open_search(self) -> None:
@@ -753,6 +811,7 @@ class CyboxSafeApp(App):
                         next_action=data.get("next", ""),
                         notes=data.get("notes", ""),
                     )
+                    self.refresh_targets()
                     self.refresh_all()
                     self.notify(f"Service {port} added")
                 except ValueError:
