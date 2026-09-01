@@ -84,7 +84,59 @@ class TargetInfoPanel(Static):
             t.append("○ ", style="dim yellow")
             t.append("TARGET: ", style="bold yellow")
             t.append("No active target selected", style="yellow")
-            t.append("  (Press 't' to add a target or type ':t <ip>' in command bar)", style="dim")
+            t.append("  (Press 't' to add target or type ':t <ip>' in command bar)", style="dim")
+        return t
+
+
+class GuidanceDrawer(Static):
+    """Dynamic command & methodology tips inspector for active checklist item."""
+
+    DEFAULT_CSS = """
+    GuidanceDrawer {
+        height: 4;
+        border: solid #30363d;
+        background: #0d1117;
+        padding: 0 1;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.item_title: str = ""
+        self.target_ip: str = ""
+
+    def update_guidance(self, item_title: str, target_ip: str = "") -> None:
+        self.item_title = item_title
+        self.target_ip = target_ip
+        self.refresh()
+
+    def render(self) -> Text:
+        t = Text()
+        if not self.item_title:
+            t.append("💡 STEP GUIDANCE: ", style="bold cyan")
+            t.append("Highlight any checklist item to inspect recommended commands & tips.\n", style="dim italic")
+            t.append("Shortcuts: [Space] Cycle status  •  [Enter] Copy command  •  [y] Copy title", style="dim")
+            return t
+
+        from cyb0x_s.templates import get_template_guidance_for_title
+        guidance = get_template_guidance_for_title(self.item_title)
+        if guidance:
+            cmd = guidance.get("command", "")
+            tip = guidance.get("tip", "")
+            if self.target_ip:
+                cmd = cmd.replace("<TARGET_IP>", self.target_ip)
+                cmd = cmd.replace("<TARGET_SUBNET>", f"{self.target_ip.rsplit('.', 1)[0]}.0/24")
+
+            t.append("💡 CMD: ", style="bold green")
+            t.append(f"{cmd}\n", style="bold white")
+            t.append("ℹ️  TIP: ", style="bold yellow")
+            t.append(f"{tip} ", style="dim")
+            t.append("[Enter=Copy Cmd | Space=Cycle]", style="bold cyan")
+        else:
+            t.append("💡 STEP: ", style="bold cyan")
+            t.append(f"{self.item_title}\n", style="white")
+            t.append("Shortcuts: [Space] Cycle status  •  [y] Copy item  •  [d] Delete item", style="dim")
         return t
 
 
@@ -202,7 +254,7 @@ class FastInputModal(ModalScreen[Optional[dict]]):
         padding: 1 2;
     }
     #modal-title {
-        font-weight: bold;
+        text-style: bold;
         margin-bottom: 1;
     }
     .input-field {
