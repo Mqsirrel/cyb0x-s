@@ -222,24 +222,29 @@ cyb0x-s tui
 | `3` | **Switch to 3. Credential Matrix** (Full-screen credential vault & hashes table) |
 | `4` | **Switch to 4. Flags & Failure Log** (Captured user/root flags, foothold proof, rabbit hole log) |
 | `Tab` / `Shift+Tab` | Cycle focus between panels |
-| `j` / `k` or `↑` / `↓` | Navigate items in list (updates Live Guidance Drawer dynamically) |
+| `j` / `k` (or `↑` / `↓`) | Move down / up inside the focused list or tree (updates the Live Guidance Drawer) |
 | `Enter` | **Copy ready-to-paste command** for highlighted service / checklist item to clipboard |
 | `y` | Copy selected item (Next Action, IP:port, secret, note text) to clipboard |
 | `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or toggle password reveal |
-| `z` | **Toggle Fullscreen Zoom** on focused panel |
+| `z` | **Zoom** the focused panel to the whole workbench (press again to restore) |
 | `g` | **Record Captured Flags** (`user.txt` and `root.txt`) for active target |
 | `r` | **Open Quick Cheat Sheet Modal** with search & 1-key copying |
-| `/` or `Ctrl+F` | Open global search modal |
+| `o` | Toggle the active target in-scope / out-of-scope |
+| `/` or `Ctrl+F` | Open global search modal (type, `Enter` copies the top hit, `Esc` closes) |
 | `t` | Add target |
 | `s` | Add service to active target (with Access Potential & Next Action) |
 | `f` | Record finding |
 | `c` | Record credential |
 | `n` | Add field note |
-| `k` | Add custom checklist item |
+| `K` (`Shift+k`) | Add custom checklist item (`k` is list navigation) |
 | `m` | Open interactive template picker (eJPTv2, pivoting, web, smb, privesc) |
-| `d` | Delete highlighted item |
+| `d` | Delete highlighted item (asks for confirmation) |
 | `?` | View help and shortcut reference |
 | `q` | Exit CYB0X-S |
+
+> The footer only shows the five keys you need to get going (`q ? / y Space`).
+> Press `?` for the complete reference. Below ~110 columns the workbench
+> automatically stacks into a single column so rows stay readable.
 
 ### Quick Command Bar (Bottom of TUI)
 * `:1`, `:2`, `:3`, `:4` — Instant station tab switching

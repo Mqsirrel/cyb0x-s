@@ -1,17 +1,74 @@
-"""CYB0X-S TUI Theme: warm charcoal, terracotta, kraft gold, sage green palette."""
+"""CYB0X-S TUI Theme: warm charcoal, terracotta, kraft gold, sage green palette.
+
+Single source of truth for the interface colours. Widgets import these tokens
+instead of hard-coding colours so the whole worksheet stays visually coherent.
+"""
 
 from __future__ import annotations
 
+from textual.theme import Theme
+
+# --- Palette -----------------------------------------------------------------
 BACKGROUND = "#211E1B"
 DARK_CHARCOAL = BACKGROUND
+HEADER_BG = "#191715"
 SURFACE = "#2A2622"
 SURFACE_RAISED = "#332E29"
 TERRACOTTA = "#D97757"
+TERRACOTTA_BRIGHT = "#E58767"
 CREAM = "#EDE6DA"
 MUTED = "#A8A099"
 KRAFT = "#D4A27F"
 SAGE = "#8FA876"
 ERROR_RED = "#C4553B"
+
+# Row-level text colours. Rows are built with Rich `Text` in Python (not CSS),
+# so they need explicit palette values — otherwise they fall back to the
+# terminal's ANSI colours and clash with the warm chrome.
+OK = SAGE                 # checked / captured / success
+DANGER = "#E5846B"        # findings, dead ends (lighter than ERROR_RED: 5.6:1)
+WARN = KRAFT              # deferred, next action, attention
+INFO = TERRACOTTA         # ports, service names, neutral accent
+NOTE = MUTED              # secondary / dim text
+
+# Semantic aliases (kept explicit so widget CSS reads clearly)
+BORDER = SURFACE_RAISED
+FOCUS = TERRACOTTA
+PANEL_BG = SURFACE
+PANEL_HEADER = KRAFT
+ACCENT = TERRACOTTA
+OK_GREEN = SAGE
+WARN_RED = ERROR_RED
+
+# Registering the palette as a Textual theme makes every built-in design token
+# ($surface, $border, $primary, $text-muted, footer/scrollbar colours, ...)
+# resolve to the CYB0X-S warm palette. Widgets then inherit one coherent look
+# instead of each CSS block hard-coding its own colours.
+CYBOX_WARM_THEME = Theme(
+    name="cyb0x-warm",
+    primary=TERRACOTTA,
+    secondary=KRAFT,
+    accent=TERRACOTTA,
+    foreground=CREAM,
+    background=BACKGROUND,
+    surface=SURFACE,
+    panel=SURFACE,
+    success=SAGE,
+    warning=KRAFT,
+    error=ERROR_RED,
+    dark=True,
+    variables={
+        "footer-background": HEADER_BG,
+        "footer-foreground": MUTED,
+        "border": SURFACE_RAISED,
+        "border-blurred": SURFACE_RAISED,
+        "block-cursor-background": TERRACOTTA,
+        "block-cursor-foreground": CREAM,
+        "input-selection-background": SURFACE_RAISED,
+        "scrollbar": SURFACE_RAISED,
+        "scrollbar-background": BACKGROUND,
+    },
+)
 
 APP_CSS = f"""
 Screen {{
@@ -21,18 +78,18 @@ Screen {{
 }}
 
 Header {{
-    background: #191715;
+    background: {HEADER_BG};
     color: {CREAM};
 }}
 
 Footer {{
-    background: #191715;
+    background: {HEADER_BG};
     color: {MUTED};
 }}
 
 WorksheetHeader {{
     height: 2;
-    background: #191715;
+    background: {HEADER_BG};
     color: {CREAM};
     border-bottom: solid {TERRACOTTA} 40%;
     padding: 0 2;
@@ -52,9 +109,9 @@ TabbedContent {{
 }}
 
 Tabs {{
-    background: #191715;
+    background: {HEADER_BG};
     border-bottom: solid {SURFACE_RAISED};
-    height: 3;
+    height: 2;
 }}
 
 Tab {{
@@ -72,11 +129,14 @@ Tab.-active {{
     color: {TERRACOTTA};
     text-style: bold;
     background: {SURFACE};
-    border-bottom: tall {TERRACOTTA};
 }}
 
-Underline {{
-    display: none;
+/* The underline is the animated "you are here" bar under the active tab.
+   It must stay visible: Tabs hides the active tab's own highlight, so
+   removing it makes the current station impossible to identify. */
+Underline > .underline--bar {{
+    background: {SURFACE_RAISED};
+    color: {TERRACOTTA};
 }}
 
 #main-container {{
@@ -179,11 +239,15 @@ GuidanceDrawer {{
     color: {CREAM};
 }}
 
+GuidanceDrawer.-active {{
+    border: solid {TERRACOTTA} 60%;
+}}
+
 #cmd-input-bar {{
     height: 3;
     border-top: solid {SURFACE_RAISED};
     padding: 0 1;
-    background: #191715;
+    background: {HEADER_BG};
     layout: horizontal;
     align: left middle;
 }}
@@ -205,11 +269,53 @@ GuidanceDrawer {{
     border: none;
 }}
 
+/* --- Panel zoom (z) ------------------------------------------------------- */
+/* Zooming hides the sidebar and the sibling column so the focused panel
+   genuinely owns the screen instead of only growing inside its column. */
+#main-container.zoomed-mode > #sidebar-tree-pane {{
+    display: none;
+}}
+
+#main-container.zoomed-mode > #workbench-pane {{
+    width: 100%;
+}}
+
 .maximized {{
-    width: 100% !important;
     height: 100% !important;
     border: double {TERRACOTTA} !important;
-    layer: top;
+}}
+
+/* --- Responsive layout ---------------------------------------------------- */
+/* Below ~110 columns the two-column workbench stops being readable, so the
+   columns stack and the sidebar gives up some width. */
+Screen.compact #sidebar-tree-pane {{
+    width: 24%;
+}}
+
+Screen.compact #workbench-pane {{
+    layout: vertical;
+    width: 76%;
+}}
+
+Screen.compact .column {{
+    height: 1fr;
+    width: 100%;
+}}
+
+Screen.compact .panel-box {{
+    height: 1fr;
+    margin-bottom: 0;
+}}
+
+Screen.compact #panel-services,
+Screen.compact #panel-creds-preview,
+Screen.compact #panel-checklist,
+Screen.compact #panel-notes {{
+    height: 1fr;
+}}
+
+Screen.compact GuidanceDrawer {{
+    display: none;
 }}
 
 /* Modal Styling */
@@ -305,7 +411,18 @@ Button.primary-btn {{
 }}
 
 Button.primary-btn:hover {{
-    background: #E58767;
+    background: {TERRACOTTA_BRIGHT};
+    color: {CREAM};
+}}
+
+Button.danger-btn {{
+    background: {ERROR_RED};
+    color: {CREAM};
+    text-style: bold;
+}}
+
+Button.danger-btn:hover {{
+    background: #D9654B;
     color: {CREAM};
 }}
 """
