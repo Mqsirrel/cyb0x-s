@@ -1279,7 +1279,7 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
             P = current_palette()
             yield Label(
                 f"[bold {P.accent}]METHODOLOGY CHECKLIST TEMPLATES[/bold {P.accent}]"
-                f" [{P.muted}](eJPTv2 & Reddit Curated)[/]"
+                f" [{P.muted}](Standard Assessment Workflows)[/]"
             )
             yield Label(f"[{P.muted}]Select a template using ↑ / ↓ and press Enter (or click Apply)[/]")
             yield ListView(id="template-list")
@@ -1324,7 +1324,7 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
 
 
 class ReferenceModal(ModalScreen[Optional[str]]):
-    """Searchable command reference and playbook modal (dev-angelist / eJPTv2 curated)."""
+    """Searchable command reference and penetration testing playbook modal."""
 
     DEFAULT_CSS = """
     ReferenceModal {

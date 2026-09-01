@@ -1,9 +1,7 @@
-"""Static methodology templates and tactical command references for CYB0X-S.
+"""Standard manual penetration testing methodology templates for CYB0X-S.
 
-These templates represent standard manual penetration testing methodologies commonly
-utilized in eJPTv2, OSCP, and lab assessments (curated from community best practices).
-
-Strictly passive: these are human memory-aids and methodology tracking checklists.
+Covers standard assessment workflows: host discovery, service enumeration, web testing, privilege escalation, and pivoting.
+Strictly passive: these are operator cognitive memory-aids and methodology tracking checklists.
 They contain zero dynamic code, zero adaptive algorithms, and zero autonomous scanning.
 """
 
@@ -14,8 +12,8 @@ from cyb0x_s.models import ChecklistItem, ChecklistStatus
 
 STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "ejpt": {
-        "category": "EJPTv2 MASTER METHODOLOGY",
-        "description": "Complete eJPTv2 multi-phase assessment workflow (Recon → Foothold → Pivoting → PrivEsc)",
+        "category": "PRACTICAL PENTEST WORKFLOW",
+        "description": "Multi-phase practical assessment workflow (Recon → Foothold → Pivoting → PrivEsc)",
         "items": [
             {
                 "title": "1. Scope & Subnet Recon",
@@ -90,7 +88,7 @@ STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
         ],
     },
     "pivoting": {
-        "category": "PIVOTING & ROUTING (eJPTv2)",
+        "category": "PIVOTING & NETWORK ROUTING",
         "description": "Dual-homed host discovery, routing table setup, and pivot tunneling methodology",
         "items": [
             {
@@ -157,7 +155,7 @@ STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
     },
     "web": {
         "category": "WEB APPLICATION TESTING",
-        "description": "Standard web application manual testing methodology (OWASP & eJPTv2 focus)",
+        "description": "Standard web application manual testing methodology (OWASP WSTG)",
         "items": [
             {
                 "title": "1. Server Banner & Tech Stack",

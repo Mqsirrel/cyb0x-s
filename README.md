@@ -133,11 +133,11 @@ cyb0x-s c user:Summer2024!
 ```
 
 ### Manage Checklists & Ready Methodology Templates
-CYB0X-S includes ready-to-use, community-curated methodology templates (eJPTv2, OSCP, r/eJPT, r/oscp standard). These are 100% static cognitive safety nets and are fully permitted during timed hands-on assessments.
+CYB0X-S includes ready-to-use, standard penetration testing methodology templates (PTES, OWASP, NIST standard). These are 100% static cognitive safety nets and memory aids.
 
 | Template | Focus Area | Items | Description |
 |---|---|---|---|
-| `ejpt` | Master Workflow | 14 | Full eJPTv2 assessment flow (Scope → Discovery → Foothold → Pivoting → PrivEsc) |
+| `ejpt` | Master Workflow | 14 | Full practical assessment flow (Scope → Discovery → Foothold → Pivoting → PrivEsc) |
 | `discovery` | Network Discovery | 7 | Local subnets, ARP scans, ICMP sweeps, TTL OS guesses, dual-homed machine discovery |
 | `pivoting` | Pivoting & Routing | 13 | Dual-homed detection, Metasploit autoroute, SOCKS5 proxy, SSH tunnels, Chisel, Proxychains |
 | `web` | Web Applications | 14 | Headers, robots.txt, directory fuzzing, SQLi, LFI, XSS, Command Injection, uploads |

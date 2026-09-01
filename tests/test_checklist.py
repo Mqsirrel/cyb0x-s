@@ -41,7 +41,7 @@ def test_invalid_template_raises_error(store: NotebookStore) -> None:
         apply_template_to_store(store, "nonexistent_template")
 
 
-def test_ejpt_and_reddit_templates(store: NotebookStore) -> None:
+def test_standard_methodology_templates(store: NotebookStore) -> None:
     t = store.add_target("10.10.10.30")
     for name in ["ejpt", "discovery", "web", "ftp", "ssh", "snmp", "databases", "pivoting", "cracking"]:
         items = apply_template_to_store(store, name, target_id=t.id)

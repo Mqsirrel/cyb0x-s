@@ -1,19 +1,19 @@
-# eJPTv2 & Lab Methodology Templates Guide
+# Penetration Testing & Assessment Methodology Templates Guide
 
-This document describes the ready-to-use methodology checklists curated from community best practices (r/eJPT, r/oscp, TCM Security) and built directly into **CYB0X-S**.
+This document describes the ready-to-use methodology checklists based on standard manual penetration testing guidelines (PTES, OWASP WSTG, NIST SP 800-115) built directly into **CYB0X-S**.
 
 ---
 
-## 1. Why These Checklists are eJPTv2-Safe & Allowed
+## 1. Why These Checklists are Assessment-Safe & Allowed
 
-> **Certification Note:**
-> The eJPTv2 exam is a 48-hour hands-on, scenario-based assessment where the operator must manually discover, enumerate, exploit, pivot, and document vulnerabilities.
+> **Methodology Note:**
+> Hands-on practical assessments require the operator to manually discover, enumerate, exploit, pivot, and document vulnerabilities.
 >
-> In the exam:
+> In an assessment:
 > * **Manual note-taking and static methodology checklists are 100% permitted.**
 > * **Automated attack planners and autonomous exploit engines are strictly prohibited.**
 >
-> CYB0X-S templates are **completely static human checklists**. They do not run tools on your behalf, do not execute commands, and do not make autonomous decisions. They serve purely as your cognitive safety net under timed exam stress.
+> CYB0X-S templates are **completely static human checklists**. They do not run tools on your behalf, do not execute commands, and do not make autonomous decisions. They serve purely as your cognitive safety net under time pressure.
 
 ---
 
