@@ -7,7 +7,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView, Static, Tree
+from textual.widgets import Button, Input, Label, ListItem, ListView, Select, Static, Tree
 
 from cyb0x_s.clipboard import copy_to_clipboard, extract_copy_value
 from cyb0x_s.models import (
@@ -314,8 +314,455 @@ class SearchModal(ModalScreen):
                     self.notify(f"Copied: {val}")
 
 
+class AddTargetModal(ModalScreen[Optional[dict]]):
+    """Fast modal for creating a target host with OS dropdown and preset ports."""
+
+    DEFAULT_CSS = """
+    AddTargetModal {
+        align: center middle;
+    }
+    #add-target-container {
+        width: 68;
+        height: auto;
+        max-height: 90%;
+        border: round #D97757;
+        background: #2A2622;
+        padding: 1 2;
+        color: #EDE6DA;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-target-container", classes="synapse-modal-dialog"):
+            yield Label("▸ ADD TARGET HOST", classes="modal-header")
+
+            yield Label("Target IP / Hostname *:", classes="field-label")
+            yield Input(placeholder="e.g. 10.10.11.10", id="target-ip")
+
+            yield Label("FQDN / NetBIOS Hostname (optional):", classes="field-label")
+            yield Input(placeholder="e.g. dc01.corp.local", id="target-host")
+
+            yield Label("Operating System:", classes="field-label")
+            yield Select(
+                [
+                    ("Linux (Debian / Ubuntu / Kali / Arch)", "Linux"),
+                    ("Windows Server / Active Directory", "Windows Server"),
+                    ("Windows 10 / 11 Workstation", "Windows"),
+                    ("FreeBSD / Unix", "FreeBSD"),
+                    ("Embedded / Network Device", "Embedded"),
+                    ("Unknown / Other", "Unknown"),
+                ],
+                value="Linux",
+                id="target-os",
+            )
+
+            yield Label("Common Initial Ports Preset:", classes="field-label")
+            yield Select(
+                [
+                    ("None / Custom", ""),
+                    ("Web Standard (80, 443)", "80,443"),
+                    ("Web & SSH (22, 80, 443, 8080)", "22,80,443,8080"),
+                    ("Windows Active Directory (53, 88, 135, 139, 389, 445, 5985)", "53,88,135,139,389,445,5985"),
+                    ("Top Common TCP (21,22,25,53,80,110,139,443,445,1433,3306,3389,5985,8080)", "21,22,25,53,80,110,139,443,445,1433,3306,3389,5985,8080"),
+                ],
+                value="",
+                id="target-ports-preset",
+            )
+
+            yield Label("Custom Ports (comma-separated, optional):", classes="field-label")
+            yield Input(placeholder="e.g. 22, 80, 445", id="target-ports-custom")
+
+            yield Label("Target Notes (optional):", classes="field-label")
+            yield Input(placeholder="e.g. In-scope lab machine, potential DC", id="target-notes")
+
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Save Target (Enter)", variant="primary", classes="primary-btn", id="btn-save")
+                yield Button("Cancel (Esc)", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#target-ip", Input).focus()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "target-ports-preset" and event.value:
+            curr = self.query_one("#target-ports-custom", Input)
+            if not curr.value:
+                curr.value = str(event.value)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save":
+            self.submit_data()
+        else:
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "enter" and not isinstance(self.focused, Select):
+            self.submit_data()
+
+    def submit_data(self) -> None:
+        ip_val = self.query_one("#target-ip", Input).value.strip()
+        if not ip_val:
+            return
+        host_val = self.query_one("#target-host", Input).value.strip()
+        os_val = str(self.query_one("#target-os", Select).value or "Linux")
+        ports_preset = str(self.query_one("#target-ports-preset", Select).value or "")
+        ports_custom = self.query_one("#target-ports-custom", Input).value.strip()
+        notes_val = self.query_one("#target-notes", Input).value.strip()
+
+        ports_raw = ports_custom or ports_preset
+        ports = []
+        if ports_raw:
+            for p in ports_raw.split(","):
+                p = p.strip()
+                if p.isdigit() and 1 <= int(p) <= 65535:
+                    ports.append(int(p))
+
+        self.dismiss({
+            "ip": ip_val,
+            "hostname": host_val,
+            "os": os_val,
+            "ports": ports,
+            "notes": notes_val,
+        })
+
+
+class AddServiceModal(ModalScreen[Optional[dict]]):
+    """Fast service creation dialog with auto-filling presets and access potential."""
+
+    DEFAULT_CSS = """
+    AddServiceModal {
+        align: center middle;
+    }
+    #add-service-container {
+        width: 72;
+        height: auto;
+        max-height: 92%;
+        border: round #D97757;
+        background: #2A2622;
+        padding: 1 2;
+        color: #EDE6DA;
+    }
+    """
+
+    SERVICE_PRESETS = [
+        ("Custom / Manual Entry", "custom"),
+        ("21 / FTP (Anonymous / vsftpd)", "21/tcp/ftp/HIGH/ftp <TARGET_IP>"),
+        ("22 / SSH (OpenSSH / Brute-force)", "22/tcp/ssh/MED/hydra -l user -P rockyou.txt ssh://<TARGET_IP>"),
+        ("23 / Telnet (Unencrypted CLI)", "23/tcp/telnet/HIGH/telnet <TARGET_IP>"),
+        ("25 / SMTP (User Enum / VRFY)", "25/tcp/smtp/MED/smtp-user-enum -M VRFY -U users.txt -t <TARGET_IP>"),
+        ("53 / DNS (Zone Transfer / axfr)", "53/tcp/domain/MED/dig axfr @<TARGET_IP> <DOMAIN>"),
+        ("80 / HTTP (Web / Directory Busting)", "80/tcp/http/HIGH/feroxbuster -u http://<TARGET_IP>/ -w /usr/share/wordlists/dirb/common.txt"),
+        ("88 / Kerberos (Active Directory)", "88/tcp/kerberos/HIGH/GetNPUsers.py <DOMAIN>/ -no-pass -usersfile users.txt"),
+        ("110 / POP3 (Mail Server)", "110/tcp/pop3/MED/nc -vn <TARGET_IP> 110"),
+        ("139 / NetBIOS (Session)", "139/tcp/netbios-ssn/MED/nbtscan <TARGET_IP>"),
+        ("389 / LDAP (Active Directory)", "389/tcp/ldap/HIGH/ldapsearch -x -H ldap://<TARGET_IP> -b 'DC=corp,DC=local'"),
+        ("443 / HTTPS (SSL Web Server)", "443/tcp/https/HIGH/feroxbuster -u https://<TARGET_IP>/ -k"),
+        ("445 / SMB (Samba / Shares / Null Session)", "445/tcp/microsoft-ds/HIGH/netexec smb <TARGET_IP> -u '' -p '' --shares"),
+        ("1433 / MSSQL (SQL Server)", "1433/tcp/ms-sql-s/HIGH/mssqlclient.py <DOMAIN>/user:pass@<TARGET_IP> -windows-auth"),
+        ("3306 / MySQL (Database)", "3306/tcp/mysql/MED/mysql -h <TARGET_IP> -u root -p"),
+        ("3389 / RDP (Remote Desktop)", "3389/tcp/ms-wbt-server/MED/xfreerdp /u:user /p:pass /v:<TARGET_IP> /smart-sizing"),
+        ("5985 / WinRM (PowerShell Remoting)", "5985/tcp/wsman/HIGH/evil-winrm -i <TARGET_IP> -u user -p 'pass'"),
+        ("8080 / HTTP-Proxy / Tomcat Manager", "8080/tcp/http-proxy/HIGH/curl -s http://<TARGET_IP>:8080/manager/html"),
+    ]
+
+    def __init__(self, target_ip: str = "", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.target_ip = target_ip
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-service-container", classes="synapse-modal-dialog"):
+            yield Label(f"▸ ADD SERVICE — {self.target_ip or 'Active Target'}", classes="modal-header")
+
+            yield Label("Quick Service Preset (Auto-fills below fields):", classes="field-label")
+            yield Select(
+                self.SERVICE_PRESETS,
+                value="custom",
+                id="svc-preset",
+            )
+
+            with Horizontal():
+                with Vertical(classes="column"):
+                    yield Label("Port Number *:", classes="field-label")
+                    yield Input(value="80", id="svc-port")
+                with Vertical(classes="column"):
+                    yield Label("Protocol:", classes="field-label")
+                    yield Select([("tcp", "tcp"), ("udp", "udp")], value="tcp", id="svc-proto")
+
+            yield Label("Service Name *:", classes="field-label")
+            yield Input(value="HTTP", id="svc-name")
+
+            yield Label("Version / Banner (optional):", classes="field-label")
+            yield Input(placeholder="e.g. Apache 2.4.52, Samba 4.3, OpenSSH 8.9", id="svc-ver")
+
+            yield Label("Initial Access Potential:", classes="field-label")
+            yield Select(
+                [
+                    ("HIGH (Direct RCE / Credentials / Easy Win)", "HIGH"),
+                    ("MED (Enumeration / Brute-force)", "MED"),
+                    ("LOW (Informational / Hardened)", "LOW"),
+                ],
+                value="HIGH",
+                id="svc-potential",
+            )
+
+            yield Label("Next Action / Command Recipe:", classes="field-label")
+            yield Input(placeholder="e.g. feroxbuster, smbmap, hydra...", id="svc-next")
+
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Save Service (Enter)", variant="primary", classes="primary-btn", id="btn-save")
+                yield Button("Cancel (Esc)", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#svc-preset", Select).focus()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "svc-preset" and event.value and event.value != "custom":
+            val = str(event.value)
+            parts = val.split("/")
+            if len(parts) >= 5:
+                port, proto, name, pot, nxt = parts[0], parts[1], parts[2], parts[3], "/".join(parts[4:])
+                self.query_one("#svc-port", Input).value = port
+                self.query_one("#svc-proto", Select).value = proto
+                self.query_one("#svc-name", Input).value = name.upper()
+                self.query_one("#svc-potential", Select).value = pot
+                if self.target_ip:
+                    nxt = nxt.replace("<TARGET_IP>", self.target_ip)
+                self.query_one("#svc-next", Input).value = nxt
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save":
+            self.submit_data()
+        else:
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "enter" and not isinstance(self.focused, Select):
+            self.submit_data()
+
+    def submit_data(self) -> None:
+        port_raw = self.query_one("#svc-port", Input).value.strip()
+        if not port_raw.isdigit():
+            return
+        port = int(port_raw)
+        proto = str(self.query_one("#svc-proto", Select).value or "tcp")
+        name = self.query_one("#svc-name", Input).value.strip() or "unknown"
+        ver = self.query_one("#svc-ver", Input).value.strip()
+        pot = str(self.query_one("#svc-potential", Select).value or "MED")
+        nxt = self.query_one("#svc-next", Input).value.strip()
+
+        self.dismiss({
+            "port": port,
+            "protocol": proto,
+            "service": name,
+            "version": ver,
+            "potential": pot,
+            "next": nxt,
+        })
+
+
+class AddCredentialModal(ModalScreen[Optional[dict]]):
+    """Fast credential recording dialog with service scope and credential type pickers."""
+
+    DEFAULT_CSS = """
+    AddCredentialModal {
+        align: center middle;
+    }
+    #add-cred-container {
+        width: 68;
+        height: auto;
+        max-height: 90%;
+        border: round #D97757;
+        background: #2A2622;
+        padding: 1 2;
+        color: #EDE6DA;
+    }
+    """
+
+    SCOPE_PRESETS = [
+        ("GLOBAL / All Services", "GLOBAL"),
+        ("SMB (Windows / Samba Shares)", "SMB"),
+        ("SSH (Linux Shell)", "SSH"),
+        ("HTTP / Web Application", "HTTP"),
+        ("WinRM (PowerShell Remoting)", "WinRM"),
+        ("MSSQL (Database)", "MSSQL"),
+        ("MySQL (Database)", "MySQL"),
+        ("RDP (Remote Desktop)", "RDP"),
+        ("FTP (File Transfer)", "FTP"),
+    ]
+
+    TYPE_PRESETS = [
+        ("Cleartext Password", "password"),
+        ("NTLM Hash (LM:NTLM or NTLM)", "ntlm_hash"),
+        ("Kerberos Ticket (TGT / TGS ccache)", "kerberos"),
+        ("SSH Private Key", "ssh_key"),
+        ("API Token / Session Cookie", "token"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-cred-container", classes="synapse-modal-dialog"):
+            yield Label("▸ RECORD CREDENTIAL", classes="modal-header")
+
+            yield Label("Username *:", classes="field-label")
+            yield Input(placeholder="e.g. administrator, root, tomcat", id="cred-user")
+
+            yield Label("Secret / Password / Hash *:", classes="field-label")
+            yield Input(placeholder="e.g. Password123!, aad3b435b51404eeaad3b435b51404ee:...", id="cred-secret")
+
+            yield Label("Service Scope / Protocol:", classes="field-label")
+            yield Select(self.SCOPE_PRESETS, value="SMB", id="cred-scope")
+
+            yield Label("Credential Type:", classes="field-label")
+            yield Select(self.TYPE_PRESETS, value="password", id="cred-type")
+
+            yield Label("Source / Origin (optional):", classes="field-label")
+            yield Input(placeholder="e.g. SAM dump, /etc/shadow, backup.zip, tomcat-users.xml", id="cred-source")
+
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Save Credential (Enter)", variant="primary", classes="primary-btn", id="btn-save")
+                yield Button("Cancel (Esc)", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#cred-user", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save":
+            self.submit_data()
+        else:
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "enter" and not isinstance(self.focused, Select):
+            self.submit_data()
+
+    def submit_data(self) -> None:
+        u = self.query_one("#cred-user", Input).value.strip()
+        p = self.query_one("#cred-secret", Input).value.strip()
+        if not u:
+            return
+        scope = str(self.query_one("#cred-scope", Select).value or "GLOBAL")
+        source = self.query_one("#cred-source", Input).value.strip()
+
+        self.dismiss({
+            "username": u,
+            "secret": p,
+            "scope": scope,
+            "source": source,
+        })
+
+
+class AddFindingModal(ModalScreen[Optional[dict]]):
+    """Fast finding dialog with category presets and severity dropdown."""
+
+    DEFAULT_CSS = """
+    AddFindingModal {
+        align: center middle;
+    }
+    #add-finding-container {
+        width: 68;
+        height: auto;
+        max-height: 90%;
+        border: round #D97757;
+        background: #2A2622;
+        padding: 1 2;
+        color: #EDE6DA;
+    }
+    """
+
+    FINDING_PRESETS = [
+        ("Custom Finding", "", "MEDIUM"),
+        ("Default Administrative Credentials", "Default credentials identified allowing privileged access.", "CRITICAL"),
+        ("Anonymous / Guest SMB Share Access", "Unauthenticated guest access permits reading sensitive shares.", "HIGH"),
+        ("Unauthenticated Remote Code Execution (RCE)", "Vulnerability allows direct arbitrary code execution.", "CRITICAL"),
+        ("SQL Injection (Auth Bypass / Exfiltration)", "SQL injection allows database dump or login bypass.", "HIGH"),
+        ("Weak / Predictable Password", "Service vulnerable to dictionary brute-force.", "HIGH"),
+        ("Unquoted Service Path Privilege Escalation", "Windows service path contains unquoted space allowing binary planting.", "HIGH"),
+        ("SUID Binary Exploitation PrivEsc", "Linux SUID binary with GTFOBins exploitation path.", "HIGH"),
+        ("Sudo NOPASSWD Misconfiguration PrivEsc", "User can run command as root without password.", "HIGH"),
+        ("Kerberoasting (SPN Hash Exfiltration)", "Service principal accounts requestable for offline cracking.", "HIGH"),
+        ("AS-REP Roasting (No Pre-Authentication)", "User account DONT_REQ_PREAUTH allows offline TGT crack.", "HIGH"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-finding-container", classes="synapse-modal-dialog"):
+            yield Label("▸ RECORD VULNERABILITY / FINDING", classes="modal-header")
+
+            yield Label("Category Preset (Auto-fills title and severity):", classes="field-label")
+            yield Select(
+                [(p[0], f"{p[0]}|{p[1]}|{p[2]}") for p in self.FINDING_PRESETS],
+                value=f"{self.FINDING_PRESETS[0][0]}||MEDIUM",
+                id="finding-preset",
+            )
+
+            yield Label("Finding Title *:", classes="field-label")
+            yield Input(placeholder="e.g. Apache Tomcat Default Credentials", id="finding-title")
+
+            yield Label("Severity Level:", classes="field-label")
+            yield Select(
+                [
+                    ("CRITICAL (Direct Foothold / Domain Admin)", "CRITICAL"),
+                    ("HIGH (Privilege Escalation / Sensitive Data)", "HIGH"),
+                    ("MEDIUM (Misconfiguration / Brute-force)", "MEDIUM"),
+                    ("LOW (Information Leak)", "LOW"),
+                    ("INFO (Recon Observation)", "INFO"),
+                ],
+                value="HIGH",
+                id="finding-sev",
+            )
+
+            yield Label("Exploitation Details / Description (optional):", classes="field-label")
+            yield Input(placeholder="e.g. tomcat:s3cret_p4ss allows uploading WAR reverse shell", id="finding-desc")
+
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Save Finding (Enter)", variant="primary", classes="primary-btn", id="btn-save")
+                yield Button("Cancel (Esc)", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#finding-preset", Select).focus()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "finding-preset" and event.value:
+            val = str(event.value)
+            parts = val.split("|", 2)
+            if len(parts) == 3:
+                title, desc, sev = parts[0], parts[1], parts[2]
+                if title != "Custom Finding":
+                    self.query_one("#finding-title", Input).value = title
+                    self.query_one("#finding-desc", Input).value = desc
+                    self.query_one("#finding-sev", Select).value = sev
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save":
+            self.submit_data()
+        else:
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "enter" and not isinstance(self.focused, Select):
+            self.submit_data()
+
+    def submit_data(self) -> None:
+        title = self.query_one("#finding-title", Input).value.strip()
+        if not title:
+            return
+        sev = str(self.query_one("#finding-sev", Select).value or "MEDIUM")
+        desc = self.query_one("#finding-desc", Input).value.strip()
+
+        self.dismiss({
+            "title": title,
+            "severity": sev,
+            "desc": desc,
+        })
+
+
 class FastInputModal(ModalScreen[Optional[dict]]):
-    """Generic quick-entry modal."""
+    """Generic quick-entry modal for simple key-value inputs."""
 
     DEFAULT_CSS = """
     FastInputModal {
@@ -324,20 +771,30 @@ class FastInputModal(ModalScreen[Optional[dict]]):
     #input-container {
         width: 65%;
         height: auto;
-        border: thick $primary;
-        background: $surface;
+        border: round #D97757;
+        background: #2A2622;
         padding: 1 2;
+        color: #EDE6DA;
     }
     #modal-title {
         text-style: bold;
+        color: #D97757;
         margin-bottom: 1;
     }
     .input-field {
         margin-bottom: 1;
+        background: #211E1B;
+        border: round #332E29;
+        color: #EDE6DA;
+    }
+    .input-field:focus {
+        border: round #D97757;
     }
     #button-bar {
         height: 3;
         margin-top: 1;
+        layout: horizontal;
+        align: right middle;
     }
     """
 
@@ -348,13 +805,13 @@ class FastInputModal(ModalScreen[Optional[dict]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="input-container"):
-            yield Label(f"[bold cyan]{self.modal_title}[/bold cyan]", id="modal-title")
+            yield Label(f"▸ {self.modal_title}", id="modal-title")
             for key, label_text, default_val in self.fields:
-                yield Label(label_text)
+                yield Label(label_text, classes="field-label")
                 yield Input(value=default_val, id=f"field-{key}", classes="input-field")
             with Horizontal(id="button-bar"):
-                yield Button("Save (Enter)", variant="primary", id="btn-save")
-                yield Button("Cancel (Esc)", variant="default", id="btn-cancel")
+                yield Button("Save (Enter)", variant="primary", classes="primary-btn", id="btn-save")
+                yield Button("Cancel (Esc)", id="btn-cancel")
 
     def on_mount(self) -> None:
         first_input = self.query(Input).first()

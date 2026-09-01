@@ -46,7 +46,12 @@ from cyb0x_s.templates import (
     get_guidance_for_service,
     get_template_guidance_for_title,
 )
+from cyb0x_s.tui.theme import APP_CSS
 from cyb0x_s.tui.widgets import (
+    AddCredentialModal,
+    AddFindingModal,
+    AddServiceModal,
+    AddTargetModal,
     CredentialMatrixWidget,
     DataListItem,
     FastInputModal,
@@ -95,119 +100,7 @@ class CyboxSafeApp(App):
         Binding("question_mark", "show_help", "Help"),
     ]
 
-    CSS = """
-    Screen {
-        layout: vertical;
-        background: #0d1117;
-    }
-    #target-bar {
-        height: 3;
-        background: #161b22;
-        border-bottom: solid #30363d;
-    }
-    TabbedContent {
-        height: 1fr;
-    }
-    Tabs {
-        background: #161b22;
-        border-bottom: solid #30363d;
-        height: 3;
-    }
-    Tab {
-        padding: 0 2;
-        background: transparent;
-        color: #8b949e;
-    }
-    Tab:hover {
-        color: #f0f6fc;
-        background: #21262d;
-    }
-    Tab.-active {
-        color: #58a6ff;
-        text-style: bold;
-        background: #1c2128;
-        border-bottom: tall #58a6ff;
-    }
-    Underline {
-        display: none;
-    }
-    #main-container {
-        height: 1fr;
-        layout: horizontal;
-    }
-    #sidebar-tree-pane {
-        width: 28%;
-        height: 100%;
-        padding-right: 1;
-    }
-    #workbench-pane {
-        width: 72%;
-        height: 100%;
-        layout: horizontal;
-    }
-    .column {
-        width: 1fr;
-        height: 1fr;
-        padding: 0 1;
-    }
-    .panel-box {
-        border: round #30363d;
-        background: #161b22;
-        margin-bottom: 1;
-        padding: 0 1;
-    }
-    .panel-box:focus-within {
-        border: round #58a6ff;
-        background: #1c2128;
-    }
-    #panel-services {
-        height: 58%;
-    }
-    #panel-creds-preview {
-        height: 42%;
-    }
-    #panel-checklist {
-        height: 62%;
-    }
-    #panel-notes {
-        height: 38%;
-    }
-    .panel-header {
-        text-style: bold;
-        color: #79c0ff;
-        padding: 0 1;
-        height: 1;
-    }
-    .panel-list {
-        height: 1fr;
-    }
-    #cmd-input-bar {
-        height: 3;
-        border-top: solid #30363d;
-        padding: 0 1;
-        background: #161b22;
-        layout: horizontal;
-        align: left middle;
-    }
-    #cmd-prompt {
-        width: 3;
-        padding-top: 1;
-    }
-    #cmd-input {
-        width: 1fr;
-        border: none;
-        background: transparent;
-    }
-    #cmd-input:focus {
-        border: none;
-    }
-    .maximized {
-        width: 100% !important;
-        height: 100% !important;
-        border: double #58a6ff !important;
-        layer: top;
-    }
-    """
+    CSS = APP_CSS
 
     def __init__(self, store: Optional[NotebookStore] = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -768,28 +661,22 @@ class CyboxSafeApp(App):
     def action_add_target(self) -> None:
         def on_result(data: Optional[dict]) -> None:
             if data and data.get("ip"):
-                self.store.add_target(
+                target = self.store.add_target(
                     ip=data["ip"],
                     hostname=data.get("hostname", ""),
                     os_name=data.get("os", "Unknown") or "Unknown",
                     notes=data.get("notes", ""),
                 )
+                ports = data.get("ports", [])
+                for p in ports:
+                    svc_name = "http" if p in (80, 443, 8080) else ("ssh" if p == 22 else ("smb" if p == 445 else "unknown"))
+                    self.store.add_service(target_id=target.id, port=p, protocol="tcp", service=svc_name)
+
                 self.refresh_targets()
                 self.refresh_all()
-                self.notify(f"Target {data['ip']} added")
+                self.notify(f"Target {data['ip']} added ({len(ports)} ports)")
 
-        self.push_screen(
-            FastInputModal(
-                title="Add Target",
-                fields=[
-                    ("ip", "Target IP / Hostname *", ""),
-                    ("hostname", "FQDN / NetBIOS name", ""),
-                    ("os", "Operating System", "Linux"),
-                    ("notes", "Target Notes", ""),
-                ],
-            ),
-            callback=on_result,
-        )
+        self.push_screen(AddTargetModal(), callback=on_result)
 
     def action_add_service(self) -> None:
         active = self.store.get_active_target()
@@ -809,7 +696,6 @@ class CyboxSafeApp(App):
                         version=data.get("version", ""),
                         access_potential=data.get("potential", "MED") or "MED",
                         next_action=data.get("next", ""),
-                        notes=data.get("notes", ""),
                     )
                     self.refresh_targets()
                     self.refresh_all()
@@ -817,21 +703,7 @@ class CyboxSafeApp(App):
                 except ValueError:
                     self.notify("Port must be an integer", severity="error")
 
-        self.push_screen(
-            FastInputModal(
-                title=f"Add Service for {active.ip}",
-                fields=[
-                    ("port", "Port Number *", "80"),
-                    ("protocol", "Protocol (tcp/udp)", "tcp"),
-                    ("service", "Service Name (e.g. HTTP, SSH)", "HTTP"),
-                    ("version", "Version / Banner", ""),
-                    ("potential", "Initial Access Potential (HIGH, MED, LOW)", "MED"),
-                    ("next", "Next Action / Command (e.g. gobuster)", ""),
-                    ("notes", "Observations", ""),
-                ],
-            ),
-            callback=on_result,
-        )
+        self.push_screen(AddServiceModal(target_ip=active.ip), callback=on_result)
 
     def action_add_finding(self) -> None:
         active = self.store.get_active_target()
@@ -844,23 +716,11 @@ class CyboxSafeApp(App):
                     target_id=target_id,
                     description=data.get("desc", ""),
                     severity=data.get("severity") or None,
-                    notes=data.get("notes", ""),
                 )
                 self.refresh_all()
                 self.notify("Finding recorded")
 
-        self.push_screen(
-            FastInputModal(
-                title="Record Finding",
-                fields=[
-                    ("title", "Finding Title *", ""),
-                    ("desc", "Description", ""),
-                    ("severity", "Severity (INFO, LOW, MEDIUM, HIGH, CRITICAL)", ""),
-                    ("notes", "Notes", ""),
-                ],
-            ),
-            callback=on_result,
-        )
+        self.push_screen(AddFindingModal(), callback=on_result)
 
     def action_add_credential(self) -> None:
         active = self.store.get_active_target()
@@ -878,18 +738,7 @@ class CyboxSafeApp(App):
                 self.refresh_all()
                 self.notify("Credential saved")
 
-        self.push_screen(
-            FastInputModal(
-                title="Record Credential",
-                fields=[
-                    ("username", "Username *", ""),
-                    ("secret", "Password / Hash / Secret *", ""),
-                    ("source", "Source (e.g. shadow, backup.zip)", ""),
-                    ("scope", "Service Scope (e.g. SSH, SMB)", ""),
-                ],
-            ),
-            callback=on_result,
-        )
+        self.push_screen(AddCredentialModal(), callback=on_result)
 
     def action_add_note(self) -> None:
         active = self.store.get_active_target()
