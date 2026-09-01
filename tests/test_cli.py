@@ -184,3 +184,19 @@ def test_cli_flags_foothold_privesc_stuck(cli_runner: CliRunner, temp_db_path: P
     assert "Found credentials in port 445 SMB share" in res_export.output
     assert "Check SMB shares first" in res_export.output
 
+
+def test_cli_ref_command(cli_runner: CliRunner, temp_db_path: Path) -> None:
+    # Test searching reference for winrm with target IP
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.40"])
+
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "ref", "winrm"])
+    assert res.exit_code == 0
+    assert "evil-winrm" in res.output
+    assert "10.10.10.40" in res.output
+
+    # Test searching for smb
+    res_smb = cli_runner.invoke(cli, ["--db", str(temp_db_path), "ref", "smb"])
+    assert res_smb.exit_code == 0
+    assert "smbclient" in res_smb.output
+
+

@@ -37,6 +37,7 @@ from cyb0x_s.tui.widgets import (
     FastInputModal,
     GuidanceDrawer,
     HelpModal,
+    ReferenceModal,
     SearchModal,
     TargetInfoPanel,
     TemplateSelectionModal,
@@ -57,6 +58,7 @@ class CyboxSafeApp(App):
         Binding("enter", "activate_selected", "Action"),
         Binding("z", "toggle_zoom", "Zoom"),
         Binding("g", "record_flags", "Flags", priority=True),
+        Binding("r", "show_reference", "CheatSheet", priority=True),
         Binding("slash", "open_search", "Search"),
         Binding("ctrl+f", "open_search", "Search"),
         Binding("t", "add_target", "Target"),
@@ -579,6 +581,18 @@ class CyboxSafeApp(App):
         """Open help sheet."""
         self.push_screen(HelpModal())
 
+    def action_show_reference(self) -> None:
+        """Open searchable cheat sheet and command reference modal."""
+        active = self.store.get_active_target()
+        target_ip = active.ip if active else ""
+
+        def on_selected(cmd: Optional[str]) -> None:
+            if cmd:
+                copy_to_clipboard(cmd)
+                self.notify(f"Copied command: {cmd}")
+
+        self.push_screen(ReferenceModal(target_ip=target_ip), callback=on_selected)
+
     # -------------------------------------------------------------------------
     # Add Item Modals
     # -------------------------------------------------------------------------
@@ -865,6 +879,14 @@ class CyboxSafeApp(App):
             ev_path = val[4:].strip()
             self.store.add_evidence(path_or_ref=ev_path, target_id=target_id)
             self.notify(f"Evidence logged: {ev_path}")
+        elif val.startswith(":ref ") or val.startswith(":cheat "):
+            active_ip = active.ip if active else ""
+            def on_cmd_selected(cmd: Optional[str]) -> None:
+                if cmd:
+                    copy_to_clipboard(cmd)
+                    self.notify(f"Copied command: {cmd}")
+            self.push_screen(ReferenceModal(target_ip=active_ip), callback=on_cmd_selected)
+            return
         elif val.startswith("/"):
             self.action_open_search()
             return

@@ -461,3 +461,98 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
         elif event.key == "enter":
             self._select_current()
 
+
+class ReferenceModal(ModalScreen[Optional[str]]):
+    """Searchable command reference and playbook modal (dev-angelist / eJPTv2 curated)."""
+
+    DEFAULT_CSS = """
+    ReferenceModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.75);
+    }
+    #ref-box {
+        width: 85%;
+        height: 85%;
+        border: thick #58a6ff;
+        background: #161b22;
+        padding: 1 2;
+    }
+    #ref-filter-input {
+        margin-top: 1;
+        margin-bottom: 1;
+        border: solid #30363d;
+        background: #0d1117;
+    }
+    #ref-list {
+        height: 1fr;
+        border: solid #30363d;
+        margin-bottom: 1;
+    }
+    #ref-btn-bar {
+        height: 3;
+        layout: horizontal;
+    }
+    """
+
+    def __init__(self, target_ip: str = "", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.target_ip = target_ip
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="ref-box"):
+            yield Label("[bold cyan]📖 eJPTv2 CHEAT SHEET & COMMAND REFERENCE[/bold cyan] [dim](Offline Playbook)[/dim]")
+            yield Label(f"[dim]Target IP: [bold]{self.target_ip or 'None'}[/bold] • Type to filter, Enter to copy command, Esc to exit[/dim]")
+            yield Input(placeholder="Search commands: smb, winrm, mimikatz, pivot, privesc, sql, hydra...", id="ref-filter-input")
+            yield ListView(id="ref-list")
+            with Horizontal(id="ref-btn-bar"):
+                yield Button("Copy Selected Command (Enter)", variant="primary", id="btn-copy-ref")
+                yield Button("Close (Esc)", variant="default", id="btn-close-ref")
+
+    def on_mount(self) -> None:
+        self._populate_list("")
+        inp = self.query_one("#ref-filter-input", Input)
+        inp.focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        self._populate_list(event.value)
+
+    def _populate_list(self, query: str) -> None:
+        from cyb0x_s.reference import search_reference
+
+        ref_list = self.query_one("#ref-list", ListView)
+        ref_list.clear()
+        matches = search_reference(query, target_ip=self.target_ip)
+        if matches:
+            for item in matches:
+                txt = Text()
+                txt.append(f"[{item['category']}] ", style="bold magenta")
+                txt.append(f"{item['title']}\n", style="bold white")
+                txt.append(f"  ❯ {item['command']}\n", style="bold yellow")
+                txt.append(f"    ℹ {item['desc']}", style="dim italic")
+                ref_list.append(DataListItem(data_obj=item["command"], display_text=txt))
+        else:
+            txt = Text("  • No matching commands found. Try 'smb', 'web', 'sql', 'privesc'...", style="dim italic")
+            ref_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-copy-ref":
+            self._select_current()
+        else:
+            self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if isinstance(event.item, DataListItem) and not event.item.is_placeholder and event.item.data_obj:
+            self.dismiss(str(event.item.data_obj))
+
+    def _select_current(self) -> None:
+        ref_list = self.query_one("#ref-list", ListView)
+        if ref_list.highlighted_child and isinstance(ref_list.highlighted_child, DataListItem) and not ref_list.highlighted_child.is_placeholder:
+            self.dismiss(str(ref_list.highlighted_child.data_obj))
+        else:
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
+
