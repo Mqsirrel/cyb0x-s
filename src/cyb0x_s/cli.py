@@ -399,17 +399,19 @@ def checklist_check_cmd(ctx: click.Context, pattern: str, target: Optional[str])
 @checklist_group.command("template")
 @click.argument("name")
 @click.option("--target", "-t", default=None, help="Target IP or ID")
+@click.option("--replace", "-r", is_flag=True, default=False, help="Replace existing checklist items instead of appending")
 @click.pass_context
-def checklist_template_cmd(ctx: click.Context, name: str, target: Optional[str]) -> None:
-    """Load a static methodology checklist template (linux, windows, web, smb, privesc, pivoting)."""
+def checklist_template_cmd(ctx: click.Context, name: str, target: Optional[str], replace: bool = False) -> None:
+    """Load a static methodology checklist template (ejpt, web, smb, pivoting, privesc)."""
     store = _get_store(ctx)
     t_obj = store.resolve_target(target) if target else store.get_active_target()
     target_id = t_obj.id if t_obj else None
 
     try:
-        created = apply_template_to_store(store, name, target_id=target_id)
+        created = apply_template_to_store(store, name, target_id=target_id, replace=replace)
         t_info = f" for {t_obj.ip}" if t_obj else ""
-        console.print(f"[green]✓ Applied static template '{name}' ({len(created)} items){t_info}[/green]")
+        verb = "Switched to" if replace else "Applied"
+        console.print(f"[green]✓ {verb} static template '{name}' ({len(created)} items){t_info}[/green]")
     except ValueError as e:
         err_console.print(f"[red]{e}[/red]")
 

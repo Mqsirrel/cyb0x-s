@@ -47,3 +47,26 @@ def test_standard_methodology_templates(store: NotebookStore) -> None:
         items = apply_template_to_store(store, name, target_id=t.id)
         assert len(items) >= 5, f"Template {name} should have at least 5 checklist items"
 
+
+def test_apply_template_replace(store: NotebookStore) -> None:
+    t = store.add_target("10.10.10.40")
+    # Load smb
+    smb_items = apply_template_to_store(store, "smb", target_id=t.id)
+    assert len(store.list_checklist_items(target_id=t.id)) == len(smb_items)
+
+    # Replace with web
+    web_items = apply_template_to_store(store, "web", target_id=t.id, replace=True)
+    all_items = store.list_checklist_items(target_id=t.id)
+    assert len(all_items) == len(web_items)
+    assert all_items[0].category == "WEB APPLICATION TESTING"
+
+
+def test_clear_checklist(store: NotebookStore) -> None:
+    t = store.add_target("10.10.10.50")
+    apply_template_to_store(store, "ftp", target_id=t.id)
+    assert len(store.list_checklist_items(target_id=t.id)) > 0
+
+    count = store.clear_checklist(target_id=t.id)
+    assert count > 0
+    assert len(store.list_checklist_items(target_id=t.id)) == 0
+

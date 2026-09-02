@@ -375,3 +375,50 @@ async def test_natural_language_command_aliases(seeded_store: NotebookStore) -> 
         await pilot.pause()
         assert app.theme_name == "neon"
 
+
+@pytest.mark.asyncio
+async def test_change_methodology_tui(seeded_store: NotebookStore) -> None:
+    """Test switching methodology template replaces current items and updates cockpit."""
+    from cyb0x_s.tui.widgets import TemplateSelectionModal
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        # Press 'm' to open methodology modal
+        await pilot.press("m")
+        await pilot.pause()
+        assert any(isinstance(s, TemplateSelectionModal) for s in app.screen_stack)
+
+        # In modal, highlight 'web' and press Enter (or switch button)
+        modal = app.screen
+        assert isinstance(modal, TemplateSelectionModal)
+        # Select web
+        modal.dismiss(("web", True))
+        await pilot.pause()
+
+        # Check that checklist has been switched to web
+        active = seeded_store.get_active_target()
+        items = seeded_store.list_checklist_items(target_id=active.id)
+        assert len(items) > 0
+        assert all(item.category == "WEB APPLICATION TESTING" for item in items)
+        # Verify old eJPT items were replaced
+        assert not any("Scope & Subnet Recon" in item.title for item in items)
+
+
+@pytest.mark.asyncio
+async def test_command_bar_methodology_switch(seeded_store: NotebookStore) -> None:
+    """Test switching methodology via command bar :m smb."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        from textual.widgets import Input
+
+        cmd = app.query_one("#cmd-input", Input)
+        cmd.focus()
+        cmd.value = ":m smb"
+        await cmd.action_submit()
+        await pilot.pause()
+
+        active = seeded_store.get_active_target()
+        items = seeded_store.list_checklist_items(target_id=active.id)
+        assert len(items) > 0
+        assert all(item.category == "SMB ENUMERATION" for item in items)
+

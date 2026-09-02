@@ -434,8 +434,12 @@ class ConsoleBar(Container):
 
         if v == ":":
             cmd_line.append("[COMMAND MENU] ", style=f"bold {P.warn}")
-            cmd_line.append(":t target  :s svc  :c cred  :n note  :f finding  :theme  :1-:4  :ref  ? help", style=f"bold {P.text}")
+            cmd_line.append(":t target  :s svc  :c cred  :m tmpl  :n note  :f finding  :theme  :1-:4  :ref  ? help", style=f"bold {P.text}")
             tip_line.append("Press Tab to autocomplete or type a command name", style=f"{P.muted}")
+        elif v.startswith(":m") or v.startswith(":template") or v.startswith(":methodology"):
+            cmd_line.append("[METHODOLOGY CHECKLIST] ", style=f"bold {P.warn}")
+            cmd_line.append(":m <name> [append]", style=f"bold {P.text}")
+            tip_line.append("e.g. :m web, :m smb, :m pivoting, :m ejpt (press 'm' for modal picker)", style=f"{P.muted}")
         elif v.startswith(":t") or v.startswith("target ") or v.startswith("add target"):
             cmd_line.append("[ADD TARGET] ", style=f"bold {P.warn}")
             cmd_line.append(":t <ip> [hostname] [os]", style=f"bold {P.text}")
@@ -1720,7 +1724,7 @@ Press [bold]Esc[/bold] or [bold]q[/bold] to return to the worksheet.
             self.dismiss(None)
 
 
-class TemplateSelectionModal(ModalScreen[Optional[str]]):
+class TemplateSelectionModal(ModalScreen[Any]):
     """Interactive selector for eJPTv2 & standard penetration testing methodology templates."""
 
     DEFAULT_CSS = """
@@ -1753,10 +1757,11 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
                 f"[bold {P.accent}]METHODOLOGY CHECKLIST TEMPLATES[/bold {P.accent}]"
                 f" [{P.muted}](Standard Assessment Workflows)[/]"
             )
-            yield Label(f"[{P.muted}]Select a template using ↑ / ↓ and press Enter (or click Apply)[/]")
+            yield Label(f"[{P.muted}]Select a template: [bold]Enter[/bold] to switch/replace current checklist, [bold]a[/bold] to append[/]")
             yield ListView(id="template-list")
             with Horizontal(id="btn-bar"):
-                yield Button("Apply Template (Enter)", variant="primary", id="btn-apply")
+                yield Button("Switch Methodology (Enter)", variant="primary", id="btn-switch")
+                yield Button("Append Items (a)", variant="default", id="btn-append")
                 yield Button("Cancel (Esc)", variant="default", id="btn-cancel")
 
     def on_mount(self) -> None:
@@ -1772,19 +1777,21 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
         t_list.focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-apply":
-            self._select_current()
+        if event.button.id == "btn-switch":
+            self._select_current(replace=True)
+        elif event.button.id == "btn-append":
+            self._select_current(replace=False)
         else:
             self.dismiss(None)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if isinstance(event.item, DataListItem):
-            self.dismiss(event.item.data_obj)
+            self.dismiss((event.item.data_obj, True))
 
-    def _select_current(self) -> None:
+    def _select_current(self, replace: bool = True) -> None:
         t_list = self.query_one("#template-list", ListView)
         if t_list.highlighted_child and isinstance(t_list.highlighted_child, DataListItem):
-            self.dismiss(t_list.highlighted_child.data_obj)
+            self.dismiss((t_list.highlighted_child.data_obj, replace))
         else:
             self.dismiss(None)
 
@@ -1792,7 +1799,9 @@ class TemplateSelectionModal(ModalScreen[Optional[str]]):
         if event.key == "escape":
             self.dismiss(None)
         elif event.key == "enter":
-            self._select_current()
+            self._select_current(replace=True)
+        elif event.key in ("a", "A"):
+            self._select_current(replace=False)
 
 
 class ReferenceModal(ModalScreen[Optional[str]]):

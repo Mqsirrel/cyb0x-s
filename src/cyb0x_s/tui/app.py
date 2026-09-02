@@ -1129,15 +1129,30 @@ class CyboxSafeApp(App):
         active = self.store.get_active_target()
         target_id = active.id if active else None
 
-        def on_template_selected(template_name: Optional[str]) -> None:
-            if template_name:
+        def on_template_selected(result: Any) -> None:
+            if not result:
+                return
+            if isinstance(result, tuple):
+                template_name, replace = result
+            else:
+                template_name, replace = result, True
+
+            try:
+                items = apply_template_to_store(
+                    self.store, template_name, target_id=target_id, replace=replace
+                )
+                # Reset checklist cursor to top when switching methodology
                 try:
-                    items = apply_template_to_store(self.store, template_name, target_id=target_id)
-                    self.refresh_all()
-                    t_name = template_name.upper()
-                    self.notify(f"Applied {t_name} checklist ({len(items)} items)")
-                except ValueError as e:
-                    self.notify(str(e), severity="error")
+                    ck_list = self.query_one("#list-checklist", ListView)
+                    ck_list.index = 0
+                except Exception:
+                    pass
+                self.refresh_all()
+                t_name = template_name.upper()
+                action_word = "Switched to" if replace else "Appended"
+                self.notify(f"{action_word} {t_name} methodology ({len(items)} items)")
+            except ValueError as e:
+                self.notify(str(e), severity="error")
 
         self.push_screen(TemplateSelectionModal(), callback=on_template_selected)
 
@@ -1329,6 +1344,28 @@ class CyboxSafeApp(App):
                 state = self.toggle_transparency(persist=True)
                 msg = "Glass transparency enabled" if state else "Solid background enabled"
                 self.notify(f"{msg} (saved as default)")
+        elif val.startswith((":m ", ":template ", ":methodology ")):
+            arg = val.split(maxsplit=1)[1].strip()
+            parts = arg.split()
+            tmpl_name = parts[0].lower()
+            replace_mode = not (len(parts) > 1 and parts[1].lower() in ("append", "add", "+"))
+            try:
+                items = apply_template_to_store(
+                    self.store, tmpl_name, target_id=target_id, replace=replace_mode
+                )
+                try:
+                    ck_list = self.query_one("#list-checklist", ListView)
+                    ck_list.index = 0
+                except Exception:
+                    pass
+                self.refresh_all()
+                action_word = "Switched to" if replace_mode else "Appended"
+                self.notify(f"{action_word} {tmpl_name.upper()} methodology ({len(items)} items)")
+            except ValueError as e:
+                self.notify(str(e), severity="error")
+            return
+        elif val in (":m", ":template", ":methodology"):
+            self.action_apply_template()
             return
         elif val.startswith("/"):
             self.action_open_search()
