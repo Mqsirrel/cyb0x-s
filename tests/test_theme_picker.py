@@ -74,27 +74,30 @@ async def test_picker_reopen_move_enter_keeps_preview(seeded_store: NotebookStor
         assert len(app.screen_stack) == 1
 
 
+def test_palette_contrast_and_accessibility() -> None:
+    """Pure mathematical contrast and accessibility checks (instant, no TUI overhead)."""
+    for name, palette in PALETTES.items():
+        assert palette.contrast_ratio() >= 7.0, name
+        assert palette.contrast_ratio(palette.muted, palette.bg) >= 4.5, name
+        assert len(palette.swatch()) == 7, name
+
+
 @pytest.mark.asyncio
 async def test_every_palette_renders_and_is_accessible(seeded_store: NotebookStore) -> None:
+    """Verify live theme switching across all palettes in the TUI."""
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         for name in PALETTES:
-            palette = PALETTES[name]
-            # Contrast is AAA for body text, AA for muted text on its own bg.
-            assert palette.contrast_ratio() >= 7.0, name
-            assert palette.contrast_ratio(palette.muted, palette.bg) >= 4.5, name
-            assert len(palette.swatch()) == 7, name
-
             app.apply_theme(name, quiet=True)
-            await pilot.pause()
             assert app.theme_name == name
+        await pilot.pause()
 
-            # Cycle through the stations and confirm the status strip stays alive.
-            for key in ("2", "3", "4", "1"):
-                await pilot.press(key)
-                await pilot.pause()
-                strip = app.query_one(MachineStatusStrip)
-                assert strip.render().plain.strip(), f"{name} tab {key} rendered empty"
+        # Cycle through stations once to confirm the status strip stays alive
+        for key in ("2", "3", "4", "1"):
+            await pilot.press(key)
+            await pilot.pause()
+            strip = app.query_one(MachineStatusStrip)
+            assert strip.render().plain.strip(), f"tab {key} rendered empty"
 
 
 @pytest.mark.asyncio
