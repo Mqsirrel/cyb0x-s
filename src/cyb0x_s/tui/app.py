@@ -57,6 +57,8 @@ from cyb0x_s.tui.theme import (
     PALETTES,
     S,
     current_palette,
+    get_default_theme,
+    resolve_palette_name,
     set_palette,
 )
 from cyb0x_s.tui.widgets import (
@@ -132,14 +134,15 @@ class CyboxSafeApp(App):
     def __init__(
         self,
         store: Optional[NotebookStore] = None,
-        theme: str = DEFAULT_PALETTE,
+        theme: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         # Register every palette up front so switching is a one-liner later.
         for palette in PALETTES.values():
             self.register_theme(palette.textual_theme())
-        self.theme_name: str = theme if theme in PALETTES else DEFAULT_PALETTE
+        resolved = resolve_palette_name(theme) or get_default_theme()
+        self.theme_name: str = resolved
         set_palette(self.theme_name)
         self.theme = PALETTES[self.theme_name].textual_theme().name
         self.store = store or NotebookStore()
@@ -759,12 +762,16 @@ class CyboxSafeApp(App):
         self.apply_theme(names[(current + 1) % len(names)])
 
     def apply_theme(self, name: str, quiet: bool = False) -> None:
-        """Activate a palette by name, live. ``quiet`` skips the toast (preview)."""
-        if name not in PALETTES:
-            self.notify(f"Unknown theme '{name}'. Available: {', '.join(PALETTES)}", severity="warning")
+        """Activate a palette by name, index (1-7), or alias/prefix, live."""
+        resolved = resolve_palette_name(name)
+        if not resolved or resolved not in PALETTES:
+            self.notify(
+                f"Unknown theme '{name}'. Available: {', '.join(PALETTES)} (or 1-7)",
+                severity="warning",
+            )
             return
-        self.theme_name = name
-        palette = set_palette(name)
+        self.theme_name = resolved
+        palette = set_palette(resolved)
         self.theme = palette.textual_theme().name
         self.refresh_targets()
         self.refresh_all()

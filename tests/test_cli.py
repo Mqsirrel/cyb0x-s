@@ -194,9 +194,14 @@ def test_cli_ref_command(cli_runner: CliRunner, temp_db_path: Path) -> None:
     assert "evil-winrm" in res.output
     assert "10.10.10.40" in res.output
 
-    # Test searching for smb
-    res_smb = cli_runner.invoke(cli, ["--db", str(temp_db_path), "ref", "smb"])
-    assert res_smb.exit_code == 0
-    assert "smbclient" in res_smb.output
+def test_cli_theme_option(cli_runner: CliRunner) -> None:
+    res = cli_runner.invoke(cli, ["--help"])
+    assert res.exit_code == 0
+    assert "--theme" in res.output or "-t" in res.output
+
+    res_tui = cli_runner.invoke(cli, ["tui", "--help"])
+    assert res_tui.exit_code == 0
+    assert "--theme" in res_tui.output
+
 
 

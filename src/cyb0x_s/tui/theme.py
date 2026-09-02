@@ -19,6 +19,7 @@ only has to swap the registered theme and Textual re-parses the CSS.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -249,6 +250,71 @@ def set_palette(name: str) -> Palette:
 
 def current_palette() -> Palette:
     return PALETTE
+
+
+def resolve_palette_name(query: Optional[str]) -> Optional[str]:
+    """Resolve a user-supplied theme string, digit (1-7), or prefix into a canonical palette name.
+
+    Examples:
+        '1' -> 'slate'
+        '7' -> 'warm'
+        'w' or 'warm' -> 'warm'
+        'sl' or 'slate' -> 'slate'
+        'mid' or 'midnight' -> 'midnight'
+        'em' or 'ember' -> 'ember'
+        'mo' or 'moss' -> 'moss'
+        'ne' or 'neon' -> 'neon'
+        'mon' or 'mono' -> 'mono'
+    """
+    if not query:
+        return None
+    q = str(query).strip().lower()
+    if not q:
+        return None
+
+    names = list(PALETTES)
+    # Check 1-based digit index
+    if q.isdigit():
+        idx = int(q) - 1
+        if 0 <= idx < len(names):
+            return names[idx]
+
+    # Check exact match
+    if q in PALETTES:
+        return q
+
+    # Disambiguate common short abbreviations
+    alias_map = {
+        "w": "warm",
+        "wa": "warm",
+        "sl": "slate",
+        "s": "slate",
+        "mid": "midnight",
+        "mi": "midnight",
+        "em": "ember",
+        "e": "ember",
+        "mo": "moss",
+        "mos": "moss",
+        "ne": "neon",
+        "n": "neon",
+        "mon": "mono",
+    }
+    if q in alias_map and alias_map[q] in PALETTES:
+        return alias_map[q]
+
+    # Prefix match
+    matches = [name for name in names if name.startswith(q)]
+    if len(matches) >= 1:
+        return matches[0]
+
+    return None
+
+
+def get_default_theme() -> str:
+    """Read the configured default theme from environment or settings, fallback to slate."""
+    env_theme = os.environ.get("CYB0X_THEME") or os.environ.get("CYB0X_PALETTE", "")
+    resolved = resolve_palette_name(env_theme)
+    return resolved or DEFAULT_PALETTE
 
 
 def S(token: str, bold: bool = True) -> str:  # noqa: N802 - short by design
