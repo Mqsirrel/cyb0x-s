@@ -732,6 +732,22 @@ Input:focus {
 }
 
 /* --- lists -------------------------------------------------------------- */
+ListView {
+    scrollbar-size-vertical: 1;
+    scrollbar-gutter: stable;
+}
+
+Tree {
+    scrollbar-size-vertical: 1;
+    scrollbar-gutter: stable;
+}
+
+DataTable {
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-gutter: stable;
+}
+
 ListView > ListItem {
     padding: 0 1;
     color: $foreground;

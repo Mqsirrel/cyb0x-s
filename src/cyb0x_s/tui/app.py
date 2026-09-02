@@ -161,6 +161,17 @@ class CyboxSafeApp(App):
             self.is_transparent: bool = bool(transparent)
         else:
             self.is_transparent = get_default_transparency(self.store)
+        self._cached_active_target: Optional[Target] = None
+
+    def get_current_target(self) -> Optional[Target]:
+        """Return the active target from memory cache, querying SQLite only if unpopulated."""
+        if self._cached_active_target is None:
+            self._cached_active_target = self.store.get_active_target()
+        return self._cached_active_target
+
+    def invalidate_target_cache(self, new_target: Optional[Target] = None) -> None:
+        """Invalidate or update active target memory cache when target changes."""
+        self._cached_active_target = new_target
 
     def compose(self) -> ComposeResult:
         active_ws = self.store.get_active_workspace()
@@ -280,6 +291,7 @@ class CyboxSafeApp(App):
         next_idx = (curr_idx + delta) % len(ids)
         new_target = targets[next_idx]
         self.store.set_active_target(new_target.id)
+        self.invalidate_target_cache(new_target)
         self.refresh_targets()
         self.refresh_all()
         self.notify(f"Active target: {new_target.ip}")
@@ -565,6 +577,7 @@ class CyboxSafeApp(App):
             if target_id:
                 self.store.set_active_target(int(target_id))
                 active = self.store.get_target(int(target_id))
+                self.invalidate_target_cache(active)
                 self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
                 self.refresh_all()
 
@@ -575,6 +588,7 @@ class CyboxSafeApp(App):
                 t_id = int(event.tab.id.split("-")[1])
                 self.store.set_active_target(t_id)
                 active = self.store.get_target(t_id)
+                self.invalidate_target_cache(active)
                 self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
                 self.refresh_all()
             except (ValueError, IndexError):
@@ -593,7 +607,7 @@ class CyboxSafeApp(App):
         if not obj:
             return
 
-        active = self.store.get_active_target()
+        active = self.get_current_target()
         target_ip = active.ip if active else ""
         try:
             guidance_box = self.query_one("#guidance-box", ConsoleBar)
@@ -619,191 +633,192 @@ class CyboxSafeApp(App):
 
     def refresh_all(self) -> None:
         """Refresh all data lists from the database."""
-        active_target = self.store.get_active_target()
-        target_id = active_target.id if active_target else None
-        targets = self.store.list_targets()
+        with self.batch_update():
+            active_target = self.get_current_target()
+            target_id = active_target.id if active_target else None
+            targets = self.store.list_targets()
 
-        # Check which tab is currently active to avoid rendering hidden tabs
-        try:
-            active_tab = self.query_one("#tabs", TabbedContent).active
-        except Exception:
-            active_tab = "tab-worksheet"
+            # Check which tab is currently active to avoid rendering hidden tabs
+            try:
+                active_tab = self.query_one("#tabs", TabbedContent).active
+            except Exception:
+                active_tab = "tab-worksheet"
 
-        # 1. Services & Ports (Notion 01 format with Potential and Next Action)
-        svc_list = self.query_one("#list-services", ListView)
-        saved_svc_idx = svc_list.index
-        svc_list.clear()
-        services = self.store.list_services(target_id=target_id) if target_id else []
-        self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
-        if services:
-            for s in services:
-                txt = Text()
-                if s.status.value == "CHECKED":
-                    txt.append("✓ ", style=S("ok"))
-                elif s.status.value == "DEFERRED":
-                    txt.append("~ ", style=S("warn"))
-                elif s.status.value == "DEAD-END":
-                    txt.append("✗ ", style=S("danger"))
-                else:
-                    txt.append("→ ", style=S("accent"))
+            # 1. Services & Ports (Notion 01 format with Potential and Next Action)
+            svc_list = self.query_one("#list-services", ListView)
+            saved_svc_idx = svc_list.index
+            svc_list.clear()
+            services = self.store.list_services(target_id=target_id) if target_id else []
+            self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
+            if services:
+                for s in services:
+                    txt = Text()
+                    if s.status.value == "CHECKED":
+                        txt.append("✓ ", style=S("ok"))
+                    elif s.status.value == "DEFERRED":
+                        txt.append("~ ", style=S("warn"))
+                    elif s.status.value == "DEAD-END":
+                        txt.append("✗ ", style=S("danger"))
+                    else:
+                        txt.append("→ ", style=S("accent"))
 
-                port_str = f"[{s.port}/{s.protocol}]"
-                txt.append(f"{port_str:<11} ", style=S("accent"))
-                txt.append(f"{s.service:<12} ", style=S("text"))
-                if s.access_potential in ("HIGH", "CRITICAL"):
-                    txt.append(f"[{s.access_potential}] ", style=S("danger"))
-                elif s.access_potential == "LOW":
-                    txt.append("[LOW] ", style=S("muted", bold=False))
-                if s.version:
-                    txt.append(f"{s.version} ", style=S("muted", bold=False))
-                if s.next_action:
-                    txt.append(f"→ `{s.next_action}` ", style=S("warn"))
-                if s.notes:
-                    txt.append(f"({s.notes})", style="dim italic")
-                svc_list.append(DataListItem(data_obj=s, display_text=txt))
-        else:
-            txt = Text("  • No services recorded (Press 's' to add or type ':s 80/tcp http')", style="dim italic")
-            svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-        if saved_svc_idx is not None and len(svc_list.children) > 0:
-            svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
+                    port_str = f"[{s.port}/{s.protocol}]"
+                    txt.append(f"{port_str:<11} ", style=S("accent"))
+                    txt.append(f"{s.service:<12} ", style=S("text"))
+                    if s.access_potential in ("HIGH", "CRITICAL"):
+                        txt.append(f"[{s.access_potential}] ", style=S("danger"))
+                    elif s.access_potential == "LOW":
+                        txt.append("[LOW] ", style=S("muted", bold=False))
+                    if s.version:
+                        txt.append(f"{s.version} ", style=S("muted", bold=False))
+                    if s.next_action:
+                        txt.append(f"→ `{s.next_action}` ", style=S("warn"))
+                    if s.notes:
+                        txt.append(f"({s.notes})", style="dim italic")
+                    svc_list.append(DataListItem(data_obj=s, display_text=txt))
+            else:
+                txt = Text("  • No services recorded (Press 's' to add or type ':s 80/tcp http')", style="dim italic")
+                svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            if saved_svc_idx is not None and len(svc_list.children) > 0:
+                svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
 
-        # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
-        c_list = self.query_one("#list-creds", ListView)
-        saved_c_idx = c_list.index
-        c_list.clear()
-        creds = self.store.list_credentials(target_id=target_id)
-        self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
-        if creds:
-            for c in creds:
-                txt = Text()
-                txt.append("🔑 ", style=S("ok"))
-                txt.append(f"{c.username} ", style=S("text"))
-                txt.append("› ", style=S("muted", bold=False))
-                secret = c.secret if c.id in self.revealed_creds else c.masked_secret
-                txt.append(f"{secret} ", style=S("accent"))
-                if c.service_scope:
-                    txt.append(f"[{c.service_scope}] ", style=S("warn"))
-                if c.source:
-                    txt.append(f"({c.source})", style=S("muted", bold=False))
-                c_list.append(DataListItem(data_obj=c, display_text=txt))
-        else:
-            txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
-            c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-        if saved_c_idx is not None and len(c_list.children) > 0:
-            c_list.index = min(saved_c_idx, len(c_list.children) - 1)
+            # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
+            c_list = self.query_one("#list-creds", ListView)
+            saved_c_idx = c_list.index
+            c_list.clear()
+            creds = self.store.list_credentials(target_id=target_id)
+            self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
+            if creds:
+                for c in creds:
+                    txt = Text()
+                    txt.append("🔑 ", style=S("ok"))
+                    txt.append(f"{c.username} ", style=S("text"))
+                    txt.append("› ", style=S("muted", bold=False))
+                    secret = c.secret if c.id in self.revealed_creds else c.masked_secret
+                    txt.append(f"{secret} ", style=S("accent"))
+                    if c.service_scope:
+                        txt.append(f"[{c.service_scope}] ", style=S("warn"))
+                    if c.source:
+                        txt.append(f"({c.source})", style=S("muted", bold=False))
+                    c_list.append(DataListItem(data_obj=c, display_text=txt))
+            else:
+                txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
+                c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            if saved_c_idx is not None and len(c_list.children) > 0:
+                c_list.index = min(saved_c_idx, len(c_list.children) - 1)
 
-        # Tab 3 Credential Matrix: only update if user is looking at Tab 3
-        if active_tab == "tab-creds":
-            self.refresh_cred_matrix()
+            # Tab 3 Credential Matrix: only update if user is looking at Tab 3
+            if active_tab == "tab-creds":
+                self.refresh_cred_matrix()
 
-        # 3. Checklist & Progress Bar
-        ck_list = self.query_one("#list-checklist", ListView)
-        saved_ck_idx = ck_list.index
-        ck_list.clear()
-        items = self.store.list_checklist_items(target_id=target_id)
-        checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
-        total_items = len(items)
-        pct = int((checked_count / total_items * 100)) if total_items > 0 else 0
+            # 3. Checklist & Progress Bar
+            ck_list = self.query_one("#list-checklist", ListView)
+            saved_ck_idx = ck_list.index
+            ck_list.clear()
+            items = self.store.list_checklist_items(target_id=target_id)
+            checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
+            total_items = len(items)
+            pct = int((checked_count / total_items * 100)) if total_items > 0 else 0
 
-        bar_len = 10
-        filled = int(bar_len * (checked_count / total_items)) if total_items > 0 else 0
-        bar_str = "█" * filled + "░" * (bar_len - filled)
-        hdr_txt = f"{bar_str} {pct:>3d}% {checked_count}/{total_items}" if total_items else "—"
-        self._set_count("cnt-checklist", hdr_txt)
+            bar_len = 10
+            filled = int(bar_len * (checked_count / total_items)) if total_items > 0 else 0
+            bar_str = "█" * filled + "░" * (bar_len - filled)
+            hdr_txt = f"{bar_str} {pct:>3d}% {checked_count}/{total_items}" if total_items else "—"
+            self._set_count("cnt-checklist", hdr_txt)
 
-        if items:
-            for item in items:
-                txt = Text()
-                if item.status == ChecklistStatus.CHECKED:
-                    txt.append("[✓ DONE] ", style=S("ok"))
-                    txt.append(item.title, style="dim strike")
-                elif item.status == ChecklistStatus.DEFERRED:
-                    txt.append("[⏸ DEFER] ", style=S("warn"))
-                    txt.append(item.title, style=S("warn"))
-                elif item.status == ChecklistStatus.DEAD_END:
-                    txt.append("[✖ DROP] ", style=S("danger"))
-                    txt.append(item.title, style=S("muted", bold=False))
-                else:
-                    txt.append("[⏳ TODO] ", style=S("accent"))
-                    txt.append(item.title, style=S("text"))
-                ck_list.append(DataListItem(data_obj=item, display_text=txt))
-        else:
-            txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
-            ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-        if saved_ck_idx is not None and len(ck_list.children) > 0:
-            ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
+            if items:
+                for item in items:
+                    txt = Text()
+                    if item.status == ChecklistStatus.CHECKED:
+                        txt.append("[✓ DONE] ", style=S("ok"))
+                        txt.append(item.title, style="dim strike")
+                    elif item.status == ChecklistStatus.DEFERRED:
+                        txt.append("[⏸ DEFER] ", style=S("warn"))
+                        txt.append(item.title, style=S("warn"))
+                    elif item.status == ChecklistStatus.DEAD_END:
+                        txt.append("[✖ DROP] ", style=S("danger"))
+                        txt.append(item.title, style=S("muted", bold=False))
+                    else:
+                        txt.append("[⏳ TODO] ", style=S("accent"))
+                        txt.append(item.title, style=S("text"))
+                    ck_list.append(DataListItem(data_obj=item, display_text=txt))
+            else:
+                txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
+                ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            if saved_ck_idx is not None and len(ck_list.children) > 0:
+                ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
 
-        # 4. Combined Field Notes, Evidence & Findings
-        n_list = self.query_one("#list-notes", ListView)
-        saved_n_idx = n_list.index
-        n_list.clear()
-        notes = self.store.list_notes(target_id=target_id)
-        findings = self.store.list_findings(target_id=target_id)
-        evidences = self.store.list_evidence(target_id=target_id)
-        leads = self.store.list_leads(target_id=target_id)
-        total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
-        self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
-        if notes or findings or evidences or leads:
-            for f in findings:
-                txt = Text()
-                txt.append("⚠️ [VULN] ", style=S("danger"))
-                txt.append(f"{f.title} ", style=S("text"))
-                if f.severity:
-                    txt.append(f"[{f.severity}] ", style=S("warn"))
-                if f.description:
-                    txt.append(f"— {f.description}", style=S("muted", bold=False))
-                n_list.append(DataListItem(data_obj=f, display_text=txt))
-            for n in notes:
-                txt = Text()
-                txt.append("📝 [NOTE] ", style=S("warn"))
-                txt.append(n.content, style=S("text"))
-                n_list.append(DataListItem(data_obj=n, display_text=txt))
-            for ev in evidences:
-                txt = Text()
-                txt.append("📷 [EVID] ", style=S("accent"))
-                txt.append(f"{ev.path_or_ref} ", style=S("text"))
-                if ev.description:
-                    txt.append(f"— {ev.description}", style=S("muted", bold=False))
-                n_list.append(DataListItem(data_obj=ev, display_text=txt))
-            for ld in leads:
-                txt = Text()
-                txt.append("⚡ [LEAD] ", style=S("warn"))
-                txt.append(f"{ld.title} ", style=S("text"))
-                if ld.notes:
-                    txt.append(f"({ld.notes})", style=S("muted", bold=False))
-                n_list.append(DataListItem(data_obj=ld, display_text=txt))
-        else:
-            txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
-            n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-        if saved_n_idx is not None and len(n_list.children) > 0:
-            n_list.index = min(saved_n_idx, len(n_list.children) - 1)
+            # 4. Combined Field Notes, Evidence & Findings
+            n_list = self.query_one("#list-notes", ListView)
+            saved_n_idx = n_list.index
+            n_list.clear()
+            notes = self.store.list_notes(target_id=target_id)
+            findings = self.store.list_findings(target_id=target_id)
+            evidences = self.store.list_evidence(target_id=target_id)
+            leads = self.store.list_leads(target_id=target_id)
+            total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
+            self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
+            if notes or findings or evidences or leads:
+                for f in findings:
+                    txt = Text()
+                    txt.append("⚠️ [VULN] ", style=S("danger"))
+                    txt.append(f"{f.title} ", style=S("text"))
+                    if f.severity:
+                        txt.append(f"[{f.severity}] ", style=S("warn"))
+                    if f.description:
+                        txt.append(f"— {f.description}", style=S("muted", bold=False))
+                    n_list.append(DataListItem(data_obj=f, display_text=txt))
+                for n in notes:
+                    txt = Text()
+                    txt.append("📝 [NOTE] ", style=S("warn"))
+                    txt.append(n.content, style=S("text"))
+                    n_list.append(DataListItem(data_obj=n, display_text=txt))
+                for ev in evidences:
+                    txt = Text()
+                    txt.append("📷 [EVID] ", style=S("accent"))
+                    txt.append(f"{ev.path_or_ref} ", style=S("text"))
+                    if ev.description:
+                        txt.append(f"— {ev.description}", style=S("muted", bold=False))
+                    n_list.append(DataListItem(data_obj=ev, display_text=txt))
+                for ld in leads:
+                    txt = Text()
+                    txt.append("⚡ [LEAD] ", style=S("warn"))
+                    txt.append(f"{ld.title} ", style=S("text"))
+                    if ld.notes:
+                        txt.append(f"({ld.notes})", style=S("muted", bold=False))
+                    n_list.append(DataListItem(data_obj=ld, display_text=txt))
+            else:
+                txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
+                n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            if saved_n_idx is not None and len(n_list.children) > 0:
+                n_list.index = min(saved_n_idx, len(n_list.children) - 1)
 
-        # 5. Fast Header and Status Strip update (reusing already-queried lists!)
-        failures = self.store.list_failure_logs(target_id=target_id)
-        dead_ends = sum(1 for i in items if i.status == ChecklistStatus.DEAD_END)
-        counts = {
-            "ports": len(services),
-            "creds": len(creds),
-            "vulns": len(findings),
-            "notes": len(notes),
-            "dead_ends": dead_ends,
-            "failures": len(failures),
-        }
-        self._refresh_header(
-            active_target,
-            targets,
-            counts=counts,
-            items=items,
-            failure_count=len(failures),
-        )
+            # 5. Fast Header and Status Strip update (reusing already-queried lists!)
+            failures = self.store.list_failure_logs(target_id=target_id)
+            dead_ends = sum(1 for i in items if i.status == ChecklistStatus.DEAD_END)
+            counts = {
+                "ports": len(services),
+                "creds": len(creds),
+                "vulns": len(findings),
+                "notes": len(notes),
+                "dead_ends": dead_ends,
+                "failures": len(failures),
+            }
+            self._refresh_header(
+                active_target,
+                targets,
+                counts=counts,
+                items=items,
+                failure_count=len(failures),
+            )
 
-        # 6. Tab 4: Loot & Flags Widget update (only if active)
-        if active_tab == "tab-loot":
-            self.refresh_loot_widget(active_target, failures)
+            # 6. Tab 4: Loot & Flags Widget update (only if active)
+            if active_tab == "tab-loot":
+                self.refresh_loot_widget(active_target, failures)
 
-    # -------------------------------------------------------------------------
-    # Hotkey Actions
-    # -------------------------------------------------------------------------
+        # -------------------------------------------------------------------------
+        # Hotkey Actions
+        # -------------------------------------------------------------------------
 
     def action_toggle_scope(self) -> None:
         """Toggle in-scope vs out-of-scope for active target."""
