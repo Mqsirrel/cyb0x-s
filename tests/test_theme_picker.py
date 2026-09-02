@@ -197,3 +197,47 @@ async def test_command_bar_prefix_theme_switch(seeded_store: NotebookStore) -> N
         await pilot.pause()
         assert app.theme_name == "ember"
 
+
+@pytest.mark.asyncio
+async def test_set_default_theme_in_picker(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Test pressing 'd' in the theme picker sets the persistent default."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from cyb0x_s.tui.theme import get_default_theme
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        await pilot.press("T")
+        await pilot.pause()
+        assert isinstance(app.screen, ThemePickerModal)
+
+        # Move to midnight (index 1) and press 'd'
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.theme_name == "midnight"
+
+        await pilot.press("d")
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+        assert app.theme_name == "midnight"
+        assert get_default_theme(seeded_store) == "midnight"
+
+
+@pytest.mark.asyncio
+async def test_command_bar_set_default_theme(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Test setting default theme via command bar ':theme default warm'."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from cyb0x_s.tui.theme import get_default_theme
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        cmd_input = app.query_one("#cmd-input")
+        cmd_input.focus()
+
+        cmd_input.value = ":theme default warm"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.theme_name == "warm"
+        assert get_default_theme(seeded_store) == "warm"
+
+

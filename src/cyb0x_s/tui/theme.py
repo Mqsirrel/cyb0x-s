@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from textual.theme import Theme
 
@@ -310,11 +311,70 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
     return None
 
 
-def get_default_theme() -> str:
-    """Read the configured default theme from environment or settings, fallback to slate."""
+def get_theme_config_path() -> Path:
+    """Return path to persistent theme configuration file."""
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    theme_dir = config_home / "cyb0x-s"
+    theme_dir.mkdir(parents=True, exist_ok=True)
+    return theme_dir / "theme"
+
+
+def get_saved_default_theme() -> Optional[str]:
+    """Read default theme stored in ~/.config/cyb0x-s/theme."""
+    try:
+        cfg = get_theme_config_path()
+        if cfg.is_file():
+            saved = cfg.read_text(encoding="utf-8").strip()
+            return resolve_palette_name(saved)
+    except Exception:
+        pass
+    return None
+
+
+def save_default_theme(name: str, store: Any = None) -> bool:
+    """Save the default theme to user config and database."""
+    resolved = resolve_palette_name(name)
+    if not resolved:
+        return False
+    # 1. Save to ~/.config/cyb0x-s/theme
+    try:
+        cfg = get_theme_config_path()
+        cfg.write_text(resolved, encoding="utf-8")
+    except Exception:
+        pass
+    # 2. Save to store settings if available
+    if store is not None and hasattr(store, "set_setting"):
+        try:
+            store.set_setting("default_theme", resolved)
+        except Exception:
+            pass
+    return True
+
+
+def get_default_theme(store: Any = None) -> str:
+    """Read the configured default theme from environment, config file, or settings, fallback to slate."""
+    # 1. Explicit environment override
     env_theme = os.environ.get("CYB0X_THEME") or os.environ.get("CYB0X_PALETTE", "")
-    resolved = resolve_palette_name(env_theme)
-    return resolved or DEFAULT_PALETTE
+    resolved_env = resolve_palette_name(env_theme)
+    if resolved_env:
+        return resolved_env
+
+    # 2. User config file (~/.config/cyb0x-s/theme)
+    saved_cfg = get_saved_default_theme()
+    if saved_cfg:
+        return saved_cfg
+
+    # 3. Database setting
+    if store is not None and hasattr(store, "get_setting"):
+        try:
+            db_theme = store.get_setting("default_theme")
+            resolved_db = resolve_palette_name(db_theme)
+            if resolved_db:
+                return resolved_db
+        except Exception:
+            pass
+
+    return DEFAULT_PALETTE
 
 
 def S(token: str, bold: bool = True) -> str:  # noqa: N802 - short by design

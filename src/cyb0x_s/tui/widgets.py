@@ -24,7 +24,15 @@ from cyb0x_s.models import (
 from cyb0x_s.search import SearchMatch, search_notebook
 from cyb0x_s.settings import derive_guidance_enabled
 from cyb0x_s.templates import get_template_guidance_for_title
-from cyb0x_s.tui.theme import PALETTES, S, current_palette, mix, ramp
+from cyb0x_s.tui.theme import (
+    PALETTES,
+    S,
+    current_palette,
+    get_default_theme,
+    mix,
+    ramp,
+    save_default_theme,
+)
 
 
 def substitute_command_placeholders(command: str, target_ip: str = "") -> str:
@@ -667,7 +675,7 @@ class ConfirmModal(ModalScreen[bool]):
 
 
 class ThemeSwatch(Static):
-    """One row in the theme picker: colour strip, name, vibe, contrast."""
+    """One row in the theme picker: colour strip, name, vibe, contrast, and default badge."""
 
     DEFAULT_CSS = """
     ThemeSwatch {
@@ -679,43 +687,53 @@ class ThemeSwatch(Static):
     }
     """
 
-    def __init__(self, palette_name: str, palette_label: str, index: int = 1) -> None:
+    def __init__(
+        self,
+        palette_name: str,
+        palette_label: str,
+        index: int = 1,
+        default_name: str = "slate",
+    ) -> None:
         super().__init__(id=f"theme-{palette_name}")
         self.palette_name = palette_name
         self.palette_label = palette_label
         self.index = index
+        self.default_name = default_name
 
     def render(self) -> Text:
         palette = PALETTES[self.palette_name]
-        active = current_palette().name == palette.name
+        is_active = current_palette().name == palette.name
+        is_default = self.palette_name == self.default_name
 
         out = Text()
         out.append(f"[{self.index}] ", style=f"bold {palette.accent}")
-        if active:
+        if is_active:
             out.append("● ", style=f"bold {palette.accent}")
         else:
             out.append("○ ", style=palette.muted)
 
-        # colour strip — the palette's own hues, so rows look like themselves
+        # colour strip — the palette's own hues
         for _label, colour in palette.swatch():
-            out.append("███", style=f"on {colour}")
+            out.append("██", style=f"on {colour}")
 
+        desc = palette.label.split("·", 1)[-1].strip()
         out.append("  ")
-        out.append(f"{palette.name:<10}", style=f"bold {palette.text}")
-        out.append(palette.label.split("·", 1)[-1].strip(), style=palette.text_soft)
+        out.append(f"{palette.name:<9}", style=f"bold {palette.text}")
+        out.append(f"{desc:<18}", style=palette.text_soft)
 
         ratio = palette.contrast_ratio()
         grade = "AAA" if ratio >= 7 else ("AA" if ratio >= 4.5 else "low")
-        out.append("   ")
-        out.append(f"{ratio:4.1f}:1", style=palette.muted)
-        out.append(f" {grade}", style=palette.ok if ratio >= 7 else palette.warn)
-        if active:
-            out.append("   active", style=f"bold {palette.accent}")
+        out.append(f" {ratio:4.1f}:1 {grade:<3}", style=palette.ok if ratio >= 7 else palette.warn)
+
+        if is_default:
+            out.append(" ★ DEFAULT", style=f"bold {palette.warn}")
+        elif is_active:
+            out.append(" ● active", style=f"bold {palette.accent}")
         return out
 
 
-class ThemePickerModal(ModalScreen[str]):
-    """Pick a palette with a live preview: moving the cursor applies it."""
+class ThemePickerModal(ModalScreen[Optional[str]]):
+    """Interactive palette picker with live preview and default persistence."""
 
     DEFAULT_CSS = """
     ThemePickerModal {
@@ -724,7 +742,7 @@ class ThemePickerModal(ModalScreen[str]):
     }
 
     #theme-picker-box {
-        width: 76;
+        width: 88;
         height: auto;
         max-height: 90%;
         border: round $accent;
@@ -748,6 +766,26 @@ class ThemePickerModal(ModalScreen[str]):
 
     #theme-picker-list > ListItem {
         padding: 0;
+        background: transparent;
+    }
+
+    #theme-picker-list > ListItem.-selected {
+        background: $surface-lighten-1;
+    }
+
+    #theme-picker-list > ListItem:hover {
+        background: $surface-lighten-1;
+    }
+
+    #theme-picker-buttons {
+        height: 3;
+        margin-top: 1;
+        layout: horizontal;
+        align: right middle;
+    }
+
+    #theme-picker-buttons Button {
+        margin-left: 1;
     }
 
     #theme-picker-hint {
@@ -757,30 +795,47 @@ class ThemePickerModal(ModalScreen[str]):
     }
     """
 
-    def __init__(self, current: str) -> None:
+    def __init__(self, current: str, store: Any = None) -> None:
         super().__init__()
         self.original = current
+        self.store = store
+        self.default_theme = get_default_theme(store)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="theme-picker-box"):
-            yield Label("◈  THEME — 1-7 instant pick, ↑↓ preview, Enter keep", id="theme-picker-title")
+            yield Label(
+                "◈  COLOR THEMES — ↑↓/j/k Preview  •  Enter Apply  •  d Set Default",
+                id="theme-picker-title",
+            )
             yield ListView(
                 *[
-                    ListItem(ThemeSwatch(name, palette.label, index=i + 1))
+                    ListItem(
+                        ThemeSwatch(
+                            name,
+                            palette.label,
+                            index=i + 1,
+                            default_name=self.default_theme,
+                        )
+                    )
                     for i, (name, palette) in enumerate(PALETTES.items())
                 ],
                 id="theme-picker-list",
             )
+            with Horizontal(id="theme-picker-buttons"):
+                yield Button("Set as Default (d)", variant="warning", id="btn-set-default")
+                yield Button("Apply for Session (Enter)", variant="primary", classes="primary-btn", id="btn-apply")
+                yield Button("Cancel (Esc)", id="btn-cancel")
             yield Label(
-                "1-7 instant pick    ↑↓/j/k move    Enter keep    Esc cancel",
+                "↑↓/j/k: live preview   1-7: instant pick   d: save default   Enter: apply   Esc: cancel",
                 id="theme-picker-hint",
             )
 
     def on_mount(self) -> None:
         names = list(PALETTES)
         index = names.index(self.original) if self.original in names else 0
-        self.query_one("#theme-picker-list", ListView).index = index
-        self.query_one("#theme-picker-list", ListView).focus()
+        list_view = self.query_one("#theme-picker-list", ListView)
+        list_view.index = index
+        list_view.focus()
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         """Live preview: apply the palette the cursor is sitting on."""
@@ -795,8 +850,34 @@ class ThemePickerModal(ModalScreen[str]):
         if name != current_palette().name:
             self.app.apply_theme(name, quiet=True)  # type: ignore[attr-defined]
 
+    def _selected_theme_name(self) -> str:
+        list_view = self.query_one("#theme-picker-list", ListView)
+        item = list_view.highlighted_child
+        if item is not None:
+            rows = item.query(ThemeSwatch)
+            if rows:
+                return rows[0].palette_name
+        return current_palette().name
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-set-default":
+            chosen = self._selected_theme_name()
+            if hasattr(self.app, "set_default_theme"):
+                self.app.set_default_theme(chosen)
+            else:
+                save_default_theme(chosen, self.store)
+                self.app.apply_theme(chosen)  # type: ignore[attr-defined]
+            self.dismiss(chosen)
+        elif event.button.id == "btn-apply":
+            chosen = self._selected_theme_name()
+            self.app.apply_theme(chosen)  # type: ignore[attr-defined]
+            self.dismiss(chosen)
+        elif event.button.id == "btn-cancel":
+            self.app.apply_theme(self.original)  # type: ignore[attr-defined]
+            self.dismiss(self.original)
+
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Click or Enter on item selects and keeps it."""
+        """Click or Enter on list item selects and keeps it."""
         if event.item is not None:
             rows = event.item.query(ThemeSwatch)
             if rows:
@@ -804,7 +885,7 @@ class ThemePickerModal(ModalScreen[str]):
                 self.app.apply_theme(chosen)  # type: ignore[attr-defined]
                 self.dismiss(chosen)
 
-    def on_key(self, event) -> None:
+    def on_key(self, event: Any) -> None:
         names = list(PALETTES)
         if event.key in "1234567":
             event.stop()
@@ -814,13 +895,25 @@ class ThemePickerModal(ModalScreen[str]):
                 self.app.apply_theme(chosen)  # type: ignore[attr-defined]
                 self.dismiss(chosen)
             return
+        if event.key in ("d", "D", "s"):
+            event.stop()
+            chosen = self._selected_theme_name()
+            if hasattr(self.app, "set_default_theme"):
+                self.app.set_default_theme(chosen)
+            else:
+                save_default_theme(chosen, self.store)
+                self.app.apply_theme(chosen)  # type: ignore[attr-defined]
+            self.dismiss(chosen)
+            return
         if event.key == "escape":
             event.stop()
             self.app.apply_theme(self.original)  # type: ignore[attr-defined]
             self.dismiss(self.original)
         elif event.key == "enter":
             event.stop()
-            self.dismiss(current_palette().name)
+            chosen = self._selected_theme_name()
+            self.app.apply_theme(chosen)  # type: ignore[attr-defined]
+            self.dismiss(chosen)
 
 
 class SearchModal(ModalScreen):
