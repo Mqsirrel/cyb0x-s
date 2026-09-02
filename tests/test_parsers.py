@@ -1,7 +1,11 @@
 """Tests for offline scan parsers in CYB0X-S."""
 
-import pytest
-from cyb0x_s.parsers import parse_nmap_xml, parse_nmap_gnmap, parse_netexec_output, derive_potential_and_next
+from cyb0x_s.parsers import (
+    derive_potential_and_next,
+    parse_netexec_output,
+    parse_nmap_gnmap,
+    parse_nmap_xml,
+)
 from cyb0x_s.settings import set_derive_guidance
 
 

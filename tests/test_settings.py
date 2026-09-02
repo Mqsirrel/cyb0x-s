@@ -4,8 +4,8 @@ import pytest
 
 from cyb0x_s.settings import (
     ENV_VAR,
-    describe_derive_guidance,
     derive_guidance_enabled,
+    describe_derive_guidance,
     set_derive_guidance,
 )
 

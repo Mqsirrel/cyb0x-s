@@ -6,8 +6,7 @@ Strictly passive reference database: human decides and executes all commands.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
-
+from typing import Any, Dict, List
 
 REFERENCE_PLAYBOOK: List[Dict[str, Any]] = [
     # -------------------------------------------------------------------------
@@ -379,7 +378,7 @@ REFERENCE_PLAYBOOK: List[Dict[str, Any]] = [
 
 def search_reference(query: str, target_ip: str = "") -> List[Dict[str, Any]]:
     """Search reference playbook by keyword or category.
-    
+
     Substitutes <TARGET_IP> and <TARGET_SUBNET> if target_ip is provided.
     """
     q = query.strip().lower()

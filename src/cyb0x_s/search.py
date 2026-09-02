@@ -2,21 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
+
 from pydantic import BaseModel
 
 from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import (
-    ChecklistItem,
-    CommandRecord,
-    Credential,
-    Evidence,
-    Finding,
-    Lead,
-    Note,
-    Service,
-    Target,
-)
 
 
 class SearchMatch(BaseModel):

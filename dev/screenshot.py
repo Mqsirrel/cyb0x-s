@@ -19,9 +19,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "examples"))
 
-from PIL import Image, ImageDraw, ImageFont  # noqa: E402
-
 from demo_seed import seed_demo  # noqa: E402
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 from cyb0x_s.db.store import NotebookStore  # noqa: E402
 from cyb0x_s.tui.app import CyboxSafeApp  # noqa: E402

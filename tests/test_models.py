@@ -1,8 +1,8 @@
 """Unit tests for CYB0X-S data models."""
 
 from datetime import datetime
+
 from cyb0x_s.models import (
-    ChecklistItem,
     ChecklistStatus,
     CommandRecord,
     Credential,

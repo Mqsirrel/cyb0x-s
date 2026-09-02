@@ -1,6 +1,7 @@
 """Tests for methodology checklists and static templates."""
 
 import pytest
+
 from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.models import ChecklistStatus
 from cyb0x_s.templates import (

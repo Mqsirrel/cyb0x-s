@@ -16,12 +16,12 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from cyb0x_s.clipboard import copy_to_clipboard, extract_copy_value
-from cyb0x_s.db.store import NotebookStore, get_default_db_path
+from cyb0x_s.clipboard import copy_to_clipboard
+from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.export import export_json, export_markdown, export_txt, import_json
-from cyb0x_s.models import ChecklistStatus, ServiceStatus
+from cyb0x_s.models import ChecklistStatus
 from cyb0x_s.search import search_notebook
-from cyb0x_s.templates import apply_template_to_store, get_available_templates
+from cyb0x_s.templates import apply_template_to_store
 
 console = Console()
 err_console = Console(stderr=True)

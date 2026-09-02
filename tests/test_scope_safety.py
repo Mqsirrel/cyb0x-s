@@ -6,6 +6,7 @@ zero background scanners, and zero outbound network/LLM dependencies.
 
 import ast
 from pathlib import Path
+
 import cyb0x_s
 
 DISALLOWED_IMPORTS = {
