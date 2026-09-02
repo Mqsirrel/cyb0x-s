@@ -637,6 +637,23 @@ ListView > ListItem.-selected {
 Footer {
     background: $background;
     color: $text-muted;
+    height: 1;
+}
+
+Footer > .footer--key {
+    background: $surface;
+    color: $accent;
+    text-style: bold;
+    padding: 0 1;
+}
+
+Footer > .footer--description {
+    color: $text-soft;
+    margin-right: 1;
+}
+
+Footer > .footer--highlight {
+    background: $accent 30%;
 }
 
 /* --- stations 2-4 ------------------------------------------------------- */

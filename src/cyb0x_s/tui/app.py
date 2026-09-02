@@ -450,14 +450,16 @@ class CyboxSafeApp(App):
                     txt.append("✗ ", style=S("danger"))
                 else:
                     txt.append("→ ", style=S("accent"))
-                txt.append(f"{s.port}/{s.protocol:<4} ", style=S("text"))
-                txt.append(f"{s.service:<10} ", style=S("accent"))
+
+                port_str = f"[{s.port}/{s.protocol}]"
+                txt.append(f"{port_str:<11} ", style=S("accent"))
+                txt.append(f"{s.service:<12} ", style=S("text"))
                 if s.access_potential in ("HIGH", "CRITICAL"):
                     txt.append(f"[{s.access_potential}] ", style=S("danger"))
                 elif s.access_potential == "LOW":
                     txt.append("[LOW] ", style=S("muted", bold=False))
                 if s.version:
-                    txt.append(f"{s.version} ", style=S("text"))
+                    txt.append(f"{s.version} ", style=S("muted", bold=False))
                 if s.next_action:
                     txt.append(f"→ `{s.next_action}` ", style=S("warn"))
                 if s.notes:
@@ -476,13 +478,14 @@ class CyboxSafeApp(App):
             for c in creds:
                 txt = Text()
                 txt.append("🔑 ", style=S("ok"))
-                txt.append(f"{c.username} : ", style=S("accent"))
+                txt.append(f"{c.username} ", style=S("text"))
+                txt.append("› ", style=S("muted", bold=False))
                 secret = c.secret if c.id in self.revealed_creds else c.masked_secret
-                txt.append(secret, style=S("text"))
+                txt.append(f"{secret} ", style=S("accent"))
                 if c.service_scope:
-                    txt.append(f" [{c.service_scope}]", style=S("warn"))
+                    txt.append(f"[{c.service_scope}] ", style=S("warn"))
                 if c.source:
-                    txt.append(f" ({c.source})", style=S("muted", bold=False))
+                    txt.append(f"({c.source})", style=S("muted", bold=False))
                 c_list.append(DataListItem(data_obj=c, display_text=txt))
         else:
             txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
@@ -517,16 +520,16 @@ class CyboxSafeApp(App):
             for item in items:
                 txt = Text()
                 if item.status == ChecklistStatus.CHECKED:
-                    txt.append("[✓] ", style=S("ok"))
+                    txt.append("[✓ DONE] ", style=S("ok"))
                     txt.append(item.title, style="dim strike")
                 elif item.status == ChecklistStatus.DEFERRED:
-                    txt.append("[~] ", style=S("warn"))
+                    txt.append("[⏸ DEFER] ", style=S("warn"))
                     txt.append(item.title, style=S("warn"))
                 elif item.status == ChecklistStatus.DEAD_END:
-                    txt.append("[✗] ", style=S("danger"))
+                    txt.append("[✖ DROP] ", style=S("danger"))
                     txt.append(item.title, style=S("muted", bold=False))
                 else:
-                    txt.append("[ ] ", style=S("accent"))
+                    txt.append("[⏳ TODO] ", style=S("accent"))
                     txt.append(item.title, style=S("text"))
                 ck_list.append(DataListItem(data_obj=item, display_text=txt))
         else:
@@ -546,30 +549,30 @@ class CyboxSafeApp(App):
             for f in findings:
                 txt = Text()
                 txt.append("⚠️ [VULN] ", style=S("danger"))
-                txt.append(f.title, style=S("text"))
+                txt.append(f"{f.title} ", style=S("text"))
                 if f.severity:
-                    txt.append(f" [{f.severity}]", style=S("warn"))
+                    txt.append(f"[{f.severity}] ", style=S("warn"))
                 if f.description:
-                    txt.append(f" — {f.description}", style=S("muted", bold=False))
+                    txt.append(f"— {f.description}", style=S("muted", bold=False))
                 n_list.append(DataListItem(data_obj=f, display_text=txt))
             for n in notes:
                 txt = Text()
-                txt.append("📝 > ", style=S("warn"))
+                txt.append("📝 [NOTE] ", style=S("warn"))
                 txt.append(n.content, style=S("text"))
                 n_list.append(DataListItem(data_obj=n, display_text=txt))
             for ev in evidences:
                 txt = Text()
                 txt.append("📷 [EVID] ", style=S("accent"))
-                txt.append(ev.path_or_ref, style=S("text"))
+                txt.append(f"{ev.path_or_ref} ", style=S("text"))
                 if ev.description:
-                    txt.append(f" — {ev.description}", style=S("muted", bold=False))
+                    txt.append(f"— {ev.description}", style=S("muted", bold=False))
                 n_list.append(DataListItem(data_obj=ev, display_text=txt))
             for ld in leads:
                 txt = Text()
                 txt.append("⚡ [LEAD] ", style=S("warn"))
-                txt.append(ld.title, style=S("text"))
+                txt.append(f"{ld.title} ", style=S("text"))
                 if ld.notes:
-                    txt.append(f" ({ld.notes})", style=S("muted", bold=False))
+                    txt.append(f"({ld.notes})", style=S("muted", bold=False))
                 n_list.append(DataListItem(data_obj=ld, display_text=txt))
         else:
             txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
