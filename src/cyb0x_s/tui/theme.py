@@ -753,10 +753,6 @@ ListView > ListItem {
     color: $foreground;
 }
 
-ListView > ListItem:hover {
-    background: $surface-lighten-1;
-}
-
 ListView > ListItem.-selected {
     background: $accent 22%;
     color: $foreground;

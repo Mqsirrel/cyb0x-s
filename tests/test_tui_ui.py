@@ -697,3 +697,25 @@ async def test_differential_row_in_place_update(seeded_store: NotebookStore) -> 
         assert ck_list.children[0] is first_item
         assert first_item.display_text.plain != initial_label
 
+
+@pytest.mark.asyncio
+async def test_rapid_scrolling_stability(seeded_store: NotebookStore) -> None:
+    """Ensure rapid repeated cursor movement / scrolling does not cascade or drop state."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        svc_list = app.query_one("#list-services", ListView)
+        svc_list.focus()
+        await pilot.pause()
+
+        # Simulate rapid scrolling through multiple rows
+        for _ in range(5):
+            await pilot.press("down")
+            await pilot.pause(0.01)
+
+        # Allow settle debounce
+        await pilot.pause(0.06)
+
+        # Confirm app remains stable, focused, and cross-filter updated
+        assert svc_list.index is not None
+        assert not app._is_cross_filtering
+

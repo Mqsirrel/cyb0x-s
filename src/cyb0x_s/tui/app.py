@@ -462,35 +462,45 @@ class CyboxSafeApp(App):
 
     def _cross_filter_for_service(self, svc: Service) -> None:
         """Context-aware cross-filtering: align checklist and credentials with highlighted service."""
-        s_name = svc.service.lower()
-        port_str = str(svc.port)
+        if getattr(self, "_is_cross_filtering", False):
+            return
 
-        # 1. Align checklist: find first step matching service name or port
+        self._is_cross_filtering = True
         try:
-            ck_list = self.query_one("#list-checklist", ListView)
-            for idx, child in enumerate(ck_list.children):
-                if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
-                    obj = child.data_obj
-                    title = getattr(obj, "title", "").lower()
-                    cat = getattr(obj, "category", "").lower()
-                    if s_name in title or s_name in cat or port_str in title:
-                        ck_list.index = idx
-                        break
-        except Exception:
-            pass
+            with self.batch_update():
+                s_name = svc.service.lower()
+                port_str = str(svc.port)
 
-        # 2. Align credentials: find first credential matching service scope
-        try:
-            c_list = self.query_one("#list-creds", ListView)
-            for idx, child in enumerate(c_list.children):
-                if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
-                    obj = child.data_obj
-                    scope = getattr(obj, "service_scope", "").lower()
-                    if scope in (s_name, "global"):
-                        c_list.index = idx
-                        break
-        except Exception:
-            pass
+                # 1. Align checklist: find first step matching service name or port
+                try:
+                    ck_list = getattr(self, "_list_checklist", None) or self.query_one("#list-checklist", ListView)
+                    for idx, child in enumerate(ck_list.children):
+                        if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
+                            obj = child.data_obj
+                            title = getattr(obj, "title", "").lower()
+                            cat = getattr(obj, "category", "").lower()
+                            if s_name in title or s_name in cat or port_str in title:
+                                if ck_list.index != idx:
+                                    ck_list.index = idx
+                                break
+                except Exception:
+                    pass
+
+                # 2. Align credentials: find first credential matching service scope
+                try:
+                    c_list = getattr(self, "_list_creds", None) or self.query_one("#list-creds", ListView)
+                    for idx, child in enumerate(c_list.children):
+                        if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
+                            obj = child.data_obj
+                            scope = getattr(obj, "service_scope", "").lower()
+                            if scope in (s_name, "global"):
+                                if c_list.index != idx:
+                                    c_list.index = idx
+                                break
+                except Exception:
+                    pass
+        finally:
+            self._is_cross_filtering = False
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         """Dynamically preview service guidance when moving through the target tree."""
@@ -603,6 +613,9 @@ class CyboxSafeApp(App):
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         """Update guidance drawer when a checklist item or service is highlighted."""
+        if getattr(self, "_is_cross_filtering", False):
+            return
+
         if not event.item or not isinstance(event.item, DataListItem) or event.item.is_placeholder:
             return
 
@@ -612,17 +625,20 @@ class CyboxSafeApp(App):
 
         active = self.get_current_target()
         target_ip = active.ip if active else ""
-        try:
-            guidance_box = self.query_one("#guidance-box", ConsoleBar)
-        except Exception:
-            return
 
         if event.list_view.id == "list-checklist":
-            title = obj.title if isinstance(obj, ChecklistItem) else str(obj)
-            guidance_box.update_guidance(title, target_ip=target_ip)
+            try:
+                guidance_box = self.query_one("#guidance-box", ConsoleBar)
+                title = obj.title if isinstance(obj, ChecklistItem) else str(obj)
+                guidance_box.update_guidance(title, target_ip=target_ip)
+            except Exception:
+                pass
         elif event.list_view.id == "list-services" and isinstance(obj, Service):
             self._guidance_for_service(obj, target_ip)
-            self._cross_filter_for_service(obj)
+            # Debounce secondary list alignment during rapid scrolling (40ms settle window)
+            if hasattr(self, "_cross_filter_timer") and self._cross_filter_timer is not None:
+                self._cross_filter_timer.stop()
+            self._cross_filter_timer = self.set_timer(0.04, lambda: self._cross_filter_for_service(obj))
 
     # -------------------------------------------------------------------------
     # List Population with Clear Formatting
