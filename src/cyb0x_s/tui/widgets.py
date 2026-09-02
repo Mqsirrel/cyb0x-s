@@ -1757,7 +1757,10 @@ class TemplateSelectionModal(ModalScreen[Any]):
                 f"[bold {P.accent}]METHODOLOGY CHECKLIST TEMPLATES[/bold {P.accent}]"
                 f" [{P.muted}](Standard Assessment Workflows)[/]"
             )
-            yield Label(f"[{P.muted}]Select a template: [bold]Enter[/bold] to switch/replace current checklist, [bold]a[/bold] to append[/]")
+            yield Label(
+                f"[{P.muted}]Select a template:[/] [bold {P.accent}]Enter[/] [{P.muted}]to switch/replace checklist  • [/] "
+                f"[bold {P.accent}]a[/] [{P.muted}]to append items  • [/] [bold {P.accent}]Esc[/] [{P.muted}]to cancel[/]"
+            )
             yield ListView(id="template-list")
             with Horizontal(id="btn-bar"):
                 yield Button("Switch Methodology (Enter)", variant="primary", id="btn-switch")
