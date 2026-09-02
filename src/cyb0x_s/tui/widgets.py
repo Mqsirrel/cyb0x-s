@@ -409,6 +409,12 @@ class ConsoleBar(Container):
         self.recipe_target_ip: str = ""
 
     def on_mount(self) -> None:
+        try:
+            self._cmd_static = self.query_one("#console-cmd", Static)
+            self._tip_static = self.query_one("#console-tip", Static)
+        except Exception:
+            self._cmd_static = None
+            self._tip_static = None
         # Paint the idle hint straight away so the console is never blank.
         self.call_after_refresh(self._paint)
 
@@ -648,8 +654,12 @@ class ConsoleBar(Container):
             tip_line.append(ConsoleBar._elide(self.tip, inner), style=f"{P.muted}")
 
         try:
-            self.query_one("#console-cmd", Static).update(cmd_line)
-            self.query_one("#console-tip", Static).update(tip_line)
+            if getattr(self, "_cmd_static", None) is not None and getattr(self, "_tip_static", None) is not None:
+                self._cmd_static.update(cmd_line)
+                self._tip_static.update(tip_line)
+            else:
+                self.query_one("#console-cmd", Static).update(cmd_line)
+                self.query_one("#console-tip", Static).update(tip_line)
         except Exception:
             pass
 
