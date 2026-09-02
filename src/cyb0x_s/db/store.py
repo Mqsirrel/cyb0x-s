@@ -482,6 +482,25 @@ class NotebookStore:
             res = self.conn.execute("DELETE FROM services WHERE id = ?", (service_id,))
             return res.rowcount > 0
 
+    def cycle_service_status(self, service_id: int) -> Optional[Service]:
+        svc = self.get_service(service_id)
+        if not svc:
+            return None
+        transitions = {
+            ServiceStatus.UNTESTED: ServiceStatus.CHECKED,
+            ServiceStatus.CHECKED: ServiceStatus.DEAD_END,
+            ServiceStatus.DEAD_END: ServiceStatus.DEFERRED,
+            ServiceStatus.DEFERRED: ServiceStatus.UNTESTED,
+        }
+        next_stat = transitions.get(svc.status, ServiceStatus.CHECKED)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.conn:
+            self.conn.execute(
+                "UPDATE services SET status = ?, updated_at = ? WHERE id = ?",
+                (next_stat.value, now, service_id),
+            )
+        return self.get_service(service_id)
+
     # -------------------------------------------------------------------------
     # Findings
     # -------------------------------------------------------------------------

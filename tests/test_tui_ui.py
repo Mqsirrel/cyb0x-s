@@ -423,3 +423,87 @@ async def test_command_bar_methodology_switch(seeded_store: NotebookStore) -> No
         assert len(items) > 0
         assert all(item.category == "SMB ENUMERATION" for item in items)
 
+
+@pytest.mark.asyncio
+async def test_colon_hotkey_focuses_cmd_input(seeded_store: NotebookStore) -> None:
+    """Pressing ':' anywhere in cockpit instantly focuses command input with ':'."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        from textual.widgets import Input
+
+        cmd = app.query_one("#cmd-input", Input)
+        assert not cmd.has_focus
+
+        await pilot.press("colon")
+        await pilot.pause()
+
+        assert cmd.has_focus
+        assert cmd.value == ":"
+
+
+@pytest.mark.asyncio
+async def test_bracket_keys_cycle_targets(seeded_store: NotebookStore) -> None:
+    """Pressing '[' and ']' cycles through targets in the workspace."""
+    target1 = seeded_store.get_active_target()
+    target2 = seeded_store.add_target("10.10.10.30", hostname="web01.local")
+    seeded_store.set_active_target(target1.id)
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        assert seeded_store.get_active_target().ip == "10.10.10.20"
+
+        await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert seeded_store.get_active_target().ip == target2.ip
+
+        await pilot.press("left_square_bracket")
+        await pilot.pause()
+        assert seeded_store.get_active_target().ip == target1.ip
+
+
+@pytest.mark.asyncio
+async def test_sidebar_toggle_hotkey(seeded_store: NotebookStore) -> None:
+    """Pressing 'b' toggles the sidebar visibility."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        sidebar = app.query_one("#sidebar")
+        assert not sidebar.has_class("hidden")
+
+        await pilot.press("b")
+        await pilot.pause()
+        assert sidebar.has_class("hidden")
+
+        await pilot.press("b")
+        await pilot.pause()
+        assert not sidebar.has_class("hidden")
+
+
+@pytest.mark.asyncio
+async def test_service_space_cycles_status(seeded_store: NotebookStore) -> None:
+    """Pressing Space on a highlighted service cycles its status."""
+    from cyb0x_s.models import ServiceStatus
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        svc_list = app.query_one("#list-services", ListView)
+        svc_list.focus()
+        svc_list.index = 0
+        await pilot.pause()
+
+        target = seeded_store.get_active_target()
+        svcs = seeded_store.list_services(target.id)
+        first_svc = svcs[0]
+        initial_status = first_svc.status
+
+        await pilot.press("space")
+        await pilot.pause()
+
+        updated = seeded_store.get_service(first_svc.id)
+        assert updated.status != initial_status
+        assert updated.status in (
+            ServiceStatus.CHECKED,
+            ServiceStatus.DEAD_END,
+            ServiceStatus.DEFERRED,
+            ServiceStatus.UNTESTED,
+        )
+
