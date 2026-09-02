@@ -315,6 +315,28 @@ class NotebookStore:
                     self.conn.execute("DELETE FROM settings WHERE key = 'active_target'")
             return deleted
 
+    def get_target_counts(self, target_id: Optional[int] = None) -> dict[str, int]:
+        """Fetch entity counts for a target in a single fast, index-backed SQL query."""
+        if target_id is None:
+            return {"ports": 0, "creds": 0, "vulns": 0, "notes": 0, "dead_ends": 0, "failures": 0}
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM services WHERE target_id = ?) AS ports,
+                (SELECT COUNT(*) FROM credentials WHERE target_id = ?) AS creds,
+                (SELECT COUNT(*) FROM findings WHERE target_id = ?) AS vulns,
+                (SELECT COUNT(*) FROM notes WHERE target_id = ?) AS notes,
+                (SELECT COUNT(*) FROM checklist WHERE target_id = ? AND status = 'DEAD-END') AS dead_ends,
+                (SELECT COUNT(*) FROM failure_log WHERE target_id = ?) AS failures
+            """,
+            (target_id, target_id, target_id, target_id, target_id, target_id),
+        )
+        row = cur.fetchone()
+        if row:
+            return dict(row)
+        return {"ports": 0, "creds": 0, "vulns": 0, "notes": 0, "dead_ends": 0, "failures": 0}
+
     def ingest_scan_results(
         self, parsed_targets: List[Dict[str, Any]], workspace_id: Optional[int] = None
     ) -> tuple[int, int]:

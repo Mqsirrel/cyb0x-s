@@ -184,3 +184,30 @@ def test_cascade_delete_target(store: NotebookStore) -> None:
     assert len(store.list_credentials(target_id=t.id)) == 0
     assert len(store.list_checklist_items(target_id=t.id)) == 0
     assert len(store.list_notes(target_id=t.id)) == 0
+
+
+def test_get_target_counts(store: NotebookStore) -> None:
+    """Test fast single-query target counts aggregation."""
+    # None returns zeros
+    assert store.get_target_counts(None) == {
+        "ports": 0, "creds": 0, "vulns": 0, "notes": 0, "dead_ends": 0, "failures": 0
+    }
+
+    t = store.add_target("10.10.10.40")
+    store.add_service(target_id=t.id, port=22, service="ssh")
+    store.add_service(target_id=t.id, port=80, service="http")
+    store.add_credential(username="admin", secret="pass", target_id=t.id)
+    store.add_finding(title="RCE", target_id=t.id)
+    store.add_note("Discovered vhost", target_id=t.id)
+    from cyb0x_s.models import ChecklistStatus
+    store.add_checklist_item(title="Task 1", target_id=t.id, status=ChecklistStatus.DEAD_END)
+    store.add_failure_log(target_id=t.id, where_stuck="Port 80")
+
+    counts = store.get_target_counts(t.id)
+    assert counts["ports"] == 2
+    assert counts["creds"] == 1
+    assert counts["vulns"] == 1
+    assert counts["notes"] == 1
+    assert counts["dead_ends"] == 1
+    assert counts["failures"] == 1
+

@@ -1964,6 +1964,8 @@ class PlaybookBrowserWidget(Static):
         self._populate_commands()
 
     def update_target_ip(self, target_ip: str) -> None:
+        if self.target_ip == target_ip:
+            return
         self.target_ip = target_ip
         self._populate_commands()
 

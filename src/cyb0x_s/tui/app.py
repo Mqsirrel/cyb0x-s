@@ -246,15 +246,31 @@ class CyboxSafeApp(App):
             except Exception:
                 pass
         elif tab_id == "tab-creds":
-            try:
-                creds = self.store.list_credentials()
-                targets = self.store.list_targets()
-                services = self.store.list_services()
-                self.query_one("#cred-matrix-widget", CredentialMatrixWidget).update_data(
-                    creds, targets, services, self.revealed_creds
-                )
-            except Exception:
-                pass
+            self.refresh_cred_matrix()
+        elif tab_id == "tab-loot":
+            self.refresh_loot_widget()
+
+    def refresh_cred_matrix(self) -> None:
+        """Update Station 3 Credential Vault & Matrix on demand."""
+        try:
+            creds = self.store.list_credentials()
+            targets = self.store.list_targets()
+            services = self.store.list_services()
+            self.query_one("#cred-matrix-widget", CredentialMatrixWidget).update_data(
+                creds, targets, services, self.revealed_creds
+            )
+        except Exception:
+            pass
+
+    def refresh_loot_widget(self, target: Optional[Target] = None, failures: Optional[List[Any]] = None) -> None:
+        """Update Station 4 Loot & Flags widget on demand."""
+        try:
+            active = target or self.store.get_active_target()
+            if failures is None:
+                failures = self.store.list_failure_logs(target_id=active.id if active else None)
+            self.query_one("#loot-flags-widget", LootAndFlagsWidget).update_data(active, failures)
+        except Exception:
+            pass
 
     # -------------------------------------------------------------------------
     # Target Management & Sidebar Tree
@@ -325,20 +341,26 @@ class CyboxSafeApp(App):
                 if svc and target:
                     self._guidance_for_service(svc, target.ip)
 
-    def _refresh_header(self, active: Optional[Target], targets: List[Target]) -> None:
+    def _refresh_header(
+        self,
+        active: Optional[Target],
+        targets: List[Target],
+        *,
+        counts: Optional[Dict[str, int]] = None,
+        items: Optional[List[ChecklistItem]] = None,
+        failure_count: Optional[int] = None,
+    ) -> None:
         """Keep the header, the surface count and the status strip in sync."""
         try:
             workspace = self.store.get_active_workspace()
         except Exception:
             workspace = None
 
-        try:
-            ports = len(self.store.list_services())
-            creds = len(self.store.list_credentials())
-            findings = len(self.store.list_findings())
-            notes = len(self.store.list_notes())
-        except Exception:
-            return
+        target_id = active.id if active else None
+
+        # Fetch fast target counts in one SQL query if not passed by caller
+        if counts is None:
+            counts = self.store.get_target_counts(target_id=target_id)
 
         try:
             self.query_one(WorksheetHeader).update_status(
@@ -351,27 +373,37 @@ class CyboxSafeApp(App):
 
         self._set_count("cnt-surface", f"{len(targets)} host" + ("s" if len(targets) != 1 else ""))
 
-        # "What do I do next?" — the first TODO step, plus how far along we are.
+        # Checklist progress and next step
         next_step = ""
         progress = (0, 0, 0)
-        blockers = 0
+        blockers = counts.get("dead_ends", 0) + (
+            failure_count if failure_count is not None else counts.get("failures", 0)
+        )
+
         try:
-            items = self.store.list_checklist_items(target_id=active.id if active else None)
+            if items is None:
+                items = self.store.list_checklist_items(target_id=target_id)
             total = len(items)
             done = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
             pct = int(done / total * 100) if total else 0
             pending = [i.title for i in items if i.status == ChecklistStatus.TODO]
             next_step = pending[0] if pending else ""
             progress = (done, total, pct)
-            blockers = sum(1 for i in items if i.status == ChecklistStatus.DEAD_END)
-            blockers += len(self.store.list_failure_logs(target_id=active.id if active else None))
+            blockers = sum(1 for i in items if i.status == ChecklistStatus.DEAD_END) + (
+                failure_count if failure_count is not None else counts.get("failures", 0)
+            )
         except Exception:
             pass
 
         try:
             self.query_one("#target-info", MachineStatusStrip).update_status(
                 target=active,
-                counts={"ports": ports, "creds": creds, "vulns": findings, "notes": notes},
+                counts={
+                    "ports": counts.get("ports", 0),
+                    "creds": counts.get("creds", 0),
+                    "vulns": counts.get("vulns", 0),
+                    "notes": counts.get("notes", 0),
+                },
                 next_step=next_step,
                 progress=progress,
                 blockers=blockers,
@@ -442,9 +474,17 @@ class CyboxSafeApp(App):
         """Refresh all data lists from the database."""
         active_target = self.store.get_active_target()
         target_id = active_target.id if active_target else None
+        targets = self.store.list_targets()
+
+        # Check which tab is currently active to avoid rendering hidden tabs
+        try:
+            active_tab = self.query_one("#tabs", TabbedContent).active
+        except Exception:
+            active_tab = "tab-worksheet"
 
         # 1. Services & Ports (Notion 01 format with Potential and Next Action)
         svc_list = self.query_one("#list-services", ListView)
+        saved_svc_idx = svc_list.index
         svc_list.clear()
         services = self.store.list_services(target_id=target_id) if target_id else []
         self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
@@ -477,9 +517,12 @@ class CyboxSafeApp(App):
         else:
             txt = Text("  • No services recorded (Press 's' to add or type ':s 80/tcp http')", style="dim italic")
             svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+        if saved_svc_idx is not None and len(svc_list.children) > 0:
+            svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
 
         # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
         c_list = self.query_one("#list-creds", ListView)
+        saved_c_idx = c_list.index
         c_list.clear()
         creds = self.store.list_credentials(target_id=target_id)
         self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
@@ -499,20 +542,16 @@ class CyboxSafeApp(App):
         else:
             txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
             c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+        if saved_c_idx is not None and len(c_list.children) > 0:
+            c_list.index = min(saved_c_idx, len(c_list.children) - 1)
 
-        # Tab 3 Credential Matrix Update
-        try:
-            all_creds = self.store.list_credentials()
-            all_targets = self.store.list_targets()
-            all_services = self.store.list_services()
-            self.query_one("#cred-matrix-widget", CredentialMatrixWidget).update_data(
-                all_creds, all_targets, all_services, self.revealed_creds
-            )
-        except Exception:
-            pass
+        # Tab 3 Credential Matrix: only update if user is looking at Tab 3
+        if active_tab == "tab-creds":
+            self.refresh_cred_matrix()
 
         # 3. Checklist & Progress Bar
         ck_list = self.query_one("#list-checklist", ListView)
+        saved_ck_idx = ck_list.index
         ck_list.clear()
         items = self.store.list_checklist_items(target_id=target_id)
         checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
@@ -544,9 +583,12 @@ class CyboxSafeApp(App):
         else:
             txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
             ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+        if saved_ck_idx is not None and len(ck_list.children) > 0:
+            ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
 
         # 4. Combined Field Notes, Evidence & Findings
         n_list = self.query_one("#list-notes", ListView)
+        saved_n_idx = n_list.index
         n_list.clear()
         notes = self.store.list_notes(target_id=target_id)
         findings = self.store.list_findings(target_id=target_id)
@@ -586,15 +628,31 @@ class CyboxSafeApp(App):
         else:
             txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
             n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+        if saved_n_idx is not None and len(n_list.children) > 0:
+            n_list.index = min(saved_n_idx, len(n_list.children) - 1)
 
-        # 5. Tab 4: Loot & Flags Widget update
+        # 5. Fast Header and Status Strip update (reusing already-queried lists!)
         failures = self.store.list_failure_logs(target_id=target_id)
-        self._refresh_header(active_target, self.store.list_targets())
-        try:
-            loot_widget = self.query_one("#loot-flags-widget", LootAndFlagsWidget)
-            loot_widget.update_data(active_target, failures)
-        except Exception:
-            pass
+        dead_ends = sum(1 for i in items if i.status == ChecklistStatus.DEAD_END)
+        counts = {
+            "ports": len(services),
+            "creds": len(creds),
+            "vulns": len(findings),
+            "notes": len(notes),
+            "dead_ends": dead_ends,
+            "failures": len(failures),
+        }
+        self._refresh_header(
+            active_target,
+            targets,
+            counts=counts,
+            items=items,
+            failure_count=len(failures),
+        )
+
+        # 6. Tab 4: Loot & Flags Widget update (only if active)
+        if active_tab == "tab-loot":
+            self.refresh_loot_widget(active_target, failures)
 
     # -------------------------------------------------------------------------
     # Hotkey Actions
