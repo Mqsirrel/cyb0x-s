@@ -64,62 +64,44 @@ def search_notebook(
             )
 
     # 2. Services
-    for t in targets:
-        services = store.list_services(target_id=t.id)
-        for s in services:
-            port_str = f"{s.port}/{s.protocol}"
-            if (
-                q in port_str.lower()
-                or q in s.service.lower()
-                or q in s.version.lower()
-                or q in s.notes.lower()
-                or q in s.status.value.lower()
-            ):
-                matches.append(
-                    SearchMatch(
-                        entity_type="service",
-                        entity_id=s.id,
-                        target_id=t.id,
-                        target_ip=t.ip,
-                        title=f"Service: {port_str} {s.service}",
-                        snippet=f"Version: {s.version} [{s.status.value}] {s.notes}",
-                    )
+    for s in store.list_services():
+        target_ip = target_map.get(s.target_id)
+        port_str = f"{s.port}/{s.protocol}"
+        if (
+            q in port_str.lower()
+            or q in s.service.lower()
+            or q in s.version.lower()
+            or q in s.notes.lower()
+            or q in s.status.value.lower()
+        ):
+            matches.append(
+                SearchMatch(
+                    entity_type="service",
+                    entity_id=s.id,
+                    target_id=s.target_id,
+                    target_ip=target_ip,
+                    title=f"Service: {port_str} {s.service}",
+                    snippet=f"Version: {s.version} [{s.status.value}] {s.notes}",
                 )
+            )
 
     # 3. Findings
-    for t in targets:
-        findings = store.list_findings(target_id=t.id)
-        for f in findings:
-            if (
-                q in f.title.lower()
-                or q in f.description.lower()
-                or q in f.notes.lower()
-                or (f.severity and q in f.severity.lower())
-            ):
-                matches.append(
-                    SearchMatch(
-                        entity_type="finding",
-                        entity_id=f.id,
-                        target_id=t.id,
-                        target_ip=t.ip,
-                        title=f"Finding: {f.title}",
-                        snippet=f"Sev: {f.severity or 'manual'} | {f.description or f.notes}",
-                    )
-                )
-
-    # Global findings (target_id is None)
     for f in store.list_findings():
-        if f.target_id is None and (
-            q in f.title.lower() or q in f.description.lower() or q in f.notes.lower()
+        target_ip = target_map.get(f.target_id)
+        if (
+            q in f.title.lower()
+            or q in f.description.lower()
+            or q in f.notes.lower()
+            or (f.severity and q in f.severity.lower())
         ):
             matches.append(
                 SearchMatch(
                     entity_type="finding",
                     entity_id=f.id,
-                    target_id=None,
-                    target_ip=None,
-                    title=f"Finding (Global): {f.title}",
-                    snippet=f"{f.description or f.notes}",
+                    target_id=f.target_id,
+                    target_ip=target_ip,
+                    title=f"Finding{' (Global)' if f.target_id is None else ''}: {f.title}",
+                    snippet=f"Sev: {f.severity or 'manual'} | {f.description or f.notes}",
                 )
             )
 
