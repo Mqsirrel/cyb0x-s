@@ -120,6 +120,10 @@ class CyboxSafeApp(App):
         Binding("d", "delete_selected", "Delete", show=False),
         Binding("T", "open_theme_picker", "Theme", show=False),
         Binding("G", "toggle_guidance", "Suggestions", show=False),
+        Binding("colon", "focus_command_bar", "Command", show=False),
+        Binding("left_square_bracket", "prev_target", "Prev Target", show=False),
+        Binding("right_square_bracket", "next_target", "Next Target", show=False),
+        Binding("b", "toggle_sidebar", "Sidebar", show=False),
     ]
 
     CSS = APP_CSS
@@ -219,7 +223,69 @@ class CyboxSafeApp(App):
 
     def _apply_responsive_layout(self) -> None:
         try:
-            self.screen.set_class(self.size.width < 110, "compact")
+            is_compact_w = self.size.width < 105
+            is_compact_h = self.size.height < 28
+            self.screen.set_class(is_compact_w, "compact")
+            self.screen.set_class(is_compact_w, "compact-width")
+            self.screen.set_class(is_compact_h, "compact-height")
+        except Exception:
+            pass
+
+    def action_focus_command_bar(self) -> None:
+        """Global ':' hotkey to jump immediately into command input."""
+        try:
+            inp = self.query_one("#cmd-input", Input)
+            inp.value = ":"
+            inp.cursor_position = 1
+            inp.focus()
+            try:
+                console = self.query_one("#guidance-box", ConsoleBar)
+                console.update_input_hint(":")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def action_focus_workbench(self) -> None:
+        """Restore focus to workbench list after exiting command bar."""
+        try:
+            self.query_one("#list-services", ListView).focus()
+        except Exception:
+            pass
+
+    def action_prev_target(self) -> None:
+        """Switch to previous target in list via '[' hotkey."""
+        self._cycle_target(-1)
+
+    def action_next_target(self) -> None:
+        """Switch to next target in list via ']' hotkey."""
+        self._cycle_target(1)
+
+    def _cycle_target(self, delta: int) -> None:
+        targets = self.store.list_targets()
+        if not targets:
+            return
+        active = self.store.get_active_target()
+        active_id = active.id if active else targets[0].id
+        ids = [t.id for t in targets]
+        try:
+            curr_idx = ids.index(active_id)
+        except ValueError:
+            curr_idx = 0
+        next_idx = (curr_idx + delta) % len(ids)
+        new_target = targets[next_idx]
+        self.store.set_active_target(new_target.id)
+        self.refresh_targets()
+        self.refresh_all()
+        self.notify(f"Active target: {new_target.ip}")
+
+    def action_toggle_sidebar(self) -> None:
+        """Toggle sidebar visibility to maximize workbench on small displays ('b' hotkey)."""
+        try:
+            sidebar = self.query_one("#sidebar")
+            sidebar.toggle_class("hidden")
+            is_hidden = sidebar.has_class("hidden")
+            self.notify("Sidebar hidden (full width workbench)" if is_hidden else "Sidebar visible")
         except Exception:
             pass
 
@@ -705,16 +771,21 @@ class CyboxSafeApp(App):
             item = focused.highlighted_child
             if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 obj = item.data_obj
+                copied: Optional[str] = None
                 if isinstance(obj, Service) and obj.next_action:
-                    copy_to_clipboard(obj.next_action)
-                    self.notify(f"Copied Next Action: {obj.next_action}")
-                    return
-                active = self.store.get_active_target()
-                target_ip = active.ip if active else None
-                val = extract_copy_value(item.data_obj, target_ip=target_ip)
-                if val:
-                    copy_to_clipboard(val)
-                    self.notify(f"Copied: {val}")
+                    copied = obj.next_action
+                else:
+                    active = self.store.get_active_target()
+                    target_ip = active.ip if active else None
+                    copied = extract_copy_value(item.data_obj, target_ip=target_ip)
+                if copied:
+                    copy_to_clipboard(copied)
+                    try:
+                        console = self.query_one("#guidance-box", ConsoleBar)
+                        console.show_copied_feedback(copied)
+                    except Exception:
+                        pass
+                    self.notify(f"Copied: {copied}")
                     return
         self.notify("Select a valid item to copy (y)")
 
@@ -727,6 +798,11 @@ class CyboxSafeApp(App):
                 obj = item.data_obj
                 if isinstance(obj, ChecklistItem):
                     self.store.cycle_checklist_status(obj.id)
+                    self.refresh_all()
+                    return
+                elif isinstance(obj, Service):
+                    self.store.cycle_service_status(obj.id)
+                    self.refresh_targets()
                     self.refresh_all()
                     return
                 elif isinstance(obj, Credential):

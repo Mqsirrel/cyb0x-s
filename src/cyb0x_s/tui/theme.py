@@ -580,13 +580,19 @@ Underline > .underline--bar {
 }
 
 #sidebar {
-    width: 26%;
+    width: 32;
+    min-width: 26;
+    max-width: 40;
     height: 100%;
     padding: 0 1;
 }
 
+#sidebar.hidden {
+    display: none;
+}
+
 #workbench {
-    width: 74%;
+    width: 1fr;
     height: 100%;
     padding: 0 1;
     layout: vertical;
@@ -613,13 +619,13 @@ Underline > .underline--bar {
     width: 1fr;
     color: $accent;
     text-style: bold;
-    padding: 0 1;
+    padding: 0;
 }
 
 .panel-count {
     width: auto;
     color: $text-muted;
-    padding: 0 1;
+    padding: 0;
 }
 
 .panel-list {
@@ -628,31 +634,35 @@ Underline > .underline--bar {
 }
 
 #panel-surface {
-    height: 58%;
+    height: 3fr;
+    min-height: 7;
 }
 
 #panel-creds {
-    height: 42%;
+    height: 2fr;
+    min-height: 5;
     margin-bottom: 0;
 }
 
 #panel-services {
-    height: 54%;
+    height: 3fr;
+    min-height: 7;
 }
 
 #lower-band {
-    height: 46%;
+    height: 2fr;
+    min-height: 6;
     layout: horizontal;
 }
 
 #panel-checklist {
-    width: 45%;
+    width: 1fr;
     height: 100%;
     margin-bottom: 0;
 }
 
 #panel-notes {
-    width: 55%;
+    width: 1fr;
     height: 100%;
     margin-bottom: 0;
     margin-left: 1;
@@ -660,7 +670,7 @@ Underline > .underline--bar {
 
 /* --- console ------------------------------------------------------------ */
 #guidance-box {
-    height: 5;
+    height: 4;
     border: round $border;
     background: $surface;
     padding: 0 1;
@@ -669,6 +679,10 @@ Underline > .underline--bar {
 
 #guidance-box:focus-within {
     border: round $accent;
+}
+
+#guidance-box.copied-flash {
+    border: round $success;
 }
 
 #console-cmd {
@@ -1006,34 +1020,43 @@ Button.danger-btn:hover {
     border: double $accent !important;
 }
 
-Screen.compact #sidebar {
-    width: 24%;
+Screen.compact #sidebar,
+Screen.compact-width #sidebar {
+    width: 22;
+    min-width: 18;
 }
 
-Screen.compact #workbench {
-    width: 76%;
+Screen.compact #workbench,
+Screen.compact-width #workbench {
+    width: 1fr;
 }
 
-Screen.compact #lower-band {
+Screen.compact #lower-band,
+Screen.compact-width #lower-band {
     layout: vertical;
 }
 
 Screen.compact #panel-checklist,
-Screen.compact #panel-notes {
+Screen.compact-width #panel-checklist,
+Screen.compact #panel-notes,
+Screen.compact-width #panel-notes {
     width: 100%;
     height: 1fr;
     margin-left: 0;
 }
 
-Screen.compact #console-tip {
+Screen.compact #console-tip,
+Screen.compact-height #console-tip {
     display: none;
 }
 
-Screen.compact #guidance-box {
-    height: 4;
+Screen.compact #guidance-box,
+Screen.compact-height #guidance-box {
+    height: 3;
 }
 
-Screen.compact #status-strip {
+Screen.compact #status-strip,
+Screen.compact-height #status-strip {
     height: 2;
 }
 """

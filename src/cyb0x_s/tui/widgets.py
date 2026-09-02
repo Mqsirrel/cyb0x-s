@@ -76,8 +76,8 @@ class TargetTreeWidget(Tree):
             safe_ip = target.ip
             # Sidebar is narrow: keep hostnames short so IPs never scroll away.
             host = target.hostname or ""
-            if len(host) > 12:
-                host = host[:11] + "…"
+            if len(host) > 10:
+                host = host[:9] + "…"
             safe_host = f" ({host})" if host else ""
             label = f"{icon} [bold]{safe_ip}[/bold]{safe_host} [{P.muted}]({len(target_svcs)})[/]"
             if not target.is_in_scope:
@@ -279,12 +279,12 @@ class MachineStatusStrip(Static):
                 row1.append(" " * pad)
                 row1.append(counts_text, style=f"bold {P.muted}")
 
+        if self.size.height < 2:
+            # Short terminal: return single identity line without newline.
+            return row1 if len(row1.plain) <= width else Text(self._elide(row1.plain, width))
+
         t.append_text(row1 if len(row1.plain) <= width else Text(self._elide(row1.plain, width)))
         t.append("\n")
-
-        if self.size.height < 2:
-            # Short terminal: keep only the identity row.
-            return t
 
         # ---- row 2: next step + progress + blockers ---------------------
         row2 = Text()
@@ -322,7 +322,7 @@ class ConsoleBar(Container):
 
     DEFAULT_CSS = """
     ConsoleBar {
-        height: 5;
+        height: 4;
         border: round $border;
         background: $surface;
         padding: 0 1;
@@ -517,6 +517,29 @@ class ConsoleBar(Container):
                     event.stop()
                     self.update_input_hint(inp.value)
                     return
+        elif event.key == "escape":
+            inp = self.query_one("#cmd-input", Input)
+            if inp.has_focus:
+                inp.value = ""
+                self.reset()
+                event.stop()
+                if hasattr(self.app, "action_focus_workbench"):
+                    getattr(self.app, "action_focus_workbench")()
+                return
+
+    def show_copied_feedback(self, cmd: str) -> None:
+        """Display an immediate inline copy confirmation in the console preview."""
+        P = current_palette()
+        line = Text()
+        line.append("✔ COPIED  ", style=f"bold {P.ok}")
+        inner = max(self.size.width - 16, 20)
+        line.append(self._elide(cmd, inner), style=f"bold {P.text}")
+        try:
+            self.query_one("#console-cmd", Static).update(line)
+            self.set_class(True, "copied-flash")
+            self.set_timer(1.8, lambda: self.set_class(False, "copied-flash"))
+        except Exception:
+            pass
 
     # -- state ------------------------------------------------------------
     def show_command(self, command: str, tip: str, target_ip: str = "", heading: str = "CMD") -> None:
