@@ -120,3 +120,80 @@ async def test_guidance_gate_console(seeded_store: NotebookStore) -> None:
         cmd_on = console.query_one("#console-cmd").render().plain
         assert "smbmap" in cmd_on
         set_derive_guidance(None)
+
+
+def test_resolve_palette_name_and_aliases() -> None:
+    from cyb0x_s.tui.theme import get_default_theme, resolve_palette_name
+
+    assert resolve_palette_name("1") == "slate"
+    assert resolve_palette_name("2") == "midnight"
+    assert resolve_palette_name("3") == "ember"
+    assert resolve_palette_name("4") == "moss"
+    assert resolve_palette_name("5") == "neon"
+    assert resolve_palette_name("6") == "mono"
+    assert resolve_palette_name("7") == "warm"
+
+    # Prefix and short abbreviations
+    assert resolve_palette_name("w") == "warm"
+    assert resolve_palette_name("wa") == "warm"
+    assert resolve_palette_name("sl") == "slate"
+    assert resolve_palette_name("mid") == "midnight"
+    assert resolve_palette_name("em") == "ember"
+    assert resolve_palette_name("mo") == "moss"
+    assert resolve_palette_name("ne") == "neon"
+    assert resolve_palette_name("mon") == "mono"
+
+    # Fallbacks and default
+    assert resolve_palette_name("invalid_theme_xyz") is None
+    assert resolve_palette_name("") is None
+    assert get_default_theme() == "slate"
+
+
+@pytest.mark.asyncio
+async def test_picker_digit_hotkey_instantly_selects(seeded_store: NotebookStore) -> None:
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        # Press T to open picker, then press '7' for warm
+        await pilot.press("T")
+        await pilot.pause()
+        assert isinstance(app.screen, ThemePickerModal)
+
+        await pilot.press("7")
+        await pilot.pause()
+        assert app.theme_name == "warm"
+        assert len(app.screen_stack) == 1
+
+        # Press T again, then press '1' for slate
+        await pilot.press("T")
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause()
+        assert app.theme_name == "slate"
+        assert len(app.screen_stack) == 1
+
+
+@pytest.mark.asyncio
+async def test_command_bar_prefix_theme_switch(seeded_store: NotebookStore) -> None:
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        cmd_input = app.query_one("#cmd-input")
+        cmd_input.focus()
+
+        # Switch to warm using prefix ':theme w'
+        cmd_input.value = ":theme w"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.theme_name == "warm"
+
+        # Switch to midnight using ':theme mid'
+        cmd_input.value = ":theme mid"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.theme_name == "midnight"
+
+        # Switch using digit ':theme 3' (ember)
+        cmd_input.value = ":theme 3"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.theme_name == "ember"
+

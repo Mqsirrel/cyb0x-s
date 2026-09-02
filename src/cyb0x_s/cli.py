@@ -40,11 +40,13 @@ def _get_store(ctx: click.Context) -> NotebookStore:
 @click.group(invoke_without_command=True)
 @click.option("--db", "db_path", type=click.Path(), default=None, help="Custom SQLite database file path.")
 @click.option("--workspace", "-w", "workspace_name", default=None, help="Assessment workspace name.")
+@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, moss, neon, mono, warm).")
 @click.pass_context
-def cli(ctx: click.Context, db_path: Optional[str], workspace_name: Optional[str]) -> None:
+def cli(ctx: click.Context, db_path: Optional[str], workspace_name: Optional[str], theme_name: Optional[str] = None) -> None:
     """CYB0X-S — Conservative, passive, human-controlled field notebook."""
     ctx.ensure_object(dict)
     ctx.obj["db_path"] = db_path
+    ctx.obj["theme_name"] = theme_name
 
     # If no subcommand is given, launch the TUI
     if ctx.invoked_subcommand is None:
@@ -748,13 +750,15 @@ def cheat_alias(ctx: click.Context, query: str, target: Optional[str], copy: boo
 # -----------------------------------------------------------------------------
 
 @cli.command("tui")
+@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, moss, neon, mono, warm).")
 @click.pass_context
-def tui_cmd(ctx: click.Context) -> None:
+def tui_cmd(ctx: click.Context, theme_name: Optional[str] = None) -> None:
     """Launch the interactive terminal user interface."""
     from cyb0x_s.tui.app import CyboxSafeApp
 
     store = _get_store(ctx)
-    app = CyboxSafeApp(store=store)
+    selected_theme = theme_name or ctx.obj.get("theme_name")
+    app = CyboxSafeApp(store=store, theme=selected_theme)
     app.run()
 
 

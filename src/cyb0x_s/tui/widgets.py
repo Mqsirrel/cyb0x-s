@@ -542,20 +542,22 @@ class ThemeSwatch(Static):
     }
     """
 
-    def __init__(self, palette_name: str, palette_label: str) -> None:
+    def __init__(self, palette_name: str, palette_label: str, index: int = 1) -> None:
         super().__init__(id=f"theme-{palette_name}")
         self.palette_name = palette_name
         self.palette_label = palette_label
+        self.index = index
 
     def render(self) -> Text:
         palette = PALETTES[self.palette_name]
         active = current_palette().name == palette.name
 
         out = Text()
+        out.append(f"[{self.index}] ", style=f"bold {palette.accent}")
         if active:
-            out.append(" ● ", style=f"bold {palette.accent}")
+            out.append("● ", style=f"bold {palette.accent}")
         else:
-            out.append(" ○ ", style=palette.muted)
+            out.append("○ ", style=palette.muted)
 
         # colour strip — the palette's own hues, so rows look like themselves
         for _label, colour in palette.swatch():
@@ -624,16 +626,16 @@ class ThemePickerModal(ModalScreen[str]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="theme-picker-box"):
-            yield Label("◈  THEME — move the cursor to preview, Enter to keep", id="theme-picker-title")
+            yield Label("◈  THEME — 1-7 instant pick, ↑↓ preview, Enter keep", id="theme-picker-title")
             yield ListView(
                 *[
-                    ListItem(ThemeSwatch(name, palette.label))
-                    for name, palette in PALETTES.items()
+                    ListItem(ThemeSwatch(name, palette.label, index=i + 1))
+                    for i, (name, palette) in enumerate(PALETTES.items())
                 ],
                 id="theme-picker-list",
             )
             yield Label(
-                "↑↓/j/k move     Enter keep     Esc cancel     T re-open",
+                "1-7 instant pick    ↑↓/j/k move    Enter keep    Esc cancel",
                 id="theme-picker-hint",
             )
 
@@ -656,7 +658,25 @@ class ThemePickerModal(ModalScreen[str]):
         if name != current_palette().name:
             self.app.apply_theme(name, quiet=True)  # type: ignore[attr-defined]
 
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Click or Enter on item selects and keeps it."""
+        if event.item is not None:
+            rows = event.item.query(ThemeSwatch)
+            if rows:
+                chosen = rows[0].palette_name
+                self.app.apply_theme(chosen)  # type: ignore[attr-defined]
+                self.dismiss(chosen)
+
     def on_key(self, event) -> None:
+        names = list(PALETTES)
+        if event.key in "1234567":
+            event.stop()
+            idx = int(event.key) - 1
+            if 0 <= idx < len(names):
+                chosen = names[idx]
+                self.app.apply_theme(chosen)  # type: ignore[attr-defined]
+                self.dismiss(chosen)
+            return
         if event.key == "escape":
             event.stop()
             self.app.apply_theme(self.original)  # type: ignore[attr-defined]
