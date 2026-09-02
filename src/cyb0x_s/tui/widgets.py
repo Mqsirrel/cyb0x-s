@@ -819,10 +819,11 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
             )
             with Horizontal(id="theme-picker-buttons"):
                 yield Button("Set as Default (d)", variant="warning", id="btn-set-default")
-                yield Button("Apply for Session (Enter)", variant="primary", classes="primary-btn", id="btn-apply")
+                yield Button("Glass Canvas (g)", id="btn-toggle-glass")
+                yield Button("Apply (Enter)", variant="primary", classes="primary-btn", id="btn-apply")
                 yield Button("Cancel (Esc)", id="btn-cancel")
             yield Label(
-                "↑↓/j/k: live preview   1-8: instant pick   d: save default   Enter: apply   Esc: cancel",
+                "↑↓/j/k: live preview   1-8: pick   g: glass/transparency   d: save default   Enter: apply   Esc: cancel",
                 id="theme-picker-hint",
             )
 
@@ -864,6 +865,11 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
                 save_default_theme(chosen, self.store)
                 self.app.apply_theme(chosen)  # type: ignore[attr-defined]
             self.dismiss(chosen)
+        elif event.button.id == "btn-toggle-glass":
+            if hasattr(self.app, "toggle_transparency"):
+                is_trans = self.app.toggle_transparency(persist=True)
+                mode = "ON (Glass)" if is_trans else "OFF (Solid)"
+                self.app.notify(f"Canvas Transparency: {mode}", timeout=3)
         elif event.button.id == "btn-apply":
             chosen = self._selected_theme_name()
             self.app.apply_theme(chosen)  # type: ignore[attr-defined]
@@ -890,6 +896,13 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
                 chosen = names[idx]
                 self.app.apply_theme(chosen)  # type: ignore[attr-defined]
                 self.dismiss(chosen)
+            return
+        if event.key in ("g", "G"):
+            event.stop()
+            if hasattr(self.app, "toggle_transparency"):
+                is_trans = self.app.toggle_transparency(persist=True)
+                mode = "ON (Glass)" if is_trans else "OFF (Solid)"
+                self.app.notify(f"Canvas Transparency: {mode}", timeout=3)
             return
         if event.key in ("d", "D", "s"):
             event.stop()

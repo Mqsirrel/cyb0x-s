@@ -397,6 +397,62 @@ def get_default_theme(store: Any = None) -> str:
     return DEFAULT_PALETTE
 
 
+def get_transparent_config_path() -> Path:
+    """Return path to persistent transparency configuration file."""
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    theme_dir = config_home / "cyb0x-s"
+    theme_dir.mkdir(parents=True, exist_ok=True)
+    return theme_dir / "transparent"
+
+
+def get_default_transparency(store: Any = None) -> bool:
+    """Check if glass/transparency mode is enabled via env, config, or database."""
+    env_val = os.environ.get("CYB0X_TRANSPARENT", "").strip().lower()
+    if env_val in ("1", "true", "yes", "on"):
+        return True
+    if env_val in ("0", "false", "no", "off"):
+        return False
+
+    try:
+        cfg = get_transparent_config_path()
+        if cfg.is_file():
+            val = cfg.read_text(encoding="utf-8").strip().lower()
+            if val in ("1", "true", "yes", "on"):
+                return True
+            if val in ("0", "false", "no", "off"):
+                return False
+    except Exception:
+        pass
+
+    if store is not None and hasattr(store, "get_setting"):
+        try:
+            db_val = str(store.get_setting("transparent") or "").strip().lower()
+            if db_val in ("1", "true", "yes", "on"):
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+def save_default_transparency(enabled: bool, store: Any = None) -> bool:
+    """Save default transparency mode to config and database."""
+    val_str = "1" if enabled else "0"
+    try:
+        cfg = get_transparent_config_path()
+        cfg.write_text(val_str + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+    if store is not None and hasattr(store, "set_setting"):
+        try:
+            store.set_setting("transparent", val_str)
+        except Exception:
+            pass
+
+    return True
+
+
 def S(token: str, bold: bool = True) -> str:  # noqa: N802 - short by design
     """Rich style string for a palette token, e.g. ``S("ok")`` → ``bold #6FE3B0``.
 
@@ -443,6 +499,29 @@ Screen {
     background: $background;
     color: $foreground;
     layout: vertical;
+}
+
+Screen.transparent {
+    background: transparent;
+}
+
+Screen.transparent #app-header,
+Screen.transparent TabbedContent,
+Screen.transparent #cockpit,
+Screen.transparent Footer {
+    background: transparent;
+}
+
+Screen.transparent .panel-box {
+    background: $surface 88%;
+}
+
+Screen.transparent #status-strip {
+    background: $surface 92%;
+}
+
+Screen.transparent #guidance-box {
+    background: $surface 92%;
 }
 
 /* --- chrome ------------------------------------------------------------- */

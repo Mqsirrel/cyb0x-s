@@ -58,8 +58,10 @@ from cyb0x_s.tui.theme import (
     S,
     current_palette,
     get_default_theme,
+    get_default_transparency,
     resolve_palette_name,
     save_default_theme,
+    save_default_transparency,
     set_palette,
 )
 from cyb0x_s.tui.widgets import (
@@ -136,6 +138,7 @@ class CyboxSafeApp(App):
         self,
         store: Optional[NotebookStore] = None,
         theme: Optional[str] = None,
+        transparent: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -151,6 +154,10 @@ class CyboxSafeApp(App):
         self.is_zoomed: bool = False
         self.zoomed_widget: Optional[Vertical] = None
         self.hidden_by_zoom: List[Any] = []
+        if transparent is not None:
+            self.is_transparent: bool = bool(transparent)
+        else:
+            self.is_transparent = get_default_transparency(self.store)
 
     def compose(self) -> ComposeResult:
         active_ws = self.store.get_active_workspace()
@@ -206,6 +213,8 @@ class CyboxSafeApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        if self.is_transparent:
+            self.screen.add_class("transparent")
         self.refresh_targets()
         self.refresh_all()
         self._apply_responsive_layout()
@@ -796,6 +805,17 @@ class CyboxSafeApp(App):
         """Open the palette picker (live preview, Esc restores the old one)."""
         self.push_screen(ThemePickerModal(self.theme_name, store=self.store))
 
+    def toggle_transparency(self, enable: Optional[bool] = None, persist: bool = False) -> bool:
+        """Toggle or set glass/transparent canvas mode."""
+        if enable is None:
+            self.is_transparent = not self.is_transparent
+        else:
+            self.is_transparent = bool(enable)
+        self.screen.set_class(self.is_transparent, "transparent")
+        if persist:
+            save_default_transparency(self.is_transparent, self.store)
+        return self.is_transparent
+
     def action_toggle_guidance(self) -> None:
         """Switch derived suggestions (access potential / next command) on or off.
 
@@ -1238,6 +1258,19 @@ class CyboxSafeApp(App):
                     self.set_default_theme(def_target)
                 else:
                     self.apply_theme(arg.lower())
+            return
+        elif val.startswith((":trans", ":glass")):
+            parts = val.split()
+            if len(parts) > 1 and parts[1].lower() in ("on", "1", "yes", "true"):
+                self.toggle_transparency(True, persist=True)
+                self.notify("Glass transparency enabled (saved as default)")
+            elif len(parts) > 1 and parts[1].lower() in ("off", "0", "no", "false"):
+                self.toggle_transparency(False, persist=True)
+                self.notify("Solid background enabled (saved as default)")
+            else:
+                state = self.toggle_transparency(persist=True)
+                msg = "Glass transparency enabled" if state else "Solid background enabled"
+                self.notify(f"{msg} (saved as default)")
             return
         elif val.startswith("/"):
             self.action_open_search()

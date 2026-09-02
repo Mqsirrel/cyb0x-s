@@ -50,6 +50,7 @@ def isolate_test_environment(tmp_path_factory: pytest.TempPathFactory, monkeypat
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_config))
     monkeypatch.delenv("CYB0X_THEME", raising=False)
     monkeypatch.delenv("CYB0X_PALETTE", raising=False)
+    monkeypatch.delenv("CYB0X_TRANSPARENT", raising=False)
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
