@@ -78,6 +78,9 @@ from cyb0x_s.tui.widgets import (
     TemplateSelectionModal,
     ThemePickerModal,
     WorksheetHeader,
+    clear_badge_caches,
+    get_protocol_badge,
+    get_service_status_icon,
     substitute_command_placeholders,
 )
 
@@ -631,6 +634,76 @@ class CyboxSafeApp(App):
         except Exception:
             pass
 
+    def _format_service_row(self, s: Service) -> Text:
+        txt = Text()
+        txt.append(get_service_status_icon(s.status.value, self.theme_name))
+        txt.append(get_protocol_badge(s.port, s.protocol, self.theme_name))
+        txt.append(f"{s.service:<12} ", style=S("text"))
+        if s.access_potential in ("HIGH", "CRITICAL"):
+            txt.append(f"[{s.access_potential}] ", style=S("danger"))
+        elif s.access_potential == "LOW":
+            txt.append("[LOW] ", style=S("muted", bold=False))
+        if s.version:
+            txt.append(f"{s.version} ", style=S("muted", bold=False))
+        if s.next_action:
+            txt.append(f"→ `{s.next_action}` ", style=S("warn"))
+        if s.notes:
+            txt.append(f"({s.notes})", style="dim italic")
+        return txt
+
+    def _format_credential_row(self, c: Credential) -> Text:
+        txt = Text()
+        txt.append("🔑 ", style=S("ok"))
+        txt.append(f"{c.username} ", style=S("text"))
+        txt.append("› ", style=S("muted", bold=False))
+        secret = c.secret if c.id in self.revealed_creds else c.masked_secret
+        txt.append(f"{secret} ", style=S("accent"))
+        if c.service_scope:
+            txt.append(f"[{c.service_scope}] ", style=S("warn"))
+        if c.source:
+            txt.append(f"({c.source})", style=S("muted", bold=False))
+        return txt
+
+    def _format_checklist_row(self, item: ChecklistItem) -> Text:
+        txt = Text()
+        if item.status == ChecklistStatus.CHECKED:
+            txt.append("[✓ DONE] ", style=S("ok"))
+            txt.append(item.title, style="dim strike")
+        elif item.status == ChecklistStatus.DEFERRED:
+            txt.append("[⏸ DEFER] ", style=S("warn"))
+            txt.append(item.title, style=S("warn"))
+        elif item.status == ChecklistStatus.DEAD_END:
+            txt.append("[✖ DROP] ", style=S("danger"))
+            txt.append(item.title, style=S("muted", bold=False))
+        else:
+            txt.append("[⏳ TODO] ", style=S("accent"))
+            txt.append(item.title, style=S("text"))
+        return txt
+
+    def _update_checklist_progress(self) -> None:
+        """Update checklist header counters and status strip progress bar without rebuilding lists."""
+        active = self.get_current_target()
+        target_id = active.id if active else None
+        items = self.store.list_checklist_items(target_id=target_id)
+        checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
+        total_items = len(items)
+        pct = int((checked_count / total_items * 100)) if total_items > 0 else 0
+
+        bar_len = 10
+        filled = int(bar_len * (checked_count / total_items)) if total_items > 0 else 0
+        bar_str = "█" * filled + "░" * (bar_len - filled)
+        hdr_txt = f"{bar_str} {pct:>3d}% {checked_count}/{total_items}" if total_items else "—"
+        self._set_count("cnt-checklist", hdr_txt)
+
+        try:
+            self.query_one("#target-info", MachineStatusStrip).update_status(
+                target=active,
+                checklist_total=total_items,
+                checklist_done=checked_count,
+            )
+        except Exception:
+            pass
+
     def refresh_all(self) -> None:
         """Refresh all data lists from the database."""
         with self.batch_update():
@@ -652,30 +725,7 @@ class CyboxSafeApp(App):
             self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
             if services:
                 for s in services:
-                    txt = Text()
-                    if s.status.value == "CHECKED":
-                        txt.append("✓ ", style=S("ok"))
-                    elif s.status.value == "DEFERRED":
-                        txt.append("~ ", style=S("warn"))
-                    elif s.status.value == "DEAD-END":
-                        txt.append("✗ ", style=S("danger"))
-                    else:
-                        txt.append("→ ", style=S("accent"))
-
-                    port_str = f"[{s.port}/{s.protocol}]"
-                    txt.append(f"{port_str:<11} ", style=S("accent"))
-                    txt.append(f"{s.service:<12} ", style=S("text"))
-                    if s.access_potential in ("HIGH", "CRITICAL"):
-                        txt.append(f"[{s.access_potential}] ", style=S("danger"))
-                    elif s.access_potential == "LOW":
-                        txt.append("[LOW] ", style=S("muted", bold=False))
-                    if s.version:
-                        txt.append(f"{s.version} ", style=S("muted", bold=False))
-                    if s.next_action:
-                        txt.append(f"→ `{s.next_action}` ", style=S("warn"))
-                    if s.notes:
-                        txt.append(f"({s.notes})", style="dim italic")
-                    svc_list.append(DataListItem(data_obj=s, display_text=txt))
+                    svc_list.append(DataListItem(data_obj=s, display_text=self._format_service_row(s)))
             else:
                 txt = Text("  • No services recorded (Press 's' to add or type ':s 80/tcp http')", style="dim italic")
                 svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
@@ -690,17 +740,7 @@ class CyboxSafeApp(App):
             self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
             if creds:
                 for c in creds:
-                    txt = Text()
-                    txt.append("🔑 ", style=S("ok"))
-                    txt.append(f"{c.username} ", style=S("text"))
-                    txt.append("› ", style=S("muted", bold=False))
-                    secret = c.secret if c.id in self.revealed_creds else c.masked_secret
-                    txt.append(f"{secret} ", style=S("accent"))
-                    if c.service_scope:
-                        txt.append(f"[{c.service_scope}] ", style=S("warn"))
-                    if c.source:
-                        txt.append(f"({c.source})", style=S("muted", bold=False))
-                    c_list.append(DataListItem(data_obj=c, display_text=txt))
+                    c_list.append(DataListItem(data_obj=c, display_text=self._format_credential_row(c)))
             else:
                 txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
                 c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
@@ -728,20 +768,7 @@ class CyboxSafeApp(App):
 
             if items:
                 for item in items:
-                    txt = Text()
-                    if item.status == ChecklistStatus.CHECKED:
-                        txt.append("[✓ DONE] ", style=S("ok"))
-                        txt.append(item.title, style="dim strike")
-                    elif item.status == ChecklistStatus.DEFERRED:
-                        txt.append("[⏸ DEFER] ", style=S("warn"))
-                        txt.append(item.title, style=S("warn"))
-                    elif item.status == ChecklistStatus.DEAD_END:
-                        txt.append("[✖ DROP] ", style=S("danger"))
-                        txt.append(item.title, style=S("muted", bold=False))
-                    else:
-                        txt.append("[⏳ TODO] ", style=S("accent"))
-                        txt.append(item.title, style=S("text"))
-                    ck_list.append(DataListItem(data_obj=item, display_text=txt))
+                    ck_list.append(DataListItem(data_obj=item, display_text=self._format_checklist_row(item)))
             else:
                 txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
                 ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
@@ -892,27 +919,36 @@ class CyboxSafeApp(App):
         self.notify("Select a valid item to copy (y)")
 
     def action_toggle_selected(self) -> None:
-        """Toggle checklist status or credential reveal."""
+        """Toggle checklist status or credential reveal with in-place differential row updates."""
         focused = self.focused
         if isinstance(focused, ListView) and focused.highlighted_child:
             item = focused.highlighted_child
             if isinstance(item, DataListItem) and not item.is_placeholder and item.data_obj:
                 obj = item.data_obj
                 if isinstance(obj, ChecklistItem):
-                    self.store.cycle_checklist_status(obj.id)
-                    self.refresh_all()
+                    updated = self.store.cycle_checklist_status(obj.id)
+                    if updated:
+                        item.data_obj = updated
+                        item.update_display(self._format_checklist_row(updated))
+                    else:
+                        item.update_display(self._format_checklist_row(obj))
+                    self._update_checklist_progress()
                     return
                 elif isinstance(obj, Service):
-                    self.store.cycle_service_status(obj.id)
+                    updated = self.store.cycle_service_status(obj.id)
+                    if updated:
+                        item.data_obj = updated
+                        item.update_display(self._format_service_row(updated))
+                    else:
+                        item.update_display(self._format_service_row(obj))
                     self.refresh_targets()
-                    self.refresh_all()
                     return
                 elif isinstance(obj, Credential):
                     if obj.id in self.revealed_creds:
                         self.revealed_creds.remove(obj.id)
                     else:
                         self.revealed_creds.add(obj.id)
-                    self.refresh_all()
+                    item.update_display(self._format_credential_row(obj))
                     return
 
     def action_toggle_zoom(self) -> None:
@@ -1015,6 +1051,7 @@ class CyboxSafeApp(App):
             return
         self.theme_name = resolved
         palette = set_palette(resolved)
+        clear_badge_caches()
         self.theme = palette.textual_theme().name
         self.refresh_targets()
         self.refresh_all()
