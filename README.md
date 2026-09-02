@@ -1,37 +1,40 @@
 # CYB0X-S — SAFE FIELD WORKSHEET
 
-**Conservative, passive, human-controlled pentesting and lab field worksheet.**
+**Local, human-controlled field worksheet and offline methodology companion.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ CYB0X-S WORKSHEET                    MODE: SAFE             │
-│ Passive field worksheet              Human-controlled       │
+│ Local field notebook                 Human-controlled       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-CYB0X-S is the conservative, passive companion to CYB0X. Its purpose is to provide a fast, local terminal/TUI field worksheet for recording information that the human operator has personally discovered during cybersecurity labs, CTFs, and security assessments.
+CYB0X-S provides a fast, keyboard-driven terminal field worksheet for recording, structuring, and searching information discovered during cybersecurity labs, CTFs, and practical assessments.
 
 ---
 
 ## 1. Core Design Principle
 
-> **The human decides and performs the security-testing actions.**
-> **CYB0X-S records and organizes them.**
+> **The human decides and performs all security-testing actions.**  
+> **CYB0X-S records, organizes, and searches them.**
 
-This project is **NOT** an AI pentesting assistant, solver, attack planner, or autonomous security tool. It contains zero autonomous scripts, zero external AI API integrations, zero heuristic vulnerability scorers, and zero background scanners.
+CYB0X-S is **NOT** an AI pentesting assistant, solver, attack planner, or automated scanner. It contains zero autonomous scripts, zero external AI API integrations, and zero background network scanners.
 
 ---
 
-## 2. What It Is
+## 2. Operational Posture & Transparency
 
-A fast, lightweight, keyboard-driven digital field notebook designed to replace `notes.txt`, scratchpads, and complex note apps during active security assessments.
+To maintain total transparency and avoid overclaiming:
+* **Default Mode: Strict Passive Recording**: Out of the box, CYB0X-S is a pure manual notebook. It stores only what you type, tracks your manual checklist progress, and searches your local records.
+* **Offline Cognitive Playbooks**: Provides pre-compiled, static command syntax reference sheets (like a built-in `man` page or cheatsheet notebook) so you never need to leave the terminal to look up common utility flags.
+* **Optional Static Guidance (`derive_guidance`)**: CYB0X-S includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`CYB0X_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the operator, it acts as a deterministic local dictionary lookup—never an AI, never a live scanner, and never an autonomous decision-maker.
 
 ### What It Does
 * **Organizes by Target**: Records target IPs, hostnames, OS info, and operator observations.
 * **Records Services**: Stores ports, protocols, service banners, and software versions manually observed.
 * **Records Findings**: Stores security findings discovered by the operator, with optional human-assigned severities.
 * **Manages Credentials Safely**: Simple local vault with masked password display (`********`), explicit toggle reveal, and direct clipboard copying.
-* **Tracks Methodology Checklist**: Manually toggled status (`TODO`, `CHECKED`, `DEFERRED`, `DEAD-END`) with optional static methodology templates.
+* **Tracks Methodology Checklist**: Manually toggled status (`TODO`, `CHECKED`, `DEFERRED`, `DEAD-END`) with static open-source methodology templates.
 * **Captures Evidence**: Logs references and paths to screenshots, flag hashes, and command outputs without automatic collection.
 * **Fast CLI Capture**: Record discoveries in sub-second CLI commands (e.g. `cyb0x-s note "..."`, `cyb0x-s cred admin:pass`).
 * **Standalone Export**: Export clean, human-readable Markdown notebooks, JSON backups, or plain text summaries.
@@ -40,22 +43,45 @@ A fast, lightweight, keyboard-driven digital field notebook designed to replace 
 
 ### What It Does NOT Do
 * **NO AI or LLM Calls**: No OpenAI, Anthropic, Ollama, or AI SDK dependencies whatsoever.
-* **NO Attack Recommendations**: Does not tell you what to run next or predict attack paths.
-* **NO Automatic Scanning**: Does not execute nmap, masscan, gobuster, or any background network scans.
-* **NO Automatic Vulnerability Classification**: Does not parse banners to infer CVEs or suggest exploits.
-* **NO Automatic Credential Harvesting**: Does not scrape commands or outputs for passwords.
-* **NO Command Generation**: Does not formulate exploit payloads or automated commands based on target ports.
-* **NO Behavioral Monitoring / Hidden Logic**: Completely transparent, local-first code that does exactly what the operator types.
-* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `CYB0X_DERIVE_GUIDANCE=1` or press **`G`** in the TUI, so `access_potential` stays blank on imported services unless you ask CYB0X-S to derive it.
+* **NO Autonomous Exploitation**: Never executes exploits, attacks, or payloads against target networks.
+* **NO Automatic Network Scanning**: Does not execute nmap, masscan, gobuster, or any background network probes.
+* **NO Real-Time Collaboration**: Strictly a single-operator local SQLite notebook; no multi-user sharing or external sync.
+* **NO Automatic Vulnerability Classification**: Does not parse live banners to infer CVEs or probe targets.
+* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `CYB0X_DERIVE_GUIDANCE=1` or press **`G`** in the TUI.
 
 ---
 
-## 3. Exam & Certification Disclaimer
+## 3. Practical Exam & Certification Compliance (e.g., INE / eJPT)
 
-> [!IMPORTANT]
-> **CYB0X-S is designed as a passive note-taking and organization tool. Whether it may be used during a particular certification or assessment depends entirely on that provider’s current rules. Users must verify the rules themselves before using it.**
+Candidates often ask whether CYB0X-S is permitted during practical certification exams like the INE eJPT, eWPT, or similar hands-on assessments.
+
+### How CYB0X-S Aligns with Certification Policies:
+* **Local & Offline**: Zero cloud dependencies, zero external network traffic, and no telemetry.
+* **Personal Worksheet Model**: Practical exams permit candidates to maintain their own notes, command references, and methodology checklists. CYB0X-S is simply a fast terminal-based alternative to Obsidian, CherryTree, or a local markdown file.
+* **Human-in-the-Loop**: All commands must be executed manually by the candidate in their own terminal. CYB0X-S does not execute commands on your behalf.
+* **Zero Unauthorized Assistance**: Does not communicate with outside parties, mentors, or generative AI models.
+* **Zero Compromised Content**: Does not ship with or reference any actual exam machines, answers, past-attempt data, or walkthroughs.
+
+> [!NOTE]
+> **No Need to Cripple the Tool**: Compliance does not require disabling the core TUI, offline playbooks, or checklist features. As long as you maintain the exam-safe posture (keeping `derive_guidance` in its default `OFF` state and avoiding storing prohibited or NDA exam content), CYB0X-S functions strictly as an individual candidate's electronic field journal.
 >
-> CYB0X-S makes no claim of endorsement or pre-approval by OffSec (OSCP), INE Security (eJPT), Hack The Box, or any other certification body. Always consult the specific assessment rules and guidelines provided by your exam proctor or examination authority before using any tool.
+> *Always consult the specific, current guidelines of your certification authority (INE, OffSec, etc.) prior to starting your exam session.*
+
+---
+
+## 4. Methodology & Playbook Provenance
+
+All pre-loaded checklist templates (`ejpt`, `discovery`, `web`, `smb`, `pivoting`, `privesc`) and command reference sheets ship with full source transparency:
+
+* **Open-Source & Public Standards**: Sourced exclusively from widely published, publicly available industry methodologies:
+  * **PTES (Penetration Testing Execution Standard)**
+  * **OWASP Web Security Testing Guide (WSTG v4.2)**
+  * **NIST SP 800-115** (Technical Guide to Information Security Testing and Assessment)
+  * **Public Community Repositories**: GTFOBins, LOLBAS, PayloadsAllTheThings, and standard Linux/BSD/Windows manual pages.
+* **Strictly Non-Compromised**:
+  * **Zero proprietary exam questions or slides** from any commercial vendor.
+  * **Zero previous-attempt artifacts**, specific exam flag patterns, or target walkthroughs.
+  * **Generic educational syntax only**: Commands use generic placeholders (`<TARGET_IP>`, `<TARGET_SUBNET>`, `<PORTS>`).
 
 ---
 
@@ -241,19 +267,20 @@ Station 1 answers the four questions you keep asking under time pressure:
 | Zone | Question |
 |---|---|
 | Status strip | Which box am I on, and what have I captured? |
-| `NEXT ▸` row | What should I try next? How far through the methodology am I? |
-| Services panel | What is exposed, and what is the command for it? |
-| Bottom console | What can I copy right now — and where do I type new findings? |
+| `NEXT ▸` row | What is my current checklist milestone, and how far through the methodology am I? |
+| Services panel | What is exposed on the target? |
+| Bottom console | What syntax can I copy right now — and where do I type new findings? |
 
 The remaining stations are deep dives: **2** offline playbooks, **3** the full
 credential vault, **4** flags / foothold / rabbit-hole log.
 
-### Themes
+### Themes & Glass Transparency
 
-Seven palettes ship with the app and can be swapped live:
+Eight palettes ship with the app and can be swapped live:
 
 | Name | Look | Command |
 |---|---|---|
+| `cyber` | deep obsidian navy, electric cyan, neon mint glow — **lively / low eye strain** | `:theme cyber` |
 | `slate` | graphite chrome, cyan/mint data, amber warnings — **default** | `:theme slate` |
 | `midnight` | indigo / periwinkle, calm low-flare for long labs | `:theme midnight` |
 | `ember` | amber CRT, warm reading glow | `:theme ember` |
@@ -262,10 +289,9 @@ Seven palettes ship with the app and can be swapped live:
 | `mono` | luminance only, colour-blind safe (no hue) | `:theme mono` |
 | `warm` | the original charcoal / terracotta / kraft identity | `:theme warm` |
 
-Press **`T`** to open the interactive theme picker (live preview; `↑`/`↓` or
-`j`/`k` to move, `Enter` to keep, `Esc` to restore), or use `:theme <name>` in
-the command bar. `:theme` with no argument still cycles, and `T` re-opens the
-picker.
+* **Interactive Picker**: Press **`T`** anywhere in the Cockpit (`↑`/`↓` or `j`/`k` for live full-screen preview, `1-8` for instant pick, `d` to set as persistent default, `Enter` to keep, `Esc` to cancel).
+* **Glass / Transparency Mode**: If running in a modern terminal with background blur or opacity (Ghostty, Alacritty, Kitty, WezTerm), enable the transparent canvas with `cyb0x-s tui -T`, type `:trans on` in the command bar, or press **`g`** inside the theme picker. Cards render with a translucent frosted tint without destroying your terminal's acrylic blur.
+
 Every palette keeps its body text at WCAG **AAA** (≥7:1) and muted text at
 **AA** (≥4.5:1) against its background. `mono` carries no hue at all — status
 is still conveyed by the UI symbols (✓ ⚠ ✗, `DEAD-END`, `[HIGH]`), so it is
