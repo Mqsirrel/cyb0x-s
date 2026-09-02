@@ -135,6 +135,7 @@ def test_resolve_palette_name_and_aliases() -> None:
     assert resolve_palette_name("5") == "neon"
     assert resolve_palette_name("6") == "mono"
     assert resolve_palette_name("7") == "warm"
+    assert resolve_palette_name("8") == "cyber"
 
     # Prefix and short abbreviations
     assert resolve_palette_name("w") == "warm"
@@ -145,6 +146,9 @@ def test_resolve_palette_name_and_aliases() -> None:
     assert resolve_palette_name("mo") == "moss"
     assert resolve_palette_name("ne") == "neon"
     assert resolve_palette_name("mon") == "mono"
+    assert resolve_palette_name("cy") == "cyber"
+    assert resolve_palette_name("c") == "cyber"
+    assert resolve_palette_name("tokyo") == "cyber"
 
     # Fallbacks and default
     assert resolve_palette_name("invalid_theme_xyz") is None
