@@ -533,7 +533,7 @@ Underline > .underline--bar {
     text-style: bold;
 }
 
-Input {
+#cmd-input {
     height: 1;
     width: 1fr;
     border: none;
@@ -541,8 +541,21 @@ Input {
     color: $foreground;
 }
 
-Input:focus {
+#cmd-input:focus {
     border: none;
+}
+
+Input {
+    height: 3;
+    width: 1fr;
+    border: round $border;
+    background: $background;
+    color: $foreground;
+}
+
+Input:focus {
+    border: round $accent;
+    background: $background;
 }
 
 /* --- lists -------------------------------------------------------------- */
