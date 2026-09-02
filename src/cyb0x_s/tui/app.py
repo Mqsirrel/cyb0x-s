@@ -59,6 +59,7 @@ from cyb0x_s.tui.theme import (
     current_palette,
     get_default_theme,
     resolve_palette_name,
+    save_default_theme,
     set_palette,
 )
 from cyb0x_s.tui.widgets import (
@@ -141,11 +142,11 @@ class CyboxSafeApp(App):
         # Register every palette up front so switching is a one-liner later.
         for palette in PALETTES.values():
             self.register_theme(palette.textual_theme())
-        resolved = resolve_palette_name(theme) or get_default_theme()
+        self.store = store or NotebookStore()
+        resolved = resolve_palette_name(theme) or get_default_theme(self.store)
         self.theme_name: str = resolved
         set_palette(self.theme_name)
         self.theme = PALETTES[self.theme_name].textual_theme().name
-        self.store = store or NotebookStore()
         self.revealed_creds: Set[int] = set()
         self.is_zoomed: bool = False
         self.zoomed_widget: Optional[Vertical] = None
@@ -778,9 +779,19 @@ class CyboxSafeApp(App):
         if not quiet:
             self.notify(f"Theme: {palette.label}")
 
+    def set_default_theme(self, name: str) -> None:
+        """Persist the chosen palette as the permanent default and activate it."""
+        resolved = resolve_palette_name(name)
+        if not resolved or resolved not in PALETTES:
+            self.notify(f"Unknown theme '{name}'", severity="warning")
+            return
+        save_default_theme(resolved, self.store)
+        self.apply_theme(resolved, quiet=True)
+        self.notify(f"★ Theme '{resolved}' saved as default!", severity="information")
+
     def action_open_theme_picker(self) -> None:
         """Open the palette picker (live preview, Esc restores the old one)."""
-        self.push_screen(ThemePickerModal(self.theme_name))
+        self.push_screen(ThemePickerModal(self.theme_name, store=self.store))
 
     def action_toggle_guidance(self) -> None:
         """Switch derived suggestions (access potential / next command) on or off.
@@ -1212,11 +1223,18 @@ class CyboxSafeApp(App):
             self.store.add_evidence(path_or_ref=ev_path, target_id=target_id)
             self.notify(f"Evidence logged: {ev_path}")
         elif val.startswith(":theme"):
-            parts = val.split(maxsplit=1)
+            parts = val.split(maxsplit=2)
             if len(parts) == 1:
                 self.action_cycle_theme()
+            elif len(parts) == 3 and parts[1].lower() in ("default", "set-default", "def", "save"):
+                self.set_default_theme(parts[2].strip().lower())
             else:
-                self.apply_theme(parts[1].strip().lower())
+                arg = val[6:].strip()
+                if arg.lower().startswith("default ") or arg.lower().startswith("set-default "):
+                    def_target = arg.split(maxsplit=1)[1].strip()
+                    self.set_default_theme(def_target)
+                else:
+                    self.apply_theme(arg.lower())
             return
         elif val.startswith("/"):
             self.action_open_search()

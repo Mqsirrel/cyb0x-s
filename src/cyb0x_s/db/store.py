@@ -202,6 +202,23 @@ class NotebookStore:
         targets = self.list_targets(workspace_id=ws_id)
         return targets[0] if targets else None
 
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Retrieve a key-value setting from the notebook database."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cur.fetchone()
+        if row and row["value"] is not None:
+            return str(row["value"])
+        return default
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Store or update a key-value setting in the notebook database."""
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, str(value)),
+            )
+
     # -------------------------------------------------------------------------
     # Targets
     # -------------------------------------------------------------------------
