@@ -364,6 +364,36 @@ class ConsoleBar(Container):
     }
     """
 
+    AUTOCOMPLETE_PREFIXES: Dict[str, str] = {
+        ":t": ":t ",
+        ":target": ":t ",
+        ":s": ":s ",
+        ":service": ":s ",
+        ":c": ":c ",
+        ":cred": ":c ",
+        ":n": ":n ",
+        ":note": ":n ",
+        ":f": ":f ",
+        ":finding": ":f ",
+        ":th": ":theme ",
+        ":theme": ":theme ",
+        ":ref": ":ref ",
+        ":cheat": ":ref ",
+        ":u": ":uflag ",
+        ":uflag": ":uflag ",
+        ":r": ":rflag ",
+        ":rflag": ":rflag ",
+        ":foot": ":foothold ",
+        ":foothold": ":foothold ",
+        ":priv": ":privesc ",
+        ":privesc": ":privesc ",
+        ":st": ":stuck ",
+        ":stuck": ":stuck ",
+        ":cl": ":clue ",
+        ":clue": ":clue ",
+        ":q": ":q",
+    }
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.command: str = ""
@@ -380,9 +410,116 @@ class ConsoleBar(Container):
         with Horizontal(id="console-input-row"):
             yield Label("❯", id="console-prompt")
             yield Input(
-                placeholder=":s 445/tcp smb   :c admin:pw   :n note   :uflag <hash>   :ref winrm   :theme slate   ? help",
+                placeholder="Type : for command menu (:t target, :s svc, :c cred, :theme, :1-4) or type any note...",
                 id="cmd-input",
             )
+
+    def update_input_hint(self, val: str) -> None:
+        """Dynamically display live syntax guidance as the operator types."""
+        v = val.strip()
+        if not v:
+            self._paint()
+            return
+
+        P = current_palette()
+        inner = max(self.size.width - 4, 16)
+        cmd_line = Text()
+        tip_line = Text()
+
+        cmd_line.append("❯ ", style=f"bold {P.accent}")
+
+        if v == ":":
+            cmd_line.append("[COMMAND MENU] ", style=f"bold {P.warn}")
+            cmd_line.append(":t target  :s svc  :c cred  :n note  :f finding  :theme  :1-:4  :ref  ? help", style=f"bold {P.text}")
+            tip_line.append("Press Tab to autocomplete or type a command name", style=f"{P.muted}")
+        elif v.startswith(":t") or v.startswith("target ") or v.startswith("add target"):
+            cmd_line.append("[ADD TARGET] ", style=f"bold {P.warn}")
+            cmd_line.append(":t <ip> [hostname] [os]", style=f"bold {P.text}")
+            tip_line.append("e.g. :t 10.10.11.10 dc01.corp.local Linux", style=f"{P.muted}")
+        elif v.startswith(":s") or v.startswith("service ") or v.startswith("add service"):
+            cmd_line.append("[ADD SERVICE] ", style=f"bold {P.warn}")
+            cmd_line.append(":s <port/proto> <service_name>", style=f"bold {P.text}")
+            tip_line.append("e.g. :s 80/tcp http   or   :s 445 smb   or   :s 22/tcp ssh", style=f"{P.muted}")
+        elif v.startswith(":c") or v.startswith("cred ") or v.startswith("add cred"):
+            cmd_line.append("[ADD CREDENTIAL] ", style=f"bold {P.warn}")
+            cmd_line.append(":c <username:password> [scope]", style=f"bold {P.text}")
+            tip_line.append("e.g. :c admin:Secret123! SMB   or   :c root:toor SSH", style=f"{P.muted}")
+        elif v.startswith(":n") or v.startswith("note ") or v.startswith("add note"):
+            cmd_line.append("[FIELD NOTE] ", style=f"bold {P.warn}")
+            cmd_line.append(":n <your note observation>", style=f"bold {P.text}")
+            tip_line.append("Saves instant note under NOTES & FINDINGS (press Enter to save)", style=f"{P.muted}")
+        elif v.startswith(":f") or v.startswith("finding ") or v.startswith("add finding"):
+            cmd_line.append("[FINDING / VULN] ", style=f"bold {P.warn}")
+            cmd_line.append(":f <vulnerability title>", style=f"bold {P.text}")
+            tip_line.append("e.g. :f Anonymous SMB Share Access (press Enter to save)", style=f"{P.muted}")
+        elif v.startswith(":th") or v.startswith("theme"):
+            cmd_line.append("[THEME / PALETTE] ", style=f"bold {P.warn}")
+            cmd_line.append(":theme <1-7 or slate|midnight|ember|moss|neon|mono|warm>", style=f"bold {P.text}")
+            tip_line.append("e.g. :theme warm, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
+        elif v.startswith(":u") or v.startswith(":flag user"):
+            cmd_line.append("[USER FLAG] ", style=f"bold {P.warn}")
+            cmd_line.append(":uflag <hash_string>", style=f"bold {P.text}")
+            tip_line.append("Records captured user.txt flag hash for active target", style=f"{P.muted}")
+        elif v.startswith(":r") or v.startswith(":flag root"):
+            cmd_line.append("[ROOT FLAG] ", style=f"bold {P.warn}")
+            cmd_line.append(":rflag <hash_string>", style=f"bold {P.text}")
+            tip_line.append("Records captured root.txt / proof.txt flag hash", style=f"{P.muted}")
+        elif v.startswith(":ref") or v.startswith(":cheat"):
+            cmd_line.append("[CHEAT SHEET] ", style=f"bold {P.warn}")
+            cmd_line.append(":ref <search term>", style=f"bold {P.text}")
+            tip_line.append("e.g. :ref winrm, :ref smb, :ref pivoting (opens reference modal)", style=f"{P.muted}")
+        elif v.startswith(":foot"):
+            cmd_line.append("[FOOTHOLD] ", style=f"bold {P.warn}")
+            cmd_line.append(":foothold <initial access vulnerability>", style=f"bold {P.text}")
+            tip_line.append("e.g. :foothold Apache Struts S2-045 RCE", style=f"{P.muted}")
+        elif v.startswith(":priv"):
+            cmd_line.append("[PRIVESC] ", style=f"bold {P.warn}")
+            cmd_line.append(":privesc <privilege escalation vector>", style=f"bold {P.text}")
+            tip_line.append("e.g. :privesc Sudo NOPASSWD /usr/bin/find GTFOBins", style=f"{P.muted}")
+        elif v.startswith(":stuck") or v.startswith(":dead"):
+            cmd_line.append("[RABBIT HOLE] ", style=f"bold {P.warn}")
+            cmd_line.append(":stuck <where you spent time>", style=f"bold {P.text}")
+            tip_line.append("e.g. :stuck Brute-forcing SSH for 45m with wrong user", style=f"{P.muted}")
+        elif v.startswith(":clue"):
+            cmd_line.append("[BREAKTHROUGH] ", style=f"bold {P.warn}")
+            cmd_line.append(":clue <breakthrough observation>", style=f"bold {P.text}")
+            tip_line.append("e.g. :clue Found cleartext password in db_backup.sql", style=f"{P.muted}")
+        elif v in (":1", ":2", ":3", ":4"):
+            cmd_line.append("[SWITCH STATION] ", style=f"bold {P.warn}")
+            names = {":1": "Cockpit (Workbench)", ":2": "Playbooks & Checklists", ":3": "Credential Vault", ":4": "Loot & Flags"}
+            cmd_line.append(f"Switching to {names.get(v, '')}", style=f"bold {P.text}")
+            tip_line.append("Press Enter to switch screen", style=f"{P.muted}")
+        elif v in ("?", "help", ":help", ":?"):
+            cmd_line.append("[HELP & SHORTCUTS] ", style=f"bold {P.warn}")
+            cmd_line.append("Press Enter to open full help reference guide", style=f"bold {P.text}")
+            tip_line.append("Shows all keyboard shortcuts and interactive guide", style=f"{P.muted}")
+        elif v.startswith(":q"):
+            cmd_line.append("[QUIT] ", style=f"bold {P.warn}")
+            cmd_line.append("Press Enter to exit CYB0X-S", style=f"bold {P.text}")
+            tip_line.append("Exits the application", style=f"{P.muted}")
+        else:
+            cmd_line.append("[RAW NOTE] ", style=f"bold {P.warn}")
+            cmd_line.append(ConsoleBar._elide(v, inner - 14), style=f"bold {P.text}")
+            tip_line.append("📝 Free-form note — press Enter to save to Notes & Findings", style=f"{P.muted}")
+
+        try:
+            self.query_one("#console-cmd", Static).update(cmd_line)
+            self.query_one("#console-tip", Static).update(tip_line)
+        except Exception:
+            pass
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "tab":
+            inp = self.query_one("#cmd-input", Input)
+            v = inp.value.strip()
+            # Autocomplete prefix
+            for prefix, completed in self.AUTOCOMPLETE_PREFIXES.items():
+                if v and prefix.startswith(v) and len(v) < len(completed):
+                    inp.value = completed
+                    inp.cursor_position = len(completed)
+                    event.stop()
+                    self.update_input_hint(inp.value)
+                    return
 
     # -- state ------------------------------------------------------------
     def show_command(self, command: str, tip: str, target_ip: str = "", heading: str = "CMD") -> None:

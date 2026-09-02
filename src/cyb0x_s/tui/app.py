@@ -1053,13 +1053,57 @@ class CyboxSafeApp(App):
     # Quick Command Line Input Handling
     # -------------------------------------------------------------------------
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Update live command syntax preview as the operator types."""
+        if event.input.id == "cmd-input":
+            try:
+                console = self.query_one("#guidance-box", ConsoleBar)
+                console.update_input_hint(event.value)
+            except Exception:
+                pass
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle quick command bar submission."""
         val = event.value.strip()
         inp = self.query_one("#cmd-input", Input)
         inp.value = ""
+        try:
+            console = self.query_one("#guidance-box", ConsoleBar)
+            console.reset()
+        except Exception:
+            pass
 
         if not val:
+            return
+
+        # Direct Help triggers
+        if val in ("?", "help", ":help", ":?"):
+            self.action_help()
+            return
+
+        # Natural language keyword conversions (without leading colon)
+        if val.startswith("add target ") or val.startswith("target "):
+            raw = val.replace("add target ", "", 1).replace("target ", "", 1).strip()
+            val = f":t {raw}"
+        elif val.startswith("add service ") or val.startswith("service "):
+            raw = val.replace("add service ", "", 1).replace("service ", "", 1).strip()
+            val = f":s {raw}"
+        elif val.startswith("add cred ") or val.startswith("cred "):
+            raw = val.replace("add cred ", "", 1).replace("cred ", "", 1).strip()
+            val = f":c {raw}"
+        elif val.startswith("add note ") or val.startswith("note "):
+            raw = val.replace("add note ", "", 1).replace("note ", "", 1).strip()
+            val = f":n {raw}"
+        elif val.startswith("add finding ") or val.startswith("finding "):
+            raw = val.replace("add finding ", "", 1).replace("finding ", "", 1).strip()
+            val = f":f {raw}"
+        elif val.startswith("theme ") or val.startswith("palette "):
+            raw = val.replace("theme ", "", 1).replace("palette ", "", 1).strip()
+            val = f":theme {raw}"
+        elif val == "theme" or val == "palette":
+            val = ":theme"
+        elif val in ("quit", "exit"):
+            self.action_quit_app()
             return
 
         # Handle tab switching via command: :1, :2, :3, :4
