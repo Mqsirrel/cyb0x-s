@@ -171,29 +171,29 @@ class CyboxSafeApp(App):
                     with Vertical(id="sidebar"):
                         with Vertical(id="panel-surface", classes="panel-box"):
                             with Horizontal(classes="panel-header-row"):
-                                yield Label("◈ ATTACK SURFACE", classes="panel-title")
+                                yield Label("ATTACK SURFACE", classes="panel-title")
                                 yield Label("", id="cnt-surface", classes="panel-count")
                             yield TargetTreeWidget(id="target-tree")
                         with Vertical(id="panel-creds", classes="panel-box"):
                             with Horizontal(classes="panel-header-row"):
-                                yield Label("🔑 CREDENTIALS", classes="panel-title")
+                                yield Label("CREDENTIALS", classes="panel-title")
                                 yield Label("", id="cnt-creds", classes="panel-count")
                             yield ListView(id="list-creds", classes="panel-list")
                     with Vertical(id="workbench"):
                         with Vertical(id="panel-services", classes="panel-box"):
                             with Horizontal(classes="panel-header-row"):
-                                yield Label("⚡ SERVICES & PORTS", classes="panel-title")
+                                yield Label("SERVICES & PORTS", classes="panel-title")
                                 yield Label("", id="cnt-services", classes="panel-count")
                             yield ListView(id="list-services", classes="panel-list")
                         with Horizontal(id="lower-band"):
                             with Vertical(id="panel-checklist", classes="panel-box"):
                                 with Horizontal(classes="panel-header-row"):
-                                    yield Label("📋 METHODOLOGY", classes="panel-title")
+                                    yield Label("METHODOLOGY", classes="panel-title")
                                     yield Label("", id="cnt-checklist", classes="panel-count")
                                 yield ListView(id="list-checklist", classes="panel-list")
                             with Vertical(id="panel-notes", classes="panel-box"):
                                 with Horizontal(classes="panel-header-row"):
-                                    yield Label("📝 NOTES & FINDINGS", classes="panel-title")
+                                    yield Label("NOTES & FINDINGS", classes="panel-title")
                                     yield Label("", id="cnt-notes", classes="panel-count")
                                 yield ListView(id="list-notes", classes="panel-list")
 
