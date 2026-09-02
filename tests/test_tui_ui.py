@@ -316,8 +316,6 @@ async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
             await pilot.press(key)
             await pilot.pause()
             assert len(app.screen_stack) > 1, f"{key!r} did not open a modal"
-            await pilot.pause(0.2)
-            await pilot.pause()
             await pilot.press("escape")
             await pilot.pause()
             assert len(app.screen_stack) == 1, f"{key!r} modal did not close"
