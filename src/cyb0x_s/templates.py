@@ -734,6 +734,138 @@ def get_guidance_for_service(service_name: str, port: int) -> Optional[Dict[str,
     return None
 
 
+def get_recipes_for_service(service_name: str, port: int) -> List[Dict[str, str]]:
+    """Return multiple curated tool recipes for a given service / port (for console cycling)."""
+    s_low = service_name.strip().lower()
+    if s_low in ("smb", "microsoft-ds", "netbios-ssn") or port in (139, 445):
+        return [
+            {
+                "command": "smbclient -N -L //<TARGET_IP>/ && smbmap -u guest -p '' -d . -H <TARGET_IP>",
+                "tip": "Test null session shares with smbclient and smbmap. Use rpcclient to dump users.",
+            },
+            {
+                "command": "smbclient -N -L //<TARGET_IP>/",
+                "tip": "List shares via unauthenticated null session.",
+            },
+            {
+                "command": "smbmap -u guest -p '' -d . -H <TARGET_IP>",
+                "tip": "Enumerate share read/write permissions for guest account.",
+            },
+            {
+                "command": "netexec smb <TARGET_IP> -u '' -p '' --shares",
+                "tip": "Audit SMB shares and test anonymous access.",
+            },
+            {
+                "command": "rpcclient -U '' -N <TARGET_IP> -c 'enumdomusers; enumdomgroups'",
+                "tip": "Enumerate domain users and groups over RPC null session.",
+            },
+        ]
+    elif s_low in ("http", "https", "http-proxy", "web", "apache", "nginx", "iis") or port in (80, 443, 8080, 8000, 8081, 8888, 5000):
+        proto = "https" if port == 443 or "https" in s_low else "http"
+        port_suffix = f":{port}" if port not in (80, 443) else ""
+        return [
+            {
+                "command": f"whatweb {proto}://<TARGET_IP>{port_suffix}/ && feroxbuster -u {proto}://<TARGET_IP>{port_suffix}/ -w /usr/share/wordlists/dirb/common.txt",
+                "tip": "Inspect web technologies and recursively fuzz directories with common wordlist.",
+            },
+            {
+                "command": f"gobuster dir -u {proto}://<TARGET_IP>{port_suffix}/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php,txt,html",
+                "tip": "Medium directory and file search with standard web extensions.",
+            },
+            {
+                "command": f"nikto -h {proto}://<TARGET_IP>{port_suffix}/",
+                "tip": "Scan web server for dangerous files, outdated software, and misconfigurations.",
+            },
+            {
+                "command": f"curl -s -I {proto}://<TARGET_IP>{port_suffix}/",
+                "tip": "Inspect raw HTTP response headers for server versions and cookies.",
+            },
+        ]
+    elif s_low == "ssh" or port == 22:
+        return [
+            {
+                "command": "ssh <USER>@<TARGET_IP>",
+                "tip": "Connect using discovered credentials or private key.",
+            },
+            {
+                "command": "hydra -l <USER> -P /usr/share/wordlists/rockyou.txt ssh://<TARGET_IP>",
+                "tip": "Perform targeted wordlist attack with Hydra.",
+            },
+            {
+                "command": "nmap -p 22 --script ssh-auth-methods,ssh2-enum-algos <TARGET_IP>",
+                "tip": "Inspect allowed SSH authentication methods and supported ciphers.",
+            },
+        ]
+    elif s_low in ("winrm", "wsman") or port in (5985, 5986):
+        return [
+            {
+                "command": "evil-winrm -i <TARGET_IP> -u <USER> -p '<PW>'",
+                "tip": "Spawn interactive remote PowerShell console over WinRM using valid credentials.",
+            },
+            {
+                "command": "netexec winrm <TARGET_IP> -u <USER> -p '<PW>'",
+                "tip": "Verify WinRM credential validity across target.",
+            },
+        ]
+    elif s_low in ("rdp", "ms-wbt-server") or port == 3389:
+        return [
+            {
+                "command": "xfreerdp /u:<USER> /p:'<PW>' /v:<TARGET_IP> /cert:ignore /smart-sizing",
+                "tip": "Connect to graphical desktop session.",
+            },
+            {
+                "command": "nmap -p 3389 --script rdp-enum-encryption,rdp-vuln-ms12-020 <TARGET_IP>",
+                "tip": "Audit RDP encryption levels and check legacy RDP vulnerabilities.",
+            },
+        ]
+    elif s_low in ("mssql", "ms-sql-s") or port == 1433:
+        return [
+            {
+                "command": "netexec mssql <TARGET_IP> -u sa -p '' --local-auth",
+                "tip": "Audit MSSQL for empty sa password.",
+            },
+            {
+                "command": "nmap -p 1433 --script ms-sql-info,ms-sql-empty-password,ms-sql-xp-cmdshell --script-args mssql.username=sa,mssql.password='',ms-sql-xp-cmdshell.cmd='type C:\\flag.txt' <TARGET_IP>",
+                "tip": "Dump MSSQL info and test xp_cmdshell execution.",
+            },
+        ]
+    elif s_low in ("mysql",) or port == 3306:
+        return [
+            {
+                "command": "mysql -h <TARGET_IP> -u root -p",
+                "tip": "Connect to MySQL database console.",
+            },
+            {
+                "command": "nmap -p 3306 --script mysql-empty-password,mysql-users <TARGET_IP>",
+                "tip": "Check for blank root password and enumerate MySQL user accounts.",
+            },
+        ]
+    elif s_low in ("ftp",) or port == 21:
+        return [
+            {
+                "command": "ftp <TARGET_IP> (login anonymous:anonymous)",
+                "tip": "Check anonymous login and file download/upload permissions.",
+            },
+            {
+                "command": "nmap -p 21 --script ftp-anon,ftp-proftpd-backdoor <TARGET_IP>",
+                "tip": "Audit FTP for anonymous access and backdoors.",
+            },
+        ]
+    elif s_low in ("snmp",) or port == 161:
+        return [
+            {
+                "command": "onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp.txt <TARGET_IP>",
+                "tip": "Brute-force community strings with onesixtyone.",
+            },
+            {
+                "command": "snmpwalk -v2c -c public <TARGET_IP>",
+                "tip": "Walk SNMP tree to extract running processes and network interfaces.",
+            },
+        ]
+    single = get_guidance_for_service(service_name, port)
+    return [single] if single else []
+
+
 
 def apply_template_to_store(
     store: Any,

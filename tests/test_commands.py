@@ -46,3 +46,22 @@ def test_canonical_commands_preserved() -> None:
     assert normalize_command(":uflag deadbeef") == ":uflag deadbeef"
     assert normalize_command(":1") == ":1"
     assert normalize_command("/login") == "/login"
+
+
+def test_normalize_wordlist_aliases() -> None:
+    assert normalize_command("wordlist rockyou") == ":w rockyou"
+    assert normalize_command("wordlist common") == ":w common"
+    assert normalize_command(":w medium") == ":w medium"
+    assert normalize_command("wordlist") == ":w"
+    assert normalize_command(":w") == ":w"
+
+
+def test_wordlist_aliases_dictionary() -> None:
+    from cyb0x_s.tui.commands import WORDLIST_ALIASES
+
+    assert "rockyou" in WORDLIST_ALIASES
+    assert "common" in WORDLIST_ALIASES
+    assert "medium" in WORDLIST_ALIASES
+    assert "raft-d" in WORDLIST_ALIASES
+    assert "users" in WORDLIST_ALIASES
+    assert WORDLIST_ALIASES["rockyou"].endswith("rockyou.txt")

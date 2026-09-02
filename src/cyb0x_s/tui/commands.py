@@ -10,6 +10,21 @@ from cyb0x_s.clipboard import copy_to_clipboard
 from cyb0x_s.templates import apply_template_to_store
 from cyb0x_s.tui.modals import ReferenceModal
 
+WORDLIST_ALIASES: dict[str, str] = {
+    "rockyou": "/usr/share/wordlists/rockyou.txt",
+    "common": "/usr/share/wordlists/dirb/common.txt",
+    "c": "/usr/share/wordlists/dirb/common.txt",
+    "medium": "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
+    "m": "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
+    "big": "/usr/share/wordlists/dirb/big.txt",
+    "small": "/usr/share/wordlists/dirb/small.txt",
+    "raft-d": "/usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt",
+    "raft-f": "/usr/share/seclists/Discovery/Web-Content/raft-medium-files.txt",
+    "users": "/usr/share/seclists/Usernames/top-usernames-shortlist.txt",
+    "passwords": "/usr/share/seclists/Passwords/Common-Credentials/top-20-common-passwords.txt",
+    "fasttrack": "/usr/share/wordlists/fasttrack.txt",
+}
+
 
 def normalize_command(raw: str) -> str:
     """Normalize human-friendly shorthand and natural language into canonical commands."""
@@ -32,6 +47,11 @@ def normalize_command(raw: str) -> str:
     elif val.startswith("add finding ") or val.startswith("finding "):
         raw_val = val.replace("add finding ", "", 1).replace("finding ", "", 1).strip()
         return f":f {raw_val}"
+    elif val.startswith("wordlist ") or val.startswith(":w "):
+        raw_val = val.replace("wordlist ", "", 1).replace(":w ", "", 1).strip()
+        return f":w {raw_val}"
+    elif val in ("wordlist", ":w"):
+        return ":w"
     elif val.startswith("theme ") or val.startswith("palette "):
         raw_val = val.replace("theme ", "", 1).replace("palette ", "", 1).strip()
         return f":theme {raw_val}"
@@ -216,6 +236,24 @@ def execute_command(app: Any, raw: str) -> None:
         return
     elif val in (":m", ":template", ":methodology"):
         app.action_apply_template()
+        return
+    elif val.startswith(":w"):
+        alias = val[2:].strip().lower()
+        if not alias:
+            avail = ", ".join(list(WORDLIST_ALIASES.keys())[:6])
+            app.notify(f"Wordlists: {avail}... (e.g. :w rockyou)")
+            return
+        path = WORDLIST_ALIASES.get(alias)
+        if path:
+            copy_to_clipboard(path)
+            try:
+                console = app.query_one("#guidance-box")
+                console.show_copied_feedback(path)
+            except Exception:
+                pass
+            app.notify(f"Copied wordlist: {path}")
+        else:
+            app.notify(f"Unknown wordlist '{alias}'. Try: {', '.join(list(WORDLIST_ALIASES.keys())[:5])}")
         return
     elif val.startswith("/"):
         app.action_open_search()

@@ -124,6 +124,11 @@ class CyboxSafeApp(App):
         Binding("left_square_bracket", "prev_target", "Prev Target", show=False),
         Binding("right_square_bracket", "next_target", "Next Target", show=False),
         Binding("b", "toggle_sidebar", "Sidebar", show=False),
+        Binding("comma", "prev_recipe", "Prev Recipe", show=False),
+        Binding("full_stop", "next_recipe", "Next Recipe", show=False),
+        Binding("w", "cycle_panel", "Cycle Panel", show=False),
+        Binding("h", "focus_left", "Left Column", show=False),
+        Binding("l", "focus_right", "Right Column", show=False),
     ]
 
     CSS = APP_CSS
@@ -289,6 +294,58 @@ class CyboxSafeApp(App):
         except Exception:
             pass
 
+    def action_next_recipe(self) -> None:
+        """Cycle to next recipe for currently selected service ('.' hotkey)."""
+        try:
+            console = self.query_one("#guidance-box", ConsoleBar)
+            cmd = console.cycle_recipe(1)
+            if cmd:
+                self.notify(f"Selected: {cmd[:40]}")
+        except Exception:
+            pass
+
+    def action_prev_recipe(self) -> None:
+        """Cycle to previous recipe for currently selected service (',' hotkey)."""
+        try:
+            console = self.query_one("#guidance-box", ConsoleBar)
+            cmd = console.cycle_recipe(-1)
+            if cmd:
+                self.notify(f"Selected: {cmd[:40]}")
+        except Exception:
+            pass
+
+    def action_cycle_panel(self) -> None:
+        """Cycle focus sequentially through the five Cockpit panels ('w' hotkey)."""
+        panel_ids = ["#target-tree", "#list-creds", "#list-services", "#list-checklist", "#list-notes"]
+        curr_idx = -1
+        for i, pid in enumerate(panel_ids):
+            try:
+                w = self.query_one(pid)
+                if w.has_focus:
+                    curr_idx = i
+                    break
+            except Exception:
+                pass
+        next_idx = (curr_idx + 1) % len(panel_ids)
+        try:
+            self.query_one(panel_ids[next_idx]).focus()
+        except Exception:
+            pass
+
+    def action_focus_left(self) -> None:
+        """Jump focus to Sidebar (Attack Surface tree) via 'h' hotkey."""
+        try:
+            self.query_one("#target-tree").focus()
+        except Exception:
+            pass
+
+    def action_focus_right(self) -> None:
+        """Jump focus to Workbench (Services list) via 'l' hotkey."""
+        try:
+            self.query_one("#list-services", ListView).focus()
+        except Exception:
+            pass
+
     # -------------------------------------------------------------------------
     # Tab Switching
     # -------------------------------------------------------------------------
@@ -364,23 +421,20 @@ class CyboxSafeApp(App):
         self._refresh_header(active, targets)
 
     def _guidance_for_service(self, svc: Service, target_ip: str) -> None:
-        """Push a service's static reference command into the guidance drawer."""
-        svc_guidance = (
-            get_guidance_for_service(svc.service, svc.port)
-            if derive_guidance_enabled()
-            else None
-        )
+        """Push a service's static reference commands/recipes into the console bar."""
+        from cyb0x_s.templates import get_recipes_for_service
+
         try:
             guidance_box = self.query_one("#guidance-box", ConsoleBar)
         except Exception:
             return
-        if svc_guidance:
-            guidance_box.show_command(
-                svc_guidance.get("command", ""),
-                svc_guidance.get("tip", ""),
-                target_ip=target_ip,
-                heading="PORT",
-            )
+        recipes = (
+            get_recipes_for_service(svc.service, svc.port)
+            if derive_guidance_enabled()
+            else []
+        )
+        if recipes:
+            guidance_box.show_recipes(recipes, index=0, target_ip=target_ip)
         elif svc.next_action:
             guidance_box.show_command(
                 svc.next_action,
@@ -390,6 +444,38 @@ class CyboxSafeApp(App):
             )
         else:
             guidance_box.reset()
+
+    def _cross_filter_for_service(self, svc: Service) -> None:
+        """Context-aware cross-filtering: align checklist and credentials with highlighted service."""
+        s_name = svc.service.lower()
+        port_str = str(svc.port)
+
+        # 1. Align checklist: find first step matching service name or port
+        try:
+            ck_list = self.query_one("#list-checklist", ListView)
+            for idx, child in enumerate(ck_list.children):
+                if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
+                    obj = child.data_obj
+                    title = getattr(obj, "title", "").lower()
+                    cat = getattr(obj, "category", "").lower()
+                    if s_name in title or s_name in cat or port_str in title:
+                        ck_list.index = idx
+                        break
+        except Exception:
+            pass
+
+        # 2. Align credentials: find first credential matching service scope
+        try:
+            c_list = self.query_one("#list-creds", ListView)
+            for idx, child in enumerate(c_list.children):
+                if isinstance(child, DataListItem) and not child.is_placeholder and child.data_obj:
+                    obj = child.data_obj
+                    scope = getattr(obj, "service_scope", "").lower()
+                    if scope in (s_name, "global"):
+                        c_list.index = idx
+                        break
+        except Exception:
+            pass
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         """Dynamically preview service guidance when moving through the target tree."""
@@ -519,6 +605,7 @@ class CyboxSafeApp(App):
             guidance_box.update_guidance(title, target_ip=target_ip)
         elif event.list_view.id == "list-services" and isinstance(obj, Service):
             self._guidance_for_service(obj, target_ip)
+            self._cross_filter_for_service(obj)
 
     # -------------------------------------------------------------------------
     # List Population with Clear Formatting

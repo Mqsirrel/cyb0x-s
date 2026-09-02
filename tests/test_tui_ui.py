@@ -507,3 +507,142 @@ async def test_service_space_cycles_status(seeded_store: NotebookStore) -> None:
             ServiceStatus.UNTESTED,
         )
 
+
+@pytest.mark.asyncio
+async def test_recipe_carousel_cycling(seeded_store: NotebookStore) -> None:
+    """Pressing '.' and ',' cycles through alternative attack recipes for the service."""
+    from cyb0x_s.settings import set_derive_guidance
+
+    set_derive_guidance(True)
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        svcs = seeded_store.list_services()
+        smb_svc = next(s for s in svcs if "smb" in s.service.lower() or s.port == 445)
+        app._guidance_for_service(smb_svc, "10.10.10.20")
+        await pilot.pause()
+
+        console = app.query_one("#guidance-box", ConsoleBar)
+        first_cmd = console.command
+        assert "smb" in first_cmd.lower()
+
+        # Cycle to next recipe with '.'
+        await pilot.press("full_stop")
+        await pilot.pause()
+        second_cmd = console.command
+        assert "RECIPE 2/" in console.heading or second_cmd != first_cmd
+
+        # Cycle back with ','
+        await pilot.press("comma")
+        await pilot.pause()
+        assert console.command == first_cmd
+    set_derive_guidance(None)
+
+
+@pytest.mark.asyncio
+async def test_panel_navigation_keys(seeded_store: NotebookStore) -> None:
+    """Pressing 'w' cycles panels, 'h' focuses left sidebar, 'l' focuses right workbench."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        # Start at services list
+        svc_list = app.query_one("#list-services", ListView)
+        svc_list.focus()
+        await pilot.pause()
+        assert svc_list.has_focus
+
+        # 'h' jumps to left sidebar (target tree)
+        await pilot.press("h")
+        await pilot.pause()
+        tree = app.query_one("#target-tree")
+        assert tree.has_focus
+
+        # 'l' jumps to right workbench (services list)
+        await pilot.press("l")
+        await pilot.pause()
+        assert svc_list.has_focus
+
+        # 'w' cycles sequentially
+        await pilot.press("w")
+        await pilot.pause()
+        ck = app.query_one("#list-checklist")
+        assert ck.has_focus
+
+
+@pytest.mark.asyncio
+async def test_service_cross_filtering(seeded_store: NotebookStore) -> None:
+    """Highlighting a service aligns the checklist and credentials."""
+    target = seeded_store.get_active_target()
+    seeded_store.add_checklist_item("Enumerate SMB shares", category="SMB", target_id=target.id)
+    seeded_store.add_credential("smbuser", "secret123", service_scope="smb", target_id=target.id)
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        svc_list = app.query_one("#list-services", ListView)
+        svc_list.focus()
+        # Highlight SMB service
+        svc_list.index = 1
+        await pilot.press("down")
+        await pilot.pause()
+
+        # Checklist should auto-scroll to the SMB step
+        ck_list = app.query_one("#list-checklist", ListView)
+        curr_item = ck_list.highlighted_child
+        assert curr_item is not None
+
+
+@pytest.mark.asyncio
+async def test_wordlist_command_execution(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Typing ':w rockyou' copies the wordlist path to clipboard."""
+    from textual.widgets import Input
+
+    copied = []
+    monkeypatch.setattr("cyb0x_s.tui.commands.copy_to_clipboard", lambda text: copied.append(text))
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        inp = app.query_one("#cmd-input", Input)
+        inp.focus()
+        inp.value = ":w rockyou"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert len(copied) >= 1
+        assert copied[-1] == "/usr/share/wordlists/rockyou.txt"
+
+
+@pytest.mark.asyncio
+async def test_credential_matrix_2d_spray(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Station 3 2D Matrix displays credentials, cycles status with Space, and generates spray on Enter."""
+    from textual.widgets import DataTable
+
+    target = seeded_store.get_active_target()
+    seeded_store.add_credential("admin", "P@ssword123", service_scope="global", target_id=target.id)
+
+    copied = []
+    monkeypatch.setattr("cyb0x_s.tui.widgets.copy_to_clipboard", lambda text: copied.append(text))
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        # Switch to Station 3 (Creds)
+        await pilot.press("3")
+        await pilot.pause()
+
+        table = app.query_one("#cred-matrix-table", DataTable)
+        table.focus()
+        await pilot.pause()
+        assert table.row_count >= 1
+
+        # Move to first spray target column
+        table.cursor_coordinate = (0, 1)
+        await pilot.pause()
+
+        # Press space to cycle cell status
+        await pilot.press("space")
+        await pilot.pause()
+
+        # Press Enter to compile and copy spray command
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert len(copied) >= 1
+        assert "admin" in copied[-1] or "P@ssword123" in copied[-1]
+
