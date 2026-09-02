@@ -321,3 +321,59 @@ async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert len(app.screen_stack) == 1, f"{key!r} modal did not close"
+
+
+@pytest.mark.asyncio
+async def test_console_bar_live_hints_and_autocomplete(seeded_store: NotebookStore) -> None:
+    """Test live syntax hints and Tab completion on the bottom command bar."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        from textual.widgets import Input, Static
+        from cyb0x_s.tui.widgets import ConsoleBar
+
+        cmd = app.query_one("#cmd-input", Input)
+        console = app.query_one("#guidance-box", ConsoleBar)
+        cmd.focus()
+
+        # Typing ':' triggers Command Menu preview
+        cmd.value = ":"
+        await pilot.pause()
+        cmd_text = console.query_one("#console-cmd", Static).render().plain
+        assert "COMMAND MENU" in cmd_text
+
+        # Typing ':s' triggers Add Service preview
+        cmd.value = ":s"
+        await pilot.pause()
+        cmd_text = console.query_one("#console-cmd", Static).render().plain
+        assert "ADD SERVICE" in cmd_text
+
+        # Pressing Tab autocompletes ':th' -> ':theme '
+        cmd.value = ":th"
+        await pilot.press("tab")
+        await pilot.pause()
+        assert cmd.value == ":theme "
+
+
+@pytest.mark.asyncio
+async def test_natural_language_command_aliases(seeded_store: NotebookStore) -> None:
+    """Test command execution without colons (e.g. target, service, help)."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        from textual.widgets import Input
+
+        cmd = app.query_one("#cmd-input", Input)
+        cmd.focus()
+
+        # 'add target 192.168.1.99'
+        cmd.value = "add target 192.168.1.99"
+        await cmd.action_submit()
+        await pilot.pause()
+        targets = seeded_store.list_targets()
+        assert any(t.ip == "192.168.1.99" for t in targets)
+
+        # 'theme neon'
+        cmd.value = "theme neon"
+        await cmd.action_submit()
+        await pilot.pause()
+        assert app.theme_name == "neon"
+
