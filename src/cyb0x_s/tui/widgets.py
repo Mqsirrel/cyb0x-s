@@ -58,6 +58,8 @@ class TargetTreeWidget(Tree):
         padding: 0;
         height: 1fr;
         color: $foreground;
+        overflow-x: hidden;
+        scrollbar-size-horizontal: 0;
     }
     """
 
@@ -150,10 +152,10 @@ class WorksheetHeader(Static):
     def render(self) -> Text:
         P = current_palette()
         t = Text()
-        t.append("CYB0X-S", style=f"bold {P.accent}")
-        t.append("  worksheet", style=f"{P.muted}")
-        t.append("  ·  ", style=f"{P.muted}")
-        t.append(self.workspace_name, style=f"bold {P.text}")
+        t.append("CYB0X-S ", style=f"bold {P.accent}")
+        t.append("WORKSHEET", style=f"bold {P.text_soft}")
+        t.append("  ›  ", style=f"{P.muted}")
+        t.append(f"[ {self.workspace_name} ]", style=f"bold {P.accent}")
 
         if not (self.counts or self.active_ip):
             return t
@@ -170,7 +172,7 @@ class WorksheetHeader(Static):
             padding = width - len(t.plain) - len(meta)
             if padding > 1:
                 t.append(" " * padding)
-                t.append(meta, style=f"{P.muted}")
+                t.append(meta, style=f"bold {P.muted}")
                 break
         return t
 
@@ -256,23 +258,19 @@ class MachineStatusStrip(Static):
         # ---- row 1: identity + loot ------------------------------------
         row1 = Text()
         if self.target:
-            row1.append("◆ ", style=f"bold {P.accent}")
-            row1.append(self.target.ip, style=f"bold {P.text}")
+            row1.append("◈ ", style=f"bold {P.accent}")
+            row1.append(f"{self.target.ip} ", style=f"bold {P.text}")
             if self.target.hostname:
-                row1.append(f"  {self.target.hostname}", style=f"{P.text_soft}")
+                row1.append(f"[ {self.target.hostname} ] ", style=f"bold {P.accent}")
             if self.target.os and self.target.os != "Unknown":
-                row1.append(f"  {self.target.os}", style=f"{P.muted}")
+                row1.append(f"({self.target.os}) ", style=f"{P.muted}")
 
             scope_ok = self.target.is_in_scope
-            row1.append("   [", style=f"{P.muted}")
-            row1.append(
-                "IN-SCOPE" if scope_ok else "OUT-OF-SCOPE",
-                style=f"bold {P.ok if scope_ok else P.danger}",
-            )
-            row1.append("]", style=f"{P.muted}")
+            scope_badge = "IN-SCOPE" if scope_ok else "OUT-OF-SCOPE"
+            row1.append(f" [{scope_badge}] ", style=f"bold {P.ok if scope_ok else P.danger}")
 
             for label, value in (("🏁", self.target.user_flag), ("👑", self.target.root_flag)):
-                row1.append(f"  {label} ", style="")
+                row1.append(f" {label} ", style="")
                 if value:
                     row1.append(self._elide(value, 12), style=f"bold {P.ok}")
                 else:
@@ -287,11 +285,11 @@ class MachineStatusStrip(Static):
 
         # right-hand counters
         if self.counts:
-            counts_text = "  ".join(f"{v} {k}" for k, v in self.counts.items())
+            counts_text = "   ".join(f"{v} {k}" for k, v in self.counts.items())
             pad = width - len(row1.plain) - len(counts_text)
             if pad > 2:
                 row1.append(" " * pad)
-                row1.append(counts_text, style=f"{P.muted}")
+                row1.append(counts_text, style=f"bold {P.muted}")
 
         t.append_text(row1 if len(row1.plain) <= width else Text(self._elide(row1.plain, width)))
         t.append("\n")
@@ -304,17 +302,16 @@ class MachineStatusStrip(Static):
         row2 = Text()
         done, total, pct = self.progress
         if self.next_step:
-            row2.append("NEXT ▸ ", style=f"bold {P.accent}")
-            row2.append(self.next_step, style=f"bold {P.text}")
+            row2.append("NEXT ▸ ", style=f"bold {P.warn}")
+            row2.append(f"{self.next_step} ", style=f"bold {P.text}")
         elif total:
-            row2.append("NEXT ▸ ", style=f"bold {P.accent}")
-            row2.append("methodology complete", style=f"bold {P.ok}")
+            row2.append("NEXT ▸ ", style=f"bold {P.warn}")
+            row2.append("methodology complete ", style=f"bold {P.ok}")
         else:
-            row2.append("NEXT ▸ ", style=f"bold {P.accent}")
-            row2.append("press 'm' to load a methodology template", style=f"{P.muted}")
+            row2.append("NEXT ▸ ", style=f"bold {P.warn}")
+            row2.append("press 'm' to load a methodology template ", style=f"{P.muted}")
 
         if total:
-            row2.append("   ")
             row2.append_text(self._progress_bar(pct, 12, P))
             row2.append(f" {pct:>3d}% ({done}/{total})", style=f"{P.text_soft}")
 
@@ -322,7 +319,7 @@ class MachineStatusStrip(Static):
         pad = width - len(row2.plain) - len(tail)
         if pad > 2:
             row2.append(" " * pad)
-            row2.append(tail, style=f"{P.danger}" if self.blockers else f"{P.muted}")
+            row2.append(tail, style=f"bold {P.danger}" if self.blockers else f"{P.muted}")
 
         t.append_text(self._elide(row2.plain, width) if len(row2.plain) > width else row2)
         return t
