@@ -738,12 +738,19 @@ def apply_template_to_store(
     store: Any,
     template_name: str,
     target_id: Optional[int] = None,
+    replace: bool = False,
 ) -> List[ChecklistItem]:
-    """Load a static template and instantiate checklist items into the store."""
+    """Load a static template and instantiate checklist items into the store.
+
+    If replace is True, existing checklist items for target_id are cleared first.
+    """
     tmpl = load_template(template_name)
     if not tmpl:
         valid_options = ", ".join(get_available_templates())
         raise ValueError(f"Unknown template: '{template_name}'. Available templates: {valid_options}")
+
+    if replace and hasattr(store, "clear_checklist"):
+        store.clear_checklist(target_id=target_id)
 
     category = tmpl["category"]
     created_items: List[ChecklistItem] = []

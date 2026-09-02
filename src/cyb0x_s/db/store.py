@@ -807,6 +807,15 @@ class NotebookStore:
             res = self.conn.execute("DELETE FROM checklist WHERE id = ?", (item_id,))
             return res.rowcount > 0
 
+    def clear_checklist(self, target_id: Optional[int] = None) -> int:
+        """Remove all checklist items for a target (or global items if target_id is None)."""
+        with self.conn:
+            if target_id is not None:
+                res = self.conn.execute("DELETE FROM checklist WHERE target_id = ?", (target_id,))
+            else:
+                res = self.conn.execute("DELETE FROM checklist WHERE target_id IS NULL")
+            return res.rowcount
+
     # -------------------------------------------------------------------------
     # Command History
     # -------------------------------------------------------------------------
