@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Set
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Input, Label, ListItem, ListView, Static, Tree
+from textual.widgets import DataTable, Input, Label, ListItem, ListView, Static, Tree
 
 from cyb0x_s.clipboard import copy_to_clipboard
 from cyb0x_s.models import (
@@ -30,10 +30,14 @@ def substitute_command_placeholders(command: str, target_ip: str = "") -> str:
     Purely mechanical string substitution on human-curated reference text:
     no command is ever generated, inferred or suggested.
     """
-    if not command or not target_ip:
-        return command
-    subnet = f"{target_ip.rsplit('.', 1)[0]}.0/24" if "." in target_ip else ""
-    return command.replace("<TARGET_IP>", target_ip).replace("<TARGET_SUBNET>", subnet)
+    if not command:
+        return ""
+    res = command
+    if target_ip:
+        subnet = f"{target_ip.rsplit('.', 1)[0]}.0/24" if "." in target_ip else ""
+        res = res.replace("<TARGET_IP>", target_ip).replace("<TARGET_SUBNET>", subnet)
+    res = res.replace("<WORDLIST>", "/usr/share/wordlists/dirb/common.txt")
+    return res
 
 
 class TargetTreeWidget(Tree):
@@ -384,6 +388,8 @@ class ConsoleBar(Container):
         ":stuck": ":stuck ",
         ":cl": ":clue ",
         ":clue": ":clue ",
+        ":w": ":w ",
+        ":wordlist": ":w ",
         ":q": ":q",
     }
 
@@ -392,6 +398,9 @@ class ConsoleBar(Container):
         self.command: str = ""
         self.tip: str = ""
         self.heading: str = "CMD"
+        self.recipes: List[Dict[str, str]] = []
+        self.recipe_index: int = 0
+        self.recipe_target_ip: str = ""
 
     def on_mount(self) -> None:
         # Paint the idle hint straight away so the console is never blank.
@@ -423,8 +432,12 @@ class ConsoleBar(Container):
 
         if v == ":":
             cmd_line.append("[COMMAND MENU] ", style=f"bold {P.warn}")
-            cmd_line.append(":t target  :s svc  :c cred  :m tmpl  :n note  :f finding  :theme  :1-:4  :ref  ? help", style=f"bold {P.text}")
+            cmd_line.append(":t target  :s svc  :c cred  :m tmpl  :w wordlist  :n note  :f finding  :theme  :1-:4  ? help", style=f"bold {P.text}")
             tip_line.append("Press Tab to autocomplete or type a command name", style=f"{P.muted}")
+        elif v.startswith(":w") or v.startswith("wordlist "):
+            cmd_line.append("[WORDLIST ALIAS] ", style=f"bold {P.warn}")
+            cmd_line.append(":w <rockyou|common|medium|raft-d|users>", style=f"bold {P.text}")
+            tip_line.append("Copies standard SecLists/Kali wordlist path to clipboard", style=f"{P.muted}")
         elif v.startswith(":m") or v.startswith(":template") or v.startswith(":methodology"):
             cmd_line.append("[METHODOLOGY CHECKLIST] ", style=f"bold {P.warn}")
             cmd_line.append(":m <name> [append]", style=f"bold {P.text}")
@@ -566,10 +579,37 @@ class ConsoleBar(Container):
         """Backwards-compatible entry point for checklist steps."""
         self.show_step(item_title, target_ip)
 
+    def show_recipes(
+        self, recipes: List[Dict[str, str]], index: int = 0, target_ip: str = ""
+    ) -> None:
+        """Display a specific recipe from a multi-recipe collection for a service."""
+        if not recipes:
+            self.reset()
+            return
+        self.recipes = recipes
+        self.recipe_index = max(0, min(index, len(recipes) - 1))
+        self.recipe_target_ip = target_ip
+        r = self.recipes[self.recipe_index]
+        cmd = r.get("command", "")
+        tip = r.get("tip", "")
+        count = len(recipes)
+        heading = f"RECIPE {self.recipe_index + 1}/{count}" if count > 1 else "RECIPE"
+        self.show_command(cmd, tip, target_ip=target_ip, heading=heading)
+
+    def cycle_recipe(self, delta: int) -> Optional[str]:
+        """Cycle recipe index by delta (+1 or -1) and return the newly active command."""
+        if not hasattr(self, "recipes") or not self.recipes:
+            return None
+        self.recipe_index = (self.recipe_index + delta) % len(self.recipes)
+        self.show_recipes(self.recipes, self.recipe_index, getattr(self, "recipe_target_ip", ""))
+        return self.command
+
     def reset(self) -> None:
         self.command = ""
         self.tip = ""
         self.heading = "CMD"
+        self.recipes = []
+        self.recipe_index = 0
         self._paint()
 
     # -- painting ---------------------------------------------------------
@@ -900,8 +940,41 @@ class LootAndFlagsWidget(Static):
             f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
 
+AUTH_SERVICE_NAMES = {
+    "ssh", "smb", "microsoft-ds", "netbios-ssn", "winrm", "wsman",
+    "rdp", "ms-wbt-server", "mysql", "mssql", "ms-sql-s", "ftp",
+    "http", "https", "web", "postgres", "postgresql", "vnc", "telnet"
+}
+AUTH_SERVICE_PORTS = {21, 22, 80, 443, 445, 1433, 3306, 3389, 5432, 5985, 5986, 8080}
+
+
+def compile_spray_command(user: str, secret: str, service: str, ip: str, port: int) -> str:
+    """Generate ready-to-run credential verification or lateral spray command."""
+    s_low = service.strip().lower()
+    clean_u = user.strip()
+    clean_p = secret.strip()
+    if s_low in ("smb", "microsoft-ds", "netbios-ssn") or port in (139, 445):
+        return f"netexec smb {ip} -u '{clean_u}' -p '{clean_p}'"
+    elif s_low == "ssh" or port == 22:
+        return f"sshpass -p '{clean_p}' ssh -o StrictHostKeyChecking=no {clean_u}@{ip}"
+    elif s_low in ("winrm", "wsman") or port in (5985, 5986):
+        return f"evil-winrm -i {ip} -u '{clean_u}' -p '{clean_p}'"
+    elif s_low in ("rdp", "ms-wbt-server") or port == 3389:
+        return f"xfreerdp /u:'{clean_u}' /p:'{clean_p}' /v:{ip} /cert:ignore /smart-sizing"
+    elif s_low in ("mssql", "ms-sql-s") or port == 1433:
+        return f"netexec mssql {ip} -u '{clean_u}' -p '{clean_p}'"
+    elif s_low in ("mysql",) or port == 3306:
+        return f"mysql -h {ip} -u '{clean_u}' -p'{clean_p}'"
+    elif s_low in ("ftp",) or port == 21:
+        return f"hydra -l '{clean_u}' -p '{clean_p}' ftp://{ip}"
+    elif s_low in ("http", "https", "web") or port in (80, 443, 8080):
+        proto = "https" if port == 443 or "https" in s_low else "http"
+        return f"curl -s -u '{clean_u}:{clean_p}' -I {proto}://{ip}:{port}/"
+    return f"# Test credential {clean_u}:{clean_p} against {ip}:{port} ({service})"
+
+
 class CredentialMatrixWidget(Static):
-    """Full-screen matrix of discovered credentials, lateral movement targets, and spray gaps."""
+    """Interactive 2D matrix of discovered credentials, lateral movement targets, and verification states."""
 
     DEFAULT_CSS = """
     CredentialMatrixWidget {
@@ -918,12 +991,24 @@ class CredentialMatrixWidget(Static):
         padding: 0 1;
         margin-bottom: 1;
     }
-    #cred-matrix-list {
+    #cred-matrix-table {
         height: 1fr;
         border: round $border;
         background: $surface;
     }
+    #cred-matrix-table:focus {
+        border: round $accent;
+    }
     """
+
+    CELL_CYCLE = ["○ UNTESTED", "✔ VALID", "👑 PWN3D", "✗ INVALID"]
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.credentials: List[Credential] = []
+        self.auth_services: List[tuple[Target, Service]] = []
+        self.revealed_ids: Set[int] = set()
+        self.cell_states: Dict[tuple[int, int], str] = {}
 
     def compose(self) -> ComposeResult:
         yield Label(
@@ -932,7 +1017,9 @@ class CredentialMatrixWidget(Static):
             classes="panel-header",
         )
         yield Label("", id="cred-matrix-sub", classes="panel-subtitle")
-        yield ListView(id="cred-matrix-list")
+        table = DataTable(id="cred-matrix-table", cursor_type="cell")
+        table.zebra_stripes = True
+        yield table
 
     def update_data(
         self,
@@ -941,58 +1028,135 @@ class CredentialMatrixWidget(Static):
         services: List[Service],
         revealed_ids: Set[int],
     ) -> None:
-        c_list = self.query_one("#cred-matrix-list", ListView)
-        c_list.clear()
+        self.credentials = credentials
+        self.revealed_ids = revealed_ids
+        table = self.query_one("#cred-matrix-table", DataTable)
+        table.clear(columns=True)
 
-        # Build in-scope targets mapping per service
-        in_scope_targets = [t for t in targets if t.is_in_scope]
-        svc_target_map: dict[str, list[str]] = {}
+        # Build in-scope authenticating service pairs
+        in_scope_targets = {t.id: t for t in targets if t.is_in_scope}
+        auth_pairs: List[tuple[Target, Service]] = []
         for s in services:
-            t = next((tgt for tgt in in_scope_targets if tgt.id == s.target_id), None)
-            if t:
-                svc_target_map.setdefault(s.service.lower(), []).append(t.ip)
+            t = in_scope_targets.get(s.target_id)
+            if t and (s.service.lower() in AUTH_SERVICE_NAMES or s.port in AUTH_SERVICE_PORTS):
+                auth_pairs.append((t, s))
+        self.auth_services = auth_pairs
 
-        # Summary line: how much of the vault has actually been tried.
+        # Summary subtitle
         tested = sum(1 for c in credentials if (c.status or "").lower() in ("valid", "tested"))
         subtitle = self.query_one("#cred-matrix-sub", Label)
         if credentials:
-            subtitle.update(
-                f"{len(credentials)} credential(s) • {tested} validated • "
-                f"{len(credentials) - tested} untested   [Space]=Reveal  [y]=Copy  [c]=Add"
-            )
+            sub_text = Text()
+            sub_text.append(f"{len(credentials)} credential(s) • {tested} validated • {len(auth_pairs)} spray target(s)   ")
+            sub_text.append("[Space]", style=f"bold {current_palette().accent}")
+            sub_text.append("=Cycle Status  ")
+            sub_text.append("[Enter]", style=f"bold {current_palette().accent}")
+            sub_text.append("=Copy Spray Cmd  ")
+            sub_text.append("[c]", style=f"bold {current_palette().accent}")
+            sub_text.append("=Add")
+            subtitle.update(sub_text)
         else:
-            subtitle.update("No credentials recorded yet — press 'c' to add one.")
+            subtitle.update("No credentials recorded yet — press 'c' to add one or :c user:pass")
 
-        if credentials:
-            for c in credentials:
-                txt = Text()
-                txt.append("🔑 ", style=S("ok"))
-                scope = (c.service_scope or "GLOBAL").upper()
-                scope = scope if len(scope) <= 8 else scope[:7] + "…"
-                txt.append(f"[{scope:<8}] ", style=S("warn"))
-                user = c.username if len(c.username) <= 16 else c.username[:15] + "…"
-                txt.append(f"{user:<16} : ", style=S("accent"))
-                secret = c.secret if c.id in revealed_ids else c.masked_secret
-                txt.append(f"{secret:<20} ", style=S("text"))
+        if not credentials:
+            table.add_column("VAULT STATUS", key="status")
+            table.add_row("No credentials recorded in database yet — press 'c' to add one.")
+            return
 
-                # Tested vs Unsprayed
-                scope_key = (c.service_scope or "").lower()
-                applicable_hosts = svc_target_map.get(scope_key, [t.ip for t in in_scope_targets])
-                if c.source:
-                    txt.append(f" Source: {c.source} │ ", style=S("muted", bold=False))
-                txt.append(f"Status: {c.status.upper()} │ ", style=S("warn"))
-                if len(applicable_hosts) > 1:
-                    txt.append(f"⚠ Spray Target(s): {', '.join(applicable_hosts[:3])}", style=S("warn"))
-
-                c_list.append(DataListItem(data_obj=c, display_text=txt))
+        # Setup Table Columns
+        table.add_column("CREDENTIAL (USER : SECRET)", key="cred")
+        if auth_pairs:
+            for t, s in auth_pairs:
+                col_title = f"{t.ip}:{s.port} ({s.service.upper()})"
+                table.add_column(col_title, key=f"svc_{s.id}")
         else:
-            for line in (
-                "  • Nothing in the vault yet.",
-                "  • Press 'c' to record a credential, or type :c user:pass below.",
-                "  • Secrets stay masked until you reveal them with Space.",
-            ):
-                txt = Text(line, style="dim italic")
-                c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            table.add_column("SCOPE", key="scope")
+            table.add_column("STATUS", key="status")
+            table.add_column("SOURCE", key="source")
+
+        # Setup Table Rows
+        for c in credentials:
+            secret = c.secret if c.id in revealed_ids else c.masked_secret
+            scope = f"[{c.service_scope.upper()}] " if c.service_scope else ""
+            cred_str = f"{scope}{c.username} : {secret}"
+
+            if auth_pairs:
+                row_vals: List[Any] = [cred_str]
+                for t, s in auth_pairs:
+                    state = self.cell_states.get((c.id, s.id))
+                    if not state:
+                        if (c.service_scope or "").lower() in (s.service.lower(), "global") and (c.status or "").lower() in ("valid", "tested"):
+                            state = "✔ VALID"
+                        else:
+                            state = "○ UNTESTED"
+                        self.cell_states[(c.id, s.id)] = state
+                    row_vals.append(self._format_state(state))
+                table.add_row(*row_vals, key=f"cred_{c.id}")
+            else:
+                table.add_row(cred_str, c.service_scope or "GLOBAL", c.status.upper(), c.source or "-", key=f"cred_{c.id}")
+
+    def _format_state(self, state: str) -> Text:
+        P = current_palette()
+        txt = Text()
+        if "VALID" in state or "✔" in state:
+            txt.append(state, style=f"bold {P.ok}")
+        elif "PWN" in state or "👑" in state:
+            txt.append(state, style=f"bold {P.accent}")
+        elif "INVALID" in state or "✗" in state:
+            txt.append(state, style=f"bold {P.danger}")
+        else:
+            txt.append(state, style=f"{P.muted}")
+        return txt
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "space":
+            self.action_cycle_current_cell()
+            event.stop()
+        elif event.key == "enter":
+            self.action_spray_current_cell()
+            event.stop()
+
+    def action_cycle_current_cell(self) -> None:
+        """Cycle cell state between UNTESTED -> VALID -> PWN3D -> INVALID."""
+        table = self.query_one("#cred-matrix-table", DataTable)
+        coord = table.cursor_coordinate
+        if not coord or coord.column <= 0 or not self.auth_services:
+            return
+        row_idx = coord.row
+        col_idx = coord.column - 1
+        if row_idx >= len(self.credentials) or col_idx >= len(self.auth_services):
+            return
+        c = self.credentials[row_idx]
+        t, s = self.auth_services[col_idx]
+
+        curr = self.cell_states.get((c.id, s.id), "○ UNTESTED")
+        try:
+            next_idx = (self.CELL_CYCLE.index(curr) + 1) % len(self.CELL_CYCLE)
+        except ValueError:
+            next_idx = 0
+        new_state = self.CELL_CYCLE[next_idx]
+        self.cell_states[(c.id, s.id)] = new_state
+        table.update_cell_at(coord, self._format_state(new_state))
+        if hasattr(self.app, "notify"):
+            self.app.notify(f"{c.username} on {t.ip}:{s.port} -> {new_state}")
+
+    def action_spray_current_cell(self) -> None:
+        """Generate and copy spray command for highlighted credential and service."""
+        table = self.query_one("#cred-matrix-table", DataTable)
+        coord = table.cursor_coordinate
+        if not coord or coord.column <= 0 or not self.auth_services:
+            return
+        row_idx = coord.row
+        col_idx = coord.column - 1
+        if row_idx >= len(self.credentials) or col_idx >= len(self.auth_services):
+            return
+        c = self.credentials[row_idx]
+        t, s = self.auth_services[col_idx]
+
+        cmd = compile_spray_command(c.username, c.secret, s.service, t.ip, s.port)
+        copy_to_clipboard(cmd)
+        if hasattr(self.app, "notify"):
+            self.app.notify(f"Copied spray command: {cmd}")
 
 
 
