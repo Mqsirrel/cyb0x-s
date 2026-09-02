@@ -285,9 +285,12 @@ class MachineStatusStrip(Static):
 
         if self.size.height < 2:
             # Short terminal: return single identity line without newline.
-            return row1 if len(row1.plain) <= width else Text(self._elide(row1.plain, width))
+            return Text(self._elide(row1.plain, width)) if len(row1.plain) > width else row1
 
-        t.append_text(row1 if len(row1.plain) <= width else Text(self._elide(row1.plain, width)))
+        if len(row1.plain) > width:
+            t.append(self._elide(row1.plain, width))
+        else:
+            t.append_text(row1)
         t.append("\n")
 
         # ---- row 2: next step + progress + blockers ---------------------
@@ -313,7 +316,10 @@ class MachineStatusStrip(Static):
             row2.append(" " * pad)
             row2.append(tail, style=f"bold {P.danger}" if self.blockers else f"{P.muted}")
 
-        t.append_text(self._elide(row2.plain, width) if len(row2.plain) > width else row2)
+        if len(row2.plain) > width:
+            t.append(self._elide(row2.plain, width))
+        else:
+            t.append_text(row2)
         return t
 
 
@@ -675,6 +681,54 @@ class DataListItem(ListItem):
     def compose(self) -> ComposeResult:
         yield Label(self.display_text)
 
+    def update_display(self, new_text: Text) -> None:
+        """Update the label text in-place without rebuilding the ListItem or list."""
+        self.display_text = new_text
+        try:
+            self.query_one(Label).update(new_text)
+        except Exception:
+            pass
+
+
+_PROTOCOL_BADGE_CACHE: dict[tuple[int, str, str], Text] = {}
+_STATUS_ICON_CACHE: dict[tuple[str, str], Text] = {}
+
+
+def get_protocol_badge(port: int, protocol: str, theme_name: str = "") -> Text:
+    """Return pre-styled Rich Text badge for port/protocol, cached across renders."""
+    key = (port, protocol.lower(), theme_name)
+    cached = _PROTOCOL_BADGE_CACHE.get(key)
+    if cached is None:
+        port_str = f"[{port}/{protocol}]"
+        t = Text(f"{port_str:<11} ", style=S("accent"))
+        _PROTOCOL_BADGE_CACHE[key] = t
+        return t.copy()
+    return cached.copy()
+
+
+def get_service_status_icon(status_val: str, theme_name: str = "") -> Text:
+    """Return pre-styled Rich Text status icon for service status, cached across renders."""
+    key = (status_val, theme_name)
+    cached = _STATUS_ICON_CACHE.get(key)
+    if cached is None:
+        if status_val == "CHECKED":
+            t = Text("✓ ", style=S("ok"))
+        elif status_val == "DEFERRED":
+            t = Text("~ ", style=S("warn"))
+        elif status_val == "DEAD-END":
+            t = Text("✗ ", style=S("danger"))
+        else:
+            t = Text("→ ", style=S("accent"))
+        _STATUS_ICON_CACHE[key] = t
+        return t.copy()
+    return cached.copy()
+
+
+def clear_badge_caches() -> None:
+    """Clear cached protocol badges and status icons on theme switch."""
+    _PROTOCOL_BADGE_CACHE.clear()
+    _STATUS_ICON_CACHE.clear()
+
 # -------------------------------------------------------------------------
 # Modal Dialogs & Screens (Extracted to modals.py for clean modularity)
 # -------------------------------------------------------------------------
@@ -747,6 +801,7 @@ class PlaybookBrowserWidget(Static):
         self.target_ip = target_ip
         self.selected_category = "ALL"
         self.search_query = ""
+        self._debounce_timer: Any = None
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="playbook-top-bar"):
@@ -790,6 +845,16 @@ class PlaybookBrowserWidget(Static):
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "playbook-search-input":
+            if self._debounce_timer is not None:
+                self._debounce_timer.stop()
+            self.search_query = event.value
+            self._debounce_timer = self.set_timer(0.05, self._populate_commands)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "playbook-search-input":
+            if self._debounce_timer is not None:
+                self._debounce_timer.stop()
+                self._debounce_timer = None
             self.search_query = event.value
             self._populate_commands()
 

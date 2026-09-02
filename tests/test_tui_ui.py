@@ -174,8 +174,7 @@ async def test_search_enter_copies_and_closes(seeded_store: NotebookStore) -> No
         await pilot.pause()
         assert isinstance(app.screen, SearchModal)
         app.screen.query_one("#search-input", Input).value = "archive"
-        await pilot.pause()
-        await pilot.pause()
+        await pilot.pause(0.1)
         results = app.screen.query_one("#search-results", ListView)
         assert len(results.children) >= 1
         await pilot.press("enter")
@@ -645,4 +644,56 @@ async def test_credential_matrix_2d_spray(seeded_store: NotebookStore, monkeypat
 
         assert len(copied) >= 1
         assert "admin" in copied[-1] or "P@ssword123" in copied[-1]
+
+
+@pytest.mark.asyncio
+async def test_machine_status_strip_small_terminal_no_crash(seeded_store: NotebookStore) -> None:
+    """Ensure small terminal sizes (e.g. 76x24 or 72x24) elide cleanly without crashing."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(76, 24)) as pilot:
+        await pilot.pause()
+        status_strip = app.query_one("#target-info", MachineStatusStrip)
+        rendered = status_strip.render()
+        assert rendered is not None
+
+
+def test_badge_caches_and_clear() -> None:
+    """Test static protocol badge cache and status icon cache."""
+    from cyb0x_s.tui.widgets import (
+        clear_badge_caches,
+        get_protocol_badge,
+        get_service_status_icon,
+    )
+
+    clear_badge_caches()
+    badge1 = get_protocol_badge(80, "tcp", "slate")
+    badge2 = get_protocol_badge(80, "tcp", "slate")
+    assert badge1.plain == badge2.plain == "[80/tcp]    "
+
+    icon1 = get_service_status_icon("CHECKED", "slate")
+    icon2 = get_service_status_icon("CHECKED", "slate")
+    assert icon1.plain == icon2.plain == "✓ "
+
+    clear_badge_caches()
+
+
+@pytest.mark.asyncio
+async def test_differential_row_in_place_update(seeded_store: NotebookStore) -> None:
+    """Test that toggling space updates ListItem in-place without rebuilding list."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        ck_list = app.query_one("#list-checklist", ListView)
+        ck_list.focus()
+        ck_list.index = 0
+        await pilot.pause()
+
+        first_item = ck_list.children[0]
+        initial_label = first_item.display_text.plain
+
+        await pilot.press("space")
+        await pilot.pause()
+
+        # The exact same child object should be in the list, with updated display text
+        assert ck_list.children[0] is first_item
+        assert first_item.display_text.plain != initial_label
 

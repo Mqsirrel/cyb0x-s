@@ -356,6 +356,7 @@ class SearchModal(ModalScreen):
         self.store = store
         self.on_select = on_select
         self.matches: List[SearchMatch] = []
+        self._debounce_timer: Any = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="search-box"):
@@ -390,6 +391,10 @@ class SearchModal(ModalScreen):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         event.stop()
+        if self._debounce_timer is not None:
+            self._debounce_timer.stop()
+            self._debounce_timer = None
+            self._perform_search(self.query_one("#search-input", Input).value.strip())
         match = self._selected_match() or (self.matches[0] if self.matches else None)
         if match is not None:
             self._copy(match)
@@ -415,7 +420,13 @@ class SearchModal(ModalScreen):
                 self._copy(match)
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        if self._debounce_timer is not None:
+            self._debounce_timer.stop()
         query = event.value.strip()
+        self._debounce_timer = self.set_timer(0.05, lambda: self._perform_search(query))
+
+    def _perform_search(self, query: str) -> None:
+        self._debounce_timer = None
         results_view = self.query_one("#search-results", ListView)
         status_label = self.query_one("#search-status", Label)
         results_view.clear()
