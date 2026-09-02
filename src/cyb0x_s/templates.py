@@ -1,8 +1,19 @@
 """Standard manual penetration testing methodology templates for CYB0X-S.
 
-Covers standard assessment workflows: host discovery, service enumeration, web testing, privilege escalation, and pivoting.
-Strictly passive: these are operator cognitive memory-aids and methodology tracking checklists.
-They contain zero dynamic code, zero adaptive algorithms, and zero autonomous scanning.
+Provenance & Methodology Sources:
+All checklists and reference commands are compiled exclusively from open, public
+industry standards and documentation:
+  - Penetration Testing Execution Standard (PTES)
+  - OWASP Web Security Testing Guide (WSTG v4.2)
+  - NIST SP 800-115 (Technical Guide to Information Security Testing and Assessment)
+  - Standard UNIX/Linux man pages and Windows administration documentation
+  - Public open-source security cheatsheets (GTFOBins, LOLBAS, PayloadsAllTheThings)
+
+Strictly non-proprietary:
+This module contains zero proprietary exam materials, zero question bank leaks,
+zero past-attempt data, zero walkthroughs, and zero target-specific solutions.
+They serve purely as static cognitive checklists and syntax reference lookups
+for the human operator.
 """
 
 from __future__ import annotations
