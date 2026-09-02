@@ -11,8 +11,8 @@ import pytest
 from textual.widgets import Input, ListView
 
 from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.tui.app import CyboxSafeApp
 from cyb0x_s.settings import set_derive_guidance
+from cyb0x_s.tui.app import CyboxSafeApp
 from cyb0x_s.tui.theme import current_palette
 from cyb0x_s.tui.widgets import (
     ConfirmModal,
@@ -41,7 +41,7 @@ def seeded_store() -> NotebookStore:
 async def test_active_tab_label_is_visible(seeded_store: NotebookStore) -> None:
     """The active station must render its label (it used to collapse to 0px)."""
     app = CyboxSafeApp(store=seeded_store)
-    async with app.run_test() as pilot:
+    async with app.run_test():
         active_tabs = [t for t in app.query("Tab") if "-active" in t.classes]
         assert active_tabs, "expected exactly one active tab"
         active = active_tabs[0]
@@ -327,6 +327,7 @@ async def test_console_bar_live_hints_and_autocomplete(seeded_store: NotebookSto
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input, Static
+
         from cyb0x_s.tui.widgets import ConsoleBar
 
         cmd = app.query_one("#cmd-input", Input)

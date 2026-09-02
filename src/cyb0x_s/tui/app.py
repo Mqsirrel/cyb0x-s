@@ -6,20 +6,17 @@ Strictly passive: stores human-discovered data, provides instant offline command
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
+
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.widgets import (
-    Button,
     Footer,
     Input,
     Label,
-    ListItem,
     ListView,
-    Static,
-    Tab,
     TabbedContent,
     TabPane,
     Tabs,
@@ -40,23 +37,20 @@ from cyb0x_s.models import (
     Service,
     Target,
 )
+from cyb0x_s.settings import (
+    derive_guidance_enabled,
+    describe_derive_guidance,
+    set_derive_guidance,
+)
 from cyb0x_s.templates import (
     apply_template_to_store,
-    get_available_templates,
     get_guidance_for_service,
     get_template_guidance_for_title,
 )
-from cyb0x_s.settings import (
-    describe_derive_guidance,
-    derive_guidance_enabled,
-    set_derive_guidance,
-)
 from cyb0x_s.tui.theme import (
     APP_CSS,
-    DEFAULT_PALETTE,
     PALETTES,
     S,
-    current_palette,
     get_default_theme,
     get_default_transparency,
     resolve_palette_name,
@@ -1183,198 +1177,7 @@ class CyboxSafeApp(App):
         if not val:
             return
 
-        # Direct Help triggers
-        if val in ("?", "help", ":help", ":?"):
-            self.action_help()
-            return
+        from cyb0x_s.tui.commands import execute_command
 
-        # Natural language keyword conversions (without leading colon)
-        if val.startswith("add target ") or val.startswith("target "):
-            raw = val.replace("add target ", "", 1).replace("target ", "", 1).strip()
-            val = f":t {raw}"
-        elif val.startswith("add service ") or val.startswith("service "):
-            raw = val.replace("add service ", "", 1).replace("service ", "", 1).strip()
-            val = f":s {raw}"
-        elif val.startswith("add cred ") or val.startswith("cred "):
-            raw = val.replace("add cred ", "", 1).replace("cred ", "", 1).strip()
-            val = f":c {raw}"
-        elif val.startswith("add note ") or val.startswith("note "):
-            raw = val.replace("add note ", "", 1).replace("note ", "", 1).strip()
-            val = f":n {raw}"
-        elif val.startswith("add finding ") or val.startswith("finding "):
-            raw = val.replace("add finding ", "", 1).replace("finding ", "", 1).strip()
-            val = f":f {raw}"
-        elif val.startswith("theme ") or val.startswith("palette "):
-            raw = val.replace("theme ", "", 1).replace("palette ", "", 1).strip()
-            val = f":theme {raw}"
-        elif val == "theme" or val == "palette":
-            val = ":theme"
-        elif val in ("quit", "exit"):
-            self.action_quit_app()
-            return
+        execute_command(self, val)
 
-        # Handle tab switching via command: :1, :2, :3, :4
-        if val == ":1":
-            self.action_switch_tab("tab-worksheet")
-            return
-        elif val == ":2":
-            self.action_switch_tab("tab-playbooks")
-            return
-        elif val == ":3":
-            self.action_switch_tab("tab-creds")
-            return
-        elif val == ":4":
-            self.action_switch_tab("tab-loot")
-            return
-
-        active = self.store.get_active_target()
-        target_id = active.id if active else None
-
-        if val.startswith(":uflag ") or val.startswith(":flag user "):
-            uflag = val.split(maxsplit=1)[1].replace("user ", "").strip()
-            if active:
-                self.store.update_target_details(active.id, user_flag=uflag)
-                self.refresh_targets()
-                self.notify(f"User flag saved: {uflag}")
-            else:
-                self.notify("No active target set", severity="error")
-        elif val.startswith(":rflag ") or val.startswith(":flag root "):
-            rflag = val.split(maxsplit=1)[1].replace("root ", "").strip()
-            if active:
-                self.store.update_target_details(active.id, root_flag=rflag)
-                self.refresh_targets()
-                self.notify(f"Root flag saved: {rflag}")
-            else:
-                self.notify("No active target set", severity="error")
-        elif val.startswith(":foothold "):
-            fh = val[10:].strip()
-            if active:
-                self.store.update_target_details(active.id, initial_access_vuln=fh)
-                self.refresh_targets()
-                self.notify(f"Foothold saved: {fh}")
-        elif val.startswith(":privesc "):
-            pe = val[9:].strip()
-            if active:
-                self.store.update_target_details(active.id, privesc_vector=pe)
-                self.notify(f"PrivEsc saved: {pe}")
-        elif val.startswith(":stuck ") or val.startswith(":dead "):
-            stuck_txt = val.split(maxsplit=1)[1].strip()
-            self.store.add_failure_log(target_id=target_id, where_stuck=stuck_txt)
-            self.notify(f"Dead-end logged: {stuck_txt}")
-        elif val.startswith(":clue "):
-            clue_txt = val[6:].strip()
-            self.store.add_failure_log(target_id=target_id, breakthrough_clue=clue_txt)
-            self.notify(f"Breakthrough clue logged: {clue_txt}")
-        elif val.startswith(":ref ") or val.startswith(":cheat "):
-            active_ip = active.ip if active else ""
-            def on_cmd_selected(cmd: Optional[str]) -> None:
-                if cmd:
-                    copy_to_clipboard(cmd)
-                    self.notify(f"Copied command: {cmd}")
-            self.push_screen(ReferenceModal(target_ip=active_ip), callback=on_cmd_selected)
-            return
-        elif val.startswith(":n "):
-            note_text = val[3:].strip()
-            self.store.add_note(content=note_text, target_id=target_id)
-            self.notify(f"Note added: {note_text}")
-        elif val.startswith(":f "):
-            finding_text = val[3:].strip()
-            self.store.add_finding(title=finding_text, target_id=target_id)
-            self.notify(f"Finding added: {finding_text}")
-        elif val.startswith(":c "):
-            cred_str = val[3:].strip()
-            if ":" in cred_str:
-                u, p = cred_str.split(":", 1)
-            else:
-                u, p = cred_str, ""
-            self.store.add_credential(username=u, secret=p, target_id=target_id)
-            self.notify(f"Cred added: {u}")
-        elif val.startswith(":t "):
-            ip = val[3:].strip()
-            self.store.add_target(ip=ip)
-            self.refresh_targets()
-            self.notify(f"Target added: {ip}")
-        elif val.startswith(":s "):
-            parts = val[3:].strip().split()
-            if parts and active:
-                port_proto = parts[0]
-                svc_name = parts[1] if len(parts) > 1 else "unknown"
-                proto = "tcp"
-                if "/" in port_proto:
-                    port_str, proto = port_proto.split("/", 1)
-                else:
-                    port_str = port_proto
-                try:
-                    self.store.add_service(
-                        target_id=active.id,
-                        port=int(port_str),
-                        protocol=proto,
-                        service=svc_name,
-                    )
-                    self.notify(f"Service added: {port_str}/{proto} {svc_name}")
-                except ValueError:
-                    self.notify("Invalid port", severity="error")
-        elif val.startswith(":ev "):
-            ev_path = val[4:].strip()
-            self.store.add_evidence(path_or_ref=ev_path, target_id=target_id)
-            self.notify(f"Evidence logged: {ev_path}")
-        elif val.startswith(":theme"):
-            parts = val.split(maxsplit=2)
-            if len(parts) == 1:
-                self.action_cycle_theme()
-            elif len(parts) == 3 and parts[1].lower() in ("default", "set-default", "def", "save"):
-                self.set_default_theme(parts[2].strip().lower())
-            else:
-                arg = val[6:].strip()
-                if arg.lower().startswith("default ") or arg.lower().startswith("set-default "):
-                    def_target = arg.split(maxsplit=1)[1].strip()
-                    self.set_default_theme(def_target)
-                else:
-                    self.apply_theme(arg.lower())
-            return
-        elif val.startswith((":trans", ":glass")):
-            parts = val.split()
-            if len(parts) > 1 and parts[1].lower() in ("on", "1", "yes", "true"):
-                self.toggle_transparency(True, persist=True)
-                self.notify("Glass transparency enabled (saved as default)")
-            elif len(parts) > 1 and parts[1].lower() in ("off", "0", "no", "false"):
-                self.toggle_transparency(False, persist=True)
-                self.notify("Solid background enabled (saved as default)")
-            else:
-                state = self.toggle_transparency(persist=True)
-                msg = "Glass transparency enabled" if state else "Solid background enabled"
-                self.notify(f"{msg} (saved as default)")
-        elif val.startswith((":m ", ":template ", ":methodology ")):
-            arg = val.split(maxsplit=1)[1].strip()
-            parts = arg.split()
-            tmpl_name = parts[0].lower()
-            replace_mode = not (len(parts) > 1 and parts[1].lower() in ("append", "add", "+"))
-            try:
-                items = apply_template_to_store(
-                    self.store, tmpl_name, target_id=target_id, replace=replace_mode
-                )
-                try:
-                    ck_list = self.query_one("#list-checklist", ListView)
-                    ck_list.index = 0
-                except Exception:
-                    pass
-                self.refresh_all()
-                action_word = "Switched to" if replace_mode else "Appended"
-                self.notify(f"{action_word} {tmpl_name.upper()} methodology ({len(items)} items)")
-            except ValueError as e:
-                self.notify(str(e), severity="error")
-            return
-        elif val in (":m", ":template", ":methodology"):
-            self.action_apply_template()
-            return
-        elif val.startswith("/"):
-            self.action_open_search()
-            return
-        elif val == ":q":
-            self.exit()
-            return
-        else:
-            self.store.add_note(content=val, target_id=target_id)
-            self.notify(f"Note added: {val}")
-
-        self.refresh_all()

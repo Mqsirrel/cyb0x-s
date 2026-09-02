@@ -1,6 +1,7 @@
 """Integration tests for CYB0X-S CLI fast-capture commands."""
 
 from pathlib import Path
+
 from click.testing import CliRunner
 
 from cyb0x_s.cli import cli

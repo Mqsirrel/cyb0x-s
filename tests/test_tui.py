@@ -16,8 +16,8 @@ async def test_tui_lifecycle_and_navigation() -> None:
     target = store.add_target("10.10.10.20", hostname="target.local", os_name="Linux")
     store.add_service(target_id=target.id, port=445, service="SMB", version="Samba 4.3")
     store.add_finding(title="SMB Anonymous Share", target_id=target.id)
-    cred = store.add_credential(username="admin", secret="Summer2024!", target_id=target.id)
-    item = store.add_checklist_item(title="SMB null session", target_id=target.id, status=ChecklistStatus.TODO)
+    store.add_credential(username="admin", secret="Summer2024!", target_id=target.id)
+    store.add_checklist_item(title="SMB null session", target_id=target.id, status=ChecklistStatus.TODO)
     store.add_note("Note 1", target_id=target.id)
 
     app = CyboxSafeApp(store=store)

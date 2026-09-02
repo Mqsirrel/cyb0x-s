@@ -33,7 +33,7 @@ def derive_potential_and_next(
 
     s = service_name.lower().strip()
     ip_str = target_ip or "<TARGET_IP>"
-    
+
     if s in ("smb", "microsoft-ds", "netbios-ssn") or port in (139, 445):
         return "HIGH", f"smbmap -u guest -p '' -d . -H {ip_str}"
     elif s in ("http", "https", "http-proxy", "web", "apache", "nginx", "iis") or port in (80, 443, 8080, 8000, 8081, 8888, 5000):

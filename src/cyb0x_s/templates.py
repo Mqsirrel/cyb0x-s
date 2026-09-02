@@ -19,6 +19,7 @@ for the human operator.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+
 from cyb0x_s.models import ChecklistItem, ChecklistStatus
 
 STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
