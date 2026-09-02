@@ -1673,13 +1673,12 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
                      or reveal / re-mask a credential
   [{P.accent}]d[/]                : Delete it (asks for confirmation)
 
-[bold]Capture:[/bold]
-  [{P.accent}]t[/]  target    [{P.accent}]s[/]  service    [{P.accent}]f[/]  finding
-  [{P.accent}]c[/]  credential  [{P.accent}]n[/]  note      [{P.accent}]K[/]  (shift+k) checklist item
-  [{P.accent}]m[/]  methodology template    [{P.accent}]g[/]  record flags
-  [{P.accent}]r[/]  cheat sheet            [{P.accent}]o[/]  toggle in-scope / out-of-scope
-  [{P.accent}]/[/] or [{P.accent}]Ctrl+F[/]  search     [{P.accent}]?[/]  this help      [{P.accent}]q[/]  quit
-  [{P.accent}]T[/]  cycle theme    or type [{P.accent}]:theme slate[/] / [{P.accent}]:theme warm[/]
+[bold]Capture & Modals:[/bold]
+  [{P.accent}]t[/]  add target modal         [{P.accent}]s[/]  add service modal    [{P.accent}]f[/]  add finding modal
+  [{P.accent}]c[/]  add credential modal     [{P.accent}]n[/]  add note modal       [{P.accent}]K[/]  (shift+k) checklist item
+  [{P.accent}]m[/]  methodology templates    [{P.accent}]g[/]  record flags         [{P.accent}]r[/]  cheat sheet
+  [{P.accent}]T[/]  (shift+t) theme picker   [{P.accent}]o[/]  toggle scope         [{P.accent}]/[/] or [{P.accent}]Ctrl+F[/] search
+  [{P.accent}]?[/]  this help modal          [{P.accent}]q[/]  quit app
 
 [bold]Fast capture commands (bottom bar):[/bold]
   :t 10.10.10.20          add a target
