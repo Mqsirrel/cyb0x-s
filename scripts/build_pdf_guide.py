@@ -422,9 +422,9 @@ def build_pdf(dest_path: Path) -> None:
             Paragraph("<code>:st stuck on wp-login</code> &nbsp; <code>:cl found backup.zip</code>", code_style),
         ],
         [
-            Paragraph("<b>:theme &lt;name&gt; / :trans</b>", code_bold),
-            Paragraph("Switch theme live (or toggle glass terminal transparency).", body_style),
-            Paragraph("<code>:theme midnight</code> &nbsp; <code>:trans on</code>", code_style),
+            Paragraph("<b>:theme &lt;name&gt;</b>", code_bold),
+            Paragraph("Switch theme live (e.g. sugary, caramel, midnight, cyber).", body_style),
+            Paragraph("<code>:theme sugary</code> &nbsp; <code>:theme midnight</code>", code_style),
         ],
     ]
     t_console = Table(console_cmd_data, colWidths=[115, 260, 165])
@@ -635,10 +635,9 @@ def build_pdf(dest_path: Path) -> None:
         [
             Paragraph("<b>EXAM START PROCEDURES:</b><br/>"
                       "1. Open terminal on your host or VM and start: <code>cyb0x-s</code><br/>"
-                      "2. Pick your favorite visual theme: press <b>[T]</b>, select palette (e.g. <i>Midnight</i>, <i>Slate</i>, or <i>Cyber</i>), press <b>[d]</b> to save as default.<br/>"
-                      "3. If using transparent terminal, type <code>:trans on</code> to blend seamlessly with your desktop background.<br/>"
-                      "4. Import initial Nmap scan: type <code>cyb0x-s import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code>.<br/>"
-                      "5. <b>Database Location:</b> Stored in <code>~/.local/share/cyb0x-s/worksheets.db</code>. Completely local, persistent, and never transmits data outside.", callout_text)
+                      "2. Pick your favorite visual theme: press <b>[T]</b>, select palette (e.g. <i>Sugary</i>, <i>Midnight</i>, <i>Slate</i>, or <i>Cyber</i>), press <b>[d]</b> to save as default.<br/>"
+                      "3. Import initial Nmap scan: type <code>cyb0x-s import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code>.<br/>"
+                      "4. <b>Database Location:</b> Stored in <code>~/.local/share/cyb0x-s/worksheets.db</code>. Completely local, persistent, and never transmits data outside.", callout_text)
         ]
     ]
     t_ready = Table(exam_ready_box, colWidths=[540])

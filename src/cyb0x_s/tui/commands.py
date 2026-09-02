@@ -202,18 +202,6 @@ def execute_command(app: Any, raw: str) -> None:
             else:
                 app.apply_theme(arg.lower())
         return
-    elif val.startswith((":trans", ":glass")):
-        parts = val.split()
-        if len(parts) > 1 and parts[1].lower() in ("on", "1", "yes", "true"):
-            app.toggle_transparency(True, persist=True)
-            app.notify("Glass transparency enabled (saved as default)")
-        elif len(parts) > 1 and parts[1].lower() in ("off", "0", "no", "false"):
-            app.toggle_transparency(False, persist=True)
-            app.notify("Solid background enabled (saved as default)")
-        else:
-            state = app.toggle_transparency(persist=True)
-            msg = "Glass transparency enabled" if state else "Solid background enabled"
-            app.notify(f"{msg} (saved as default)")
     elif val.startswith((":m ", ":template ", ":methodology ")):
         arg = val.split(maxsplit=1)[1].strip()
         parts = arg.split()

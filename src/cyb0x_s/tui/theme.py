@@ -165,74 +165,6 @@ EMBER = Palette(
     danger="#FF6B57",
 )
 
-MOSS = Palette(
-    name="moss",
-    label="Moss · forest / lime",
-    bg="#0C1410",
-    surface="#131E18",
-    raised="#1B2B22",
-    border="#27392D",
-    border_strong="#3A5544",
-    text="#DCEBE0",
-    text_soft="#B4CDBE",
-    muted="#7F9A8B",
-    accent="#68D6A0",
-    ok="#A3E635",
-    warn="#E8C46A",
-    danger="#FF8A75",
-)
-
-NEON = Palette(
-    name="neon",
-    label="Neon · magenta / electric",
-    bg="#0A0812",
-    surface="#151026",
-    raised="#201938",
-    border="#312754",
-    border_strong="#4A3C7D",
-    text="#EEE8FF",
-    text_soft="#C5B9EA",
-    muted="#8E81BC",
-    accent="#FF5EDB",
-    ok="#4ADE80",
-    warn="#FDE047",
-    danger="#FB7185",
-)
-
-MONO = Palette(
-    name="mono",
-    label="Mono · luminance only",
-    bg="#0D0E10",
-    surface="#17181B",
-    raised="#212226",
-    border="#2F3136",
-    border_strong="#4C4F56",
-    text="#F5F6F7",
-    text_soft="#C7CAD0",
-    muted="#8C9097",
-    accent="#E9ECEF",
-    ok="#B6BBC1",
-    warn="#DCE0E4",
-    danger="#FFFFFF",
-)
-
-WARM = Palette(
-    name="warm",
-    label="Warm · terracotta (legacy)",
-    bg="#211E1B",
-    surface="#2A2622",
-    raised="#332E29",
-    border="#3A342E",
-    border_strong="#4A423A",
-    text="#EDE6DA",
-    text_soft="#CFC5B8",
-    muted="#A8A099",
-    accent="#D97757",
-    ok="#8FA876",
-    warn="#D4A27F",
-    danger="#E5846B",
-)
-
 CYBER = Palette(
     name="cyber",
     label="Cyber · tokyo / electric",
@@ -250,8 +182,62 @@ CYBER = Palette(
     danger="#FF486E",
 )
 
+SUGARY = Palette(
+    name="sugary",
+    label="Sugary · vanilla cream / latte",
+    bg="#FAF6EE",
+    surface="#F0EAE1",
+    raised="#E7DFD2",
+    border="#D8CCBA",
+    border_strong="#BBAA94",
+    text="#2A221B",
+    text_soft="#534538",
+    muted="#746353",
+    accent="#D9534F",
+    ok="#1B8755",
+    warn="#D97706",
+    danger="#C53030",
+    dark=False,
+)
+
+CANDY = Palette(
+    name="candy",
+    label="Candy · cotton lilac / glaze",
+    bg="#FBF7FA",
+    surface="#F3E9F1",
+    raised="#EADBE7",
+    border="#D9C4D5",
+    border_strong="#BEA3B9",
+    text="#2B1E29",
+    text_soft="#584154",
+    muted="#786074",
+    accent="#9333EA",
+    ok="#10B981",
+    warn="#F59E0B",
+    danger="#F43F5E",
+    dark=False,
+)
+
+CARAMEL = Palette(
+    name="caramel",
+    label="Caramel · toffee / maple sugar",
+    bg="#FDF8F3",
+    surface="#F5EDE4",
+    raised="#EBE0D4",
+    border="#DCCDBD",
+    border_strong="#BFA993",
+    text="#302318",
+    text_soft="#5E4734",
+    muted="#7D644D",
+    accent="#C26A1B",
+    ok="#2E8540",
+    warn="#D97706",
+    danger="#D13B3B",
+    dark=False,
+)
+
 PALETTES: Dict[str, Palette] = {
-    p.name: p for p in (SLATE, MIDNIGHT, EMBER, MOSS, NEON, MONO, WARM, CYBER)
+    p.name: p for p in (SLATE, MIDNIGHT, EMBER, CYBER, SUGARY, CANDY, CARAMEL)
 }
 DEFAULT_PALETTE = SLATE.name
 
@@ -275,14 +261,14 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
 
     Examples:
         '1' -> 'slate'
-        '7' -> 'warm'
-        'w' or 'warm' -> 'warm'
+        '5' -> 'sugary'
+        'su' or 'sugary' -> 'sugary'
+        'ca' or 'candy' -> 'candy'
+        'car' or 'caramel' -> 'caramel'
         'sl' or 'slate' -> 'slate'
         'mid' or 'midnight' -> 'midnight'
         'em' or 'ember' -> 'ember'
-        'mo' or 'moss' -> 'moss'
-        'ne' or 'neon' -> 'neon'
-        'mon' or 'mono' -> 'mono'
+        'cy' or 'cyber' -> 'cyber'
     """
     if not query:
         return None
@@ -303,22 +289,22 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
 
     # Disambiguate common short abbreviations
     alias_map = {
-        "w": "warm",
-        "wa": "warm",
         "sl": "slate",
         "s": "slate",
         "mid": "midnight",
         "mi": "midnight",
         "em": "ember",
         "e": "ember",
-        "mo": "moss",
-        "mos": "moss",
-        "ne": "neon",
-        "n": "neon",
-        "mon": "mono",
         "cy": "cyber",
         "c": "cyber",
         "tokyo": "cyber",
+        "su": "sugary",
+        "sug": "sugary",
+        "sugar": "sugary",
+        "ca": "candy",
+        "can": "candy",
+        "car": "caramel",
+        "cara": "caramel",
     }
     if q in alias_map and alias_map[q] in PALETTES:
         return alias_map[q]
@@ -397,62 +383,6 @@ def get_default_theme(store: Any = None) -> str:
     return DEFAULT_PALETTE
 
 
-def get_transparent_config_path() -> Path:
-    """Return path to persistent transparency configuration file."""
-    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    theme_dir = config_home / "cyb0x-s"
-    theme_dir.mkdir(parents=True, exist_ok=True)
-    return theme_dir / "transparent"
-
-
-def get_default_transparency(store: Any = None) -> bool:
-    """Check if glass/transparency mode is enabled via env, config, or database."""
-    env_val = os.environ.get("CYB0X_TRANSPARENT", "").strip().lower()
-    if env_val in ("1", "true", "yes", "on"):
-        return True
-    if env_val in ("0", "false", "no", "off"):
-        return False
-
-    try:
-        cfg = get_transparent_config_path()
-        if cfg.is_file():
-            val = cfg.read_text(encoding="utf-8").strip().lower()
-            if val in ("1", "true", "yes", "on"):
-                return True
-            if val in ("0", "false", "no", "off"):
-                return False
-    except Exception:
-        pass
-
-    if store is not None and hasattr(store, "get_setting"):
-        try:
-            db_val = str(store.get_setting("transparent") or "").strip().lower()
-            if db_val in ("1", "true", "yes", "on"):
-                return True
-        except Exception:
-            pass
-
-    return False
-
-
-def save_default_transparency(enabled: bool, store: Any = None) -> bool:
-    """Save default transparency mode to config and database."""
-    val_str = "1" if enabled else "0"
-    try:
-        cfg = get_transparent_config_path()
-        cfg.write_text(val_str + "\n", encoding="utf-8")
-    except Exception:
-        pass
-
-    if store is not None and hasattr(store, "set_setting"):
-        try:
-            store.set_setting("transparent", val_str)
-        except Exception:
-            pass
-
-    return True
-
-
 def S(token: str, bold: bool = True) -> str:  # noqa: N802 - short by design
     """Rich style string for a palette token, e.g. ``S("ok")`` → ``bold #6FE3B0``.
 
@@ -499,29 +429,6 @@ Screen {
     background: $background;
     color: $foreground;
     layout: vertical;
-}
-
-Screen.transparent {
-    background: transparent;
-}
-
-Screen.transparent #app-header,
-Screen.transparent TabbedContent,
-Screen.transparent #cockpit,
-Screen.transparent Footer {
-    background: transparent;
-}
-
-Screen.transparent .panel-box {
-    background: $surface 88%;
-}
-
-Screen.transparent #status-strip {
-    background: $surface 92%;
-}
-
-Screen.transparent #guidance-box {
-    background: $surface 92%;
 }
 
 /* --- chrome ------------------------------------------------------------- */

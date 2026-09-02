@@ -274,28 +274,24 @@ Station 1 answers the four questions you keep asking under time pressure:
 The remaining stations are deep dives: **2** offline playbooks, **3** the full
 credential vault, **4** flags / foothold / rabbit-hole log.
 
-### Themes & Glass Transparency
+### Themes
 
-Eight palettes ship with the app and can be swapped live:
+Seven palettes ship with the app and can be swapped live:
 
 | Name | Look | Command |
 |---|---|---|
-| `cyber` | deep obsidian navy, electric cyan, neon mint glow — **lively / low eye strain** | `:theme cyber` |
-| `slate` | graphite chrome, cyan/mint data, amber warnings — **default** | `:theme slate` |
+| `slate` | default deep cyan / mint, low eye strain | `:theme slate` |
 | `midnight` | indigo / periwinkle, calm low-flare for long labs | `:theme midnight` |
 | `ember` | amber CRT, warm reading glow | `:theme ember` |
-| `moss` | forest / lime, low-eye-strain green | `:theme moss` |
-| `neon` | magenta / electric, high-energy accent | `:theme neon` |
-| `mono` | luminance only, colour-blind safe (no hue) | `:theme mono` |
-| `warm` | the original charcoal / terracotta / kraft identity | `:theme warm` |
+| `cyber` | electric tokyo night / cyan accent | `:theme cyber` |
+| `sugary` | vanilla cream / latte, soft pastry tones & crisp contrast | `:theme sugary` |
+| `candy` | cotton lilac / sweet berry glaze | `:theme candy` |
+| `caramel` | toffee / maple sugar warmth | `:theme caramel` |
 
-* **Interactive Picker**: Press **`T`** anywhere in the Cockpit (`↑`/`↓` or `j`/`k` for live full-screen preview, `1-8` for instant pick, `d` to set as persistent default, `Enter` to keep, `Esc` to cancel).
-* **Glass / Transparency Mode**: If running in a modern terminal with background blur or opacity (Ghostty, Alacritty, Kitty, WezTerm), enable the transparent canvas with `cyb0x-s tui -T`, type `:trans on` in the command bar, or press **`g`** inside the theme picker. Cards render with a translucent frosted tint without destroying your terminal's acrylic blur.
+* **Interactive Picker**: Press **`T`** anywhere in the Cockpit (`↑`/`↓` or `j`/`k` for live full-screen preview, `1-7` for instant pick, `d` to set as persistent default, `Enter` to keep, `Esc` to cancel).
 
 Every palette keeps its body text at WCAG **AAA** (≥7:1) and muted text at
-**AA** (≥4.5:1) against its background. `mono` carries no hue at all — status
-is still conveyed by the UI symbols (✓ ⚠ ✗, `DEAD-END`, `[HIGH]`), so it is
-colour-blind safe rather than ambiguous.
+**AA** (≥4.5:1) against its background.
 Below 110 columns the workbench stacks into a single column so rows stay readable.
 
 To see every palette at once, render the gallery:

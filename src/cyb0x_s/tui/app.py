@@ -52,10 +52,8 @@ from cyb0x_s.tui.theme import (
     PALETTES,
     S,
     get_default_theme,
-    get_default_transparency,
     resolve_palette_name,
     save_default_theme,
-    save_default_transparency,
     set_palette,
 )
 from cyb0x_s.tui.widgets import (
@@ -144,7 +142,6 @@ class CyboxSafeApp(App):
         self,
         store: Optional[NotebookStore] = None,
         theme: Optional[str] = None,
-        transparent: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -160,10 +157,6 @@ class CyboxSafeApp(App):
         self.is_zoomed: bool = False
         self.zoomed_widget: Optional[Vertical] = None
         self.hidden_by_zoom: List[Any] = []
-        if transparent is not None:
-            self.is_transparent: bool = bool(transparent)
-        else:
-            self.is_transparent = get_default_transparency(self.store)
         self._cached_active_target: Optional[Target] = None
 
     def get_current_target(self) -> Optional[Target]:
@@ -230,8 +223,6 @@ class CyboxSafeApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        if self.is_transparent:
-            self.screen.add_class("transparent")
         self.refresh_targets()
         self.refresh_all()
         self._apply_responsive_layout()
@@ -1087,17 +1078,6 @@ class CyboxSafeApp(App):
     def action_open_theme_picker(self) -> None:
         """Open the palette picker (live preview, Esc restores the old one)."""
         self.push_screen(ThemePickerModal(self.theme_name, store=self.store))
-
-    def toggle_transparency(self, enable: Optional[bool] = None, persist: bool = False) -> bool:
-        """Toggle or set glass/transparent canvas mode."""
-        if enable is None:
-            self.is_transparent = not self.is_transparent
-        else:
-            self.is_transparent = bool(enable)
-        self.screen.set_class(self.is_transparent, "transparent")
-        if persist:
-            save_default_transparency(self.is_transparent, self.store)
-        return self.is_transparent
 
     def action_toggle_guidance(self) -> None:
         """Switch derived suggestions (access potential / next command) on or off.
