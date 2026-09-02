@@ -267,11 +267,11 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
         assert app.theme_name == "slate"
         before = current_palette().accent
 
-        app.apply_theme("cyber")
+        app.apply_theme("caramel")
         await pilot.pause()
-        assert app.theme_name == "cyber"
+        assert app.theme_name == "caramel"
         assert current_palette().accent != before
-        assert app.theme == "cyb0x-cyber"
+        assert app.theme == "cyb0x-caramel"
 
         app.action_cycle_theme()
         await pilot.pause()
@@ -281,7 +281,7 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
         # rows follow the palette
         app.query_one("#list-services", ListView).focus()
         await pilot.pause()
-        app.apply_theme("warm")
+        app.apply_theme("sugary")
         await pilot.pause()
         item = app.query_one("#list-services", ListView).children[0]
         assert item.display_text.plain.strip()
@@ -295,15 +295,15 @@ async def test_theme_command_bar(seeded_store: NotebookStore) -> None:
 
         cmd = app.query_one("#cmd-input", Input)
         cmd.focus()
-        cmd.value = ":theme warm"
+        cmd.value = ":theme sugary"
         await cmd.action_submit()
         await pilot.pause()
-        assert app.theme_name == "warm"
+        assert app.theme_name == "sugary"
 
         cmd.value = ":theme nope"
         await cmd.action_submit()
         await pilot.pause()
-        assert app.theme_name == "warm"
+        assert app.theme_name == "sugary"
 
 
 @pytest.mark.asyncio
@@ -369,11 +369,11 @@ async def test_natural_language_command_aliases(seeded_store: NotebookStore) -> 
         targets = seeded_store.list_targets()
         assert any(t.ip == "192.168.1.99" for t in targets)
 
-        # 'theme neon'
-        cmd.value = "theme neon"
+        # 'theme candy'
+        cmd.value = "theme candy"
         await cmd.action_submit()
         await pilot.pause()
-        assert app.theme_name == "neon"
+        assert app.theme_name == "candy"
 
 
 @pytest.mark.asyncio

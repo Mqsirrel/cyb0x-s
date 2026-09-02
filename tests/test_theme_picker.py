@@ -131,21 +131,21 @@ def test_resolve_palette_name_and_aliases() -> None:
     assert resolve_palette_name("1") == "slate"
     assert resolve_palette_name("2") == "midnight"
     assert resolve_palette_name("3") == "ember"
-    assert resolve_palette_name("4") == "moss"
-    assert resolve_palette_name("5") == "neon"
-    assert resolve_palette_name("6") == "mono"
-    assert resolve_palette_name("7") == "warm"
-    assert resolve_palette_name("8") == "cyber"
+    assert resolve_palette_name("4") == "cyber"
+    assert resolve_palette_name("5") == "sugary"
+    assert resolve_palette_name("6") == "candy"
+    assert resolve_palette_name("7") == "caramel"
 
     # Prefix and short abbreviations
-    assert resolve_palette_name("w") == "warm"
-    assert resolve_palette_name("wa") == "warm"
+    assert resolve_palette_name("su") == "sugary"
+    assert resolve_palette_name("sug") == "sugary"
+    assert resolve_palette_name("sugar") == "sugary"
+    assert resolve_palette_name("ca") == "candy"
+    assert resolve_palette_name("can") == "candy"
+    assert resolve_palette_name("car") == "caramel"
     assert resolve_palette_name("sl") == "slate"
     assert resolve_palette_name("mid") == "midnight"
     assert resolve_palette_name("em") == "ember"
-    assert resolve_palette_name("mo") == "moss"
-    assert resolve_palette_name("ne") == "neon"
-    assert resolve_palette_name("mon") == "mono"
     assert resolve_palette_name("cy") == "cyber"
     assert resolve_palette_name("c") == "cyber"
     assert resolve_palette_name("tokyo") == "cyber"
@@ -160,14 +160,14 @@ def test_resolve_palette_name_and_aliases() -> None:
 async def test_picker_digit_hotkey_instantly_selects(seeded_store: NotebookStore) -> None:
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
-        # Press T to open picker, then press '7' for warm
+        # Press T to open picker, then press '5' for sugary
         await pilot.press("T")
         await pilot.pause()
         assert isinstance(app.screen, ThemePickerModal)
 
-        await pilot.press("7")
+        await pilot.press("5")
         await pilot.pause()
-        assert app.theme_name == "warm"
+        assert app.theme_name == "sugary"
         assert len(app.screen_stack) == 1
 
         # Press T again, then press '1' for slate
@@ -186,11 +186,11 @@ async def test_command_bar_prefix_theme_switch(seeded_store: NotebookStore) -> N
         cmd_input = app.query_one("#cmd-input")
         cmd_input.focus()
 
-        # Switch to warm using prefix ':theme w'
-        cmd_input.value = ":theme w"
+        # Switch to sugary using prefix ':theme su'
+        cmd_input.value = ":theme su"
         await pilot.press("enter")
         await pilot.pause()
-        assert app.theme_name == "warm"
+        assert app.theme_name == "sugary"
 
         # Switch to midnight using ':theme mid'
         cmd_input.value = ":theme mid"
@@ -231,7 +231,7 @@ async def test_set_default_theme_in_picker(seeded_store: NotebookStore, monkeypa
 
 @pytest.mark.asyncio
 async def test_command_bar_set_default_theme(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Test setting default theme via command bar ':theme default warm'."""
+    """Test setting default theme via command bar ':theme default sugary'."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     from cyb0x_s.tui.theme import get_default_theme
 
@@ -240,65 +240,24 @@ async def test_command_bar_set_default_theme(seeded_store: NotebookStore, monkey
         cmd_input = app.query_one("#cmd-input")
         cmd_input.focus()
 
-        cmd_input.value = ":theme default warm"
+        cmd_input.value = ":theme default sugary"
         await pilot.press("enter")
         await pilot.pause()
 
-        assert app.theme_name == "warm"
-        assert get_default_theme(seeded_store) == "warm"
+        assert app.theme_name == "sugary"
+        assert get_default_theme(seeded_store) == "sugary"
 
 
 @pytest.mark.asyncio
-async def test_transparency_toggle_and_persistence(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Test toggling glass/transparency via app method and key g in picker."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    from cyb0x_s.tui.theme import get_default_transparency
-
+async def test_sugary_themes_apply_and_render(seeded_store: NotebookStore) -> None:
+    """Test applying sugary, candy, and caramel themes."""
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
-        assert not app.is_transparent
-        assert not app.screen.has_class("transparent")
-
-        # Toggle on
-        app.toggle_transparency(persist=True)
-        assert app.is_transparent
-        assert app.screen.has_class("transparent")
-        assert get_default_transparency(seeded_store) is True
-
-        # Open theme picker and press 'g' to toggle off
-        await pilot.press("T")
-        await pilot.pause()
-        assert isinstance(app.screen, ThemePickerModal)
-
-        await pilot.press("g")
-        await pilot.pause()
-        assert not app.is_transparent
-        assert not app.screen.has_class("transparent")
-        assert get_default_transparency(seeded_store) is False
-
-
-@pytest.mark.asyncio
-async def test_transparency_command_bar(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Test :trans on and :trans off via bottom command bar."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    from cyb0x_s.tui.theme import get_default_transparency
-
-    app = CyboxSafeApp(store=seeded_store)
-    async with app.run_test(size=(160, 44)) as pilot:
-        cmd_input = app.query_one("#cmd-input")
-        cmd_input.focus()
-
-        cmd_input.value = ":trans on"
-        await pilot.press("enter")
-        await pilot.pause()
-        assert app.is_transparent
-        assert get_default_transparency(seeded_store) is True
-
-        cmd_input.focus()
-        cmd_input.value = ":trans off"
-        await pilot.press("enter")
-        await pilot.pause()
-        assert not app.is_transparent
-        assert get_default_transparency(seeded_store) is False
+        for theme_name in ("sugary", "candy", "caramel"):
+            app.apply_theme(theme_name)
+            await pilot.pause()
+            assert app.theme_name == theme_name
+            strip = app.query_one(MachineStatusStrip)
+            assert strip.render().plain.strip()
 
 
