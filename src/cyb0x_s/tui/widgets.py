@@ -812,13 +812,36 @@ class AddTargetModal(ModalScreen[Optional[dict]]):
         align: center middle;
     }
     #add-target-container {
-        width: 68;
+        width: 74;
         height: auto;
-        max-height: 90%;
-        border: round $primary;
+        max-height: 92%;
+        border: round $accent;
         background: $surface;
         padding: 1 2;
         color: $foreground;
+    }
+    AddTargetModal .modal-row {
+        height: auto;
+        layout: horizontal;
+        margin-bottom: 0;
+    }
+    AddTargetModal .modal-col {
+        width: 1fr;
+        height: auto;
+        margin-right: 1;
+    }
+    AddTargetModal .modal-col:last-child {
+        margin-right: 0;
+    }
+    AddTargetModal Input {
+        height: 3;
+        border: round $border;
+        background: $background;
+        color: $foreground;
+        padding: 0 1;
+    }
+    AddTargetModal Input:focus {
+        border: round $accent;
     }
     """
 
@@ -826,44 +849,50 @@ class AddTargetModal(ModalScreen[Optional[dict]]):
         with Vertical(id="add-target-container", classes="synapse-modal-dialog"):
             yield Label("▸ ADD TARGET HOST", classes="modal-header")
 
-            yield Label("Target IP / Hostname *:", classes="field-label")
-            yield Input(placeholder="e.g. 10.10.11.10", id="target-ip")
+            with Horizontal(classes="modal-row"):
+                with Vertical(classes="modal-col"):
+                    yield Label("Target IP / Hostname *:", classes="field-label")
+                    yield Input(placeholder="e.g. 10.10.11.10", id="target-ip")
+                with Vertical(classes="modal-col"):
+                    yield Label("FQDN / NetBIOS (optional):", classes="field-label")
+                    yield Input(placeholder="e.g. dc01.corp.local", id="target-host")
 
-            yield Label("FQDN / NetBIOS Hostname (optional):", classes="field-label")
-            yield Input(placeholder="e.g. dc01.corp.local", id="target-host")
+            with Horizontal(classes="modal-row"):
+                with Vertical(classes="modal-col"):
+                    yield Label("Operating System:", classes="field-label")
+                    yield Select(
+                        [
+                            ("Linux (Debian / Kali / Ubuntu)", "Linux"),
+                            ("Windows Server / Active Directory", "Windows Server"),
+                            ("Windows Workstation", "Windows"),
+                            ("FreeBSD / Unix", "FreeBSD"),
+                            ("Embedded / Network Device", "Embedded"),
+                            ("Unknown / Other", "Unknown"),
+                        ],
+                        value="Linux",
+                        id="target-os",
+                    )
+                with Vertical(classes="modal-col"):
+                    yield Label("Initial Ports Preset:", classes="field-label")
+                    yield Select(
+                        [
+                            ("None / Custom", ""),
+                            ("Web Standard (80, 443)", "80,443"),
+                            ("Web & SSH (22, 80, 443, 8080)", "22,80,443,8080"),
+                            ("Active Directory (53, 88, 135, 389, 445)", "53,88,135,389,445"),
+                            ("Top Common (21,22,25,80,443,445,3389)", "21,22,25,80,443,445,3389"),
+                        ],
+                        value="",
+                        id="target-ports-preset",
+                    )
 
-            yield Label("Operating System:", classes="field-label")
-            yield Select(
-                [
-                    ("Linux (Debian / Ubuntu / Kali / Arch)", "Linux"),
-                    ("Windows Server / Active Directory", "Windows Server"),
-                    ("Windows 10 / 11 Workstation", "Windows"),
-                    ("FreeBSD / Unix", "FreeBSD"),
-                    ("Embedded / Network Device", "Embedded"),
-                    ("Unknown / Other", "Unknown"),
-                ],
-                value="Linux",
-                id="target-os",
-            )
-
-            yield Label("Common Initial Ports Preset:", classes="field-label")
-            yield Select(
-                [
-                    ("None / Custom", ""),
-                    ("Web Standard (80, 443)", "80,443"),
-                    ("Web & SSH (22, 80, 443, 8080)", "22,80,443,8080"),
-                    ("Windows Active Directory (53, 88, 135, 139, 389, 445, 5985)", "53,88,135,139,389,445,5985"),
-                    ("Top Common TCP (21,22,25,53,80,110,139,443,445,1433,3306,3389,5985,8080)", "21,22,25,53,80,110,139,443,445,1433,3306,3389,5985,8080"),
-                ],
-                value="",
-                id="target-ports-preset",
-            )
-
-            yield Label("Custom Ports (comma-separated, optional):", classes="field-label")
-            yield Input(placeholder="e.g. 22, 80, 445", id="target-ports-custom")
-
-            yield Label("Target Notes (optional):", classes="field-label")
-            yield Input(placeholder="e.g. In-scope lab machine, potential DC", id="target-notes")
+            with Horizontal(classes="modal-row"):
+                with Vertical(classes="modal-col"):
+                    yield Label("Custom Ports (optional):", classes="field-label")
+                    yield Input(placeholder="e.g. 22, 80, 445", id="target-ports-custom")
+                with Vertical(classes="modal-col"):
+                    yield Label("Target Notes (optional):", classes="field-label")
+                    yield Input(placeholder="e.g. In-scope lab machine", id="target-notes")
 
             with Horizontal(classes="modal-buttons"):
                 yield Button("Save Target (Enter)", variant="primary", classes="primary-btn", id="btn-save")
@@ -928,10 +957,20 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
         width: 72;
         height: auto;
         max-height: 92%;
-        border: round $primary;
+        border: round $accent;
         background: $surface;
         padding: 1 2;
         color: $foreground;
+    }
+    AddServiceModal Input {
+        height: 3;
+        border: round $border;
+        background: $background;
+        color: $foreground;
+        padding: 0 1;
+    }
+    AddServiceModal Input:focus {
+        border: round $accent;
     }
     """
 
@@ -1068,10 +1107,20 @@ class AddCredentialModal(ModalScreen[Optional[dict]]):
         width: 68;
         height: auto;
         max-height: 90%;
-        border: round $primary;
+        border: round $accent;
         background: $surface;
         padding: 1 2;
         color: $foreground;
+    }
+    AddCredentialModal Input {
+        height: 3;
+        border: round $border;
+        background: $background;
+        color: $foreground;
+        padding: 0 1;
+    }
+    AddCredentialModal Input:focus {
+        border: round $accent;
     }
     """
 
@@ -1160,10 +1209,20 @@ class AddFindingModal(ModalScreen[Optional[dict]]):
         width: 68;
         height: auto;
         max-height: 90%;
-        border: round $primary;
+        border: round $accent;
         background: $surface;
         padding: 1 2;
         color: $foreground;
+    }
+    AddFindingModal Input {
+        height: 3;
+        border: round $border;
+        background: $background;
+        color: $foreground;
+        padding: 0 1;
+    }
+    AddFindingModal Input:focus {
+        border: round $accent;
     }
     """
 
