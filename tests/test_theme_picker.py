@@ -248,3 +248,57 @@ async def test_command_bar_set_default_theme(seeded_store: NotebookStore, monkey
         assert get_default_theme(seeded_store) == "warm"
 
 
+@pytest.mark.asyncio
+async def test_transparency_toggle_and_persistence(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Test toggling glass/transparency via app method and key g in picker."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from cyb0x_s.tui.theme import get_default_transparency
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        assert not app.is_transparent
+        assert not app.screen.has_class("transparent")
+
+        # Toggle on
+        app.toggle_transparency(persist=True)
+        assert app.is_transparent
+        assert app.screen.has_class("transparent")
+        assert get_default_transparency(seeded_store) is True
+
+        # Open theme picker and press 'g' to toggle off
+        await pilot.press("T")
+        await pilot.pause()
+        assert isinstance(app.screen, ThemePickerModal)
+
+        await pilot.press("g")
+        await pilot.pause()
+        assert not app.is_transparent
+        assert not app.screen.has_class("transparent")
+        assert get_default_transparency(seeded_store) is False
+
+
+@pytest.mark.asyncio
+async def test_transparency_command_bar(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Test :trans on and :trans off via bottom command bar."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from cyb0x_s.tui.theme import get_default_transparency
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)) as pilot:
+        cmd_input = app.query_one("#cmd-input")
+        cmd_input.focus()
+
+        cmd_input.value = ":trans on"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.is_transparent
+        assert get_default_transparency(seeded_store) is True
+
+        cmd_input.focus()
+        cmd_input.value = ":trans off"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert not app.is_transparent
+        assert get_default_transparency(seeded_store) is False
+
+

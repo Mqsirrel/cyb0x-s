@@ -750,15 +750,16 @@ def cheat_alias(ctx: click.Context, query: str, target: Optional[str], copy: boo
 # -----------------------------------------------------------------------------
 
 @cli.command("tui")
-@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, moss, neon, mono, warm).")
+@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (cyber, slate, midnight, ember, moss, neon, mono, warm).")
+@click.option("--transparent", "-T", is_flag=True, default=False, help="Enable glass/transparent canvas for terminals with blur or opacity.")
 @click.pass_context
-def tui_cmd(ctx: click.Context, theme_name: Optional[str] = None) -> None:
+def tui_cmd(ctx: click.Context, theme_name: Optional[str] = None, transparent: bool = False) -> None:
     """Launch the interactive terminal user interface."""
     from cyb0x_s.tui.app import CyboxSafeApp
 
     store = _get_store(ctx)
     selected_theme = theme_name or ctx.obj.get("theme_name")
-    app = CyboxSafeApp(store=store, theme=selected_theme)
+    app = CyboxSafeApp(store=store, theme=selected_theme, transparent=transparent or None)
     app.run()
 
 
