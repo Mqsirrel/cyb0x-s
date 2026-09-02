@@ -233,8 +233,25 @@ WARM = Palette(
     danger="#E5846B",
 )
 
+CYBER = Palette(
+    name="cyber",
+    label="Cyber · tokyo / electric",
+    bg="#0B0F19",
+    surface="#121827",
+    raised="#1B2337",
+    border="#253049",
+    border_strong="#38BDF8",
+    text="#EEF2F8",
+    text_soft="#B0C0DA",
+    muted="#7888A4",
+    accent="#00E5FF",
+    ok="#00F5A0",
+    warn="#FFB800",
+    danger="#FF486E",
+)
+
 PALETTES: Dict[str, Palette] = {
-    p.name: p for p in (SLATE, MIDNIGHT, EMBER, MOSS, NEON, MONO, WARM)
+    p.name: p for p in (SLATE, MIDNIGHT, EMBER, MOSS, NEON, MONO, WARM, CYBER)
 }
 DEFAULT_PALETTE = SLATE.name
 
@@ -299,6 +316,9 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
         "ne": "neon",
         "n": "neon",
         "mon": "mono",
+        "cy": "cyber",
+        "c": "cyber",
+        "tokyo": "cyber",
     }
     if q in alias_map and alias_map[q] in PALETTES:
         return alias_map[q]

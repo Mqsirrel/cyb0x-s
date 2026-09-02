@@ -268,11 +268,11 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
         assert app.theme_name == "slate"
         before = current_palette().accent
 
-        app.apply_theme("warm")
+        app.apply_theme("cyber")
         await pilot.pause()
-        assert app.theme_name == "warm"
+        assert app.theme_name == "cyber"
         assert current_palette().accent != before
-        assert app.theme == "cyb0x-warm"
+        assert app.theme == "cyb0x-cyber"
 
         app.action_cycle_theme()
         await pilot.pause()

@@ -103,12 +103,11 @@ class TargetTreeWidget(Tree):
                     if svc.access_potential in ("HIGH", "CRITICAL")
                     else ""
                 )
+                port_text = f"{svc.port}/{svc.protocol}"
                 svc_label = (
-                    f"  {svc_icon} [bold {P.warn}]{svc.port}/{svc.protocol}[/]"
+                    f"{svc_icon} [bold {P.accent}]{port_text:<9}[/]"
                     f" [bold {P.text}]{svc.service}[/]{pot_badge}"
                 )
-                if svc.version:
-                    svc_label += f" [{P.muted}]{svc.version[:20]}[/]"
                 target_node.add_leaf(
                     svc_label,
                     data={"type": "service", "id": svc.id, "target_id": target.id, "service": svc, "target": target},
@@ -823,7 +822,7 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
                 yield Button("Apply for Session (Enter)", variant="primary", classes="primary-btn", id="btn-apply")
                 yield Button("Cancel (Esc)", id="btn-cancel")
             yield Label(
-                "↑↓/j/k: live preview   1-7: instant pick   d: save default   Enter: apply   Esc: cancel",
+                "↑↓/j/k: live preview   1-8: instant pick   d: save default   Enter: apply   Esc: cancel",
                 id="theme-picker-hint",
             )
 
@@ -884,7 +883,7 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
 
     def on_key(self, event: Any) -> None:
         names = list(PALETTES)
-        if event.key in "1234567":
+        if event.key in "12345678":
             event.stop()
             idx = int(event.key) - 1
             if 0 <= idx < len(names):
