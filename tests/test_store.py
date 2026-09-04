@@ -211,3 +211,74 @@ def test_get_target_counts(store: NotebookStore) -> None:
     assert counts["dead_ends"] == 1
     assert counts["failures"] == 1
 
+
+def test_target_subnet_and_pivot(store: NotebookStore) -> None:
+    """Test subnet assignment and pivot routing fields."""
+    t = store.add_target("10.10.10.20")
+    assert t.subnet == ""
+    assert not t.is_pivot
+    assert t.pivot_route == ""
+
+    updated = store.update_target_details(
+        t.id,
+        subnet="10.10.10.0/24",
+        is_pivot=True,
+        pivot_route="192.168.1.0/24 via socks5:1080",
+    )
+    assert updated is not None
+    assert updated.subnet == "10.10.10.0/24"
+    assert updated.is_pivot
+    assert updated.pivot_route == "192.168.1.0/24 via socks5:1080"
+
+
+def test_cred_validations_persistence(store: NotebookStore) -> None:
+    """Test saving and retrieving credential cell states."""
+    t = store.add_target("10.10.10.30")
+    s = store.add_service(target_id=t.id, port=22, service="ssh")
+    c = store.add_credential(username="root", secret="toor", target_id=t.id)
+
+    store.set_cred_validation(c.id, s.id, "✔ VALID")
+    vals = store.get_cred_validations()
+    assert vals.get((c.id, s.id)) == "✔ VALID"
+
+    # Update state
+    store.set_cred_validation(c.id, s.id, "👑 PWN3D")
+    vals = store.get_cred_validations()
+    assert vals.get((c.id, s.id)) == "👑 PWN3D"
+
+
+def test_exam_proofs_crud_and_export(store: NotebookStore) -> None:
+    """Test exam question proof recording, listing, and markdown export."""
+    t = store.add_target("10.10.10.50")
+    p1 = store.add_exam_proof(
+        question_num="Q1",
+        answer_proof="ProFTPD 1.3.5",
+        category="VERSION",
+        notes="Vulnerable to mod_copy",
+        target_id=t.id,
+    )
+    assert p1.id is not None
+    assert p1.question_num == "Q1"
+    assert p1.answer_proof == "ProFTPD 1.3.5"
+
+    p2 = store.add_exam_proof(
+        question_num="Q14",
+        answer_proof="aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0",
+        category="HASH",
+        notes="Administrator NTLM",
+        target_id=t.id,
+    )
+    assert p2.id is not None
+
+    proofs = store.list_exam_proofs()
+    assert len(proofs) == 2
+
+    export_md = store.export_exam_evidence_markdown()
+    assert "Q1" in export_md
+    assert "ProFTPD 1.3.5" in export_md
+    assert "Q14" in export_md
+    assert "Administrator NTLM" in export_md
+
+    assert store.delete_exam_proof(p1.id)
+    assert len(store.list_exam_proofs()) == 1
+

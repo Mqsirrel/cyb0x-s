@@ -19,17 +19,33 @@ def seed_demo(store: NotebookStore) -> None:
     ws = store.get_or_create_workspace("Lab-Assessment-01", description="Field notes for 10.10.10.20 lab assessment")
     store.set_active_workspace(ws.id)
 
-    # 1. Target
+    # 1. Targets (with Subnets & Pivoting)
     target = store.add_target(
         ip="10.10.10.20",
         hostname="target.local",
         os_name="Linux",
-        notes="Lab host running web application and file share services",
+        notes="Dual-homed gateway into internal 172.16.1.0/24 network",
         workspace_id=ws.id,
     )
+    store.update_target_details(
+        target.id,
+        subnet="10.10.10.0/24",
+        is_pivot=True,
+        pivot_route="172.16.1.0/24",
+        user_flag="eJPT{user_flag_7a9e2b104c81f}",
+        root_flag="eJPT{root_flag_f04b8d195ae32}",
+    )
+    internal_target = store.add_target(
+        ip="172.16.1.50",
+        hostname="db01.corp.internal",
+        os_name="Linux",
+        notes="Internal MySQL database host reachable via 10.10.10.20 pivot",
+        workspace_id=ws.id,
+    )
+    store.update_target_details(internal_target.id, subnet="172.16.1.0/24")
 
     # 2. Services
-    store.add_service(
+    s_ssh = store.add_service(
         target_id=target.id,
         port=22,
         protocol="tcp",
@@ -47,7 +63,7 @@ def seed_demo(store: NotebookStore) -> None:
         status=ServiceStatus.CHECKED,
         notes="Redirects to /login",
     )
-    store.add_service(
+    s_smb = store.add_service(
         target_id=target.id,
         port=445,
         protocol="tcp",
@@ -72,16 +88,38 @@ def seed_demo(store: NotebookStore) -> None:
         severity="INFO",
     )
 
+    store.add_service(
+        target_id=internal_target.id,
+        port=3306,
+        protocol="tcp",
+        service="MySQL",
+        version="MySQL 5.7.33",
+        status=ServiceStatus.UNTESTED,
+        notes="Reachable via SOCKS proxy / Chisel tunnel",
+    )
+
     # 4. Credentials
-    store.add_credential(
+    c1 = store.add_credential(
         username="admin",
         secret="Summer2024!Secure",
         source="backup.zip / config.php",
         target_id=target.id,
-        service_scope="Web Administration",
-        status="untested",
+        service_scope="Web / SSH",
+        status="valid",
         notes="Extracted from config file",
     )
+    c2 = store.add_credential(
+        username="root",
+        secret="toor",
+        source="shadow crack",
+        target_id=target.id,
+        service_scope="SSH",
+        status="valid",
+        notes="Cracked with rockyou",
+    )
+    store.set_cred_validation(c1.id, s_ssh.id, "VALID")
+    store.set_cred_validation(c1.id, s_smb.id, "PWN3D")
+    store.set_cred_validation(c2.id, s_ssh.id, "VALID")
 
     # 5. Checklist
     store.add_checklist_item(
@@ -91,22 +129,16 @@ def seed_demo(store: NotebookStore) -> None:
         status=ChecklistStatus.CHECKED,
     )
     store.add_checklist_item(
-        title="HTTP enumeration",
+        title="SMB enumeration",
         category="ENUMERATION",
         target_id=target.id,
         status=ChecklistStatus.CHECKED,
     )
     store.add_checklist_item(
-        title="SMB enumeration",
-        category="ENUMERATION",
+        title="Pivoting & Route Discovery",
+        category="PIVOTING",
         target_id=target.id,
-        status=ChecklistStatus.TODO,
-    )
-    store.add_checklist_item(
-        title="UDP service sweep",
-        category="ENUMERATION",
-        target_id=target.id,
-        status=ChecklistStatus.DEFERRED,
+        status=ChecklistStatus.CHECKED,
     )
 
     # 6. Notes
@@ -127,14 +159,36 @@ def seed_demo(store: NotebookStore) -> None:
         description="Anonymous SMB access listing backup share",
     )
 
-    # 8. Leads
-    store.add_lead(
-        title="Test admin credentials against SMB and SSH",
+    # 8. Exam Question Proofs & Failure Logs
+    store.add_exam_proof(
+        question_num="Q7",
+        answer_proof="dbpass: R0ck3t_L4unch!#2024",
+        category="CRED",
+        notes="Found in /var/www/html/wp-config.php",
         target_id=target.id,
-        notes="Try SSH first, then smbclient with -U admin",
     )
+    store.add_exam_proof(
+        question_num="Q14",
+        answer_proof="root:$6$qZ8jL1...:19120:0:99999:7:::",
+        category="HASH",
+        notes="Cracked root shadow hash from target",
+        target_id=target.id,
+    )
+    store.add_failure_log(
+        target_id=target.id,
+        where_stuck="wp-login.php hydra brute force",
+        breakthrough_clue="Account lockouts triggered; switched to SMB backup archive inspection",
+        rule_for_next_time="Inspect unauthenticated network shares before brute forcing web logins",
+    )
+    store.add_failure_log(
+        target_id=internal_target.id,
+        where_stuck="MySQL port 3306 direct connect",
+        breakthrough_clue="Host filtered from external subnet; route through SOCKS proxy on 10.10.10.20",
+        rule_for_next_time="Always check routing tables and active pivots before declaring port dead",
+    )
+    store.set_active_target(target.id)
 
-    print(f"Successfully seeded demo workspace '{ws.name}' for target {target.ip}!")
+    print(f"Successfully seeded demo workspace '{ws.name}' with subnets, pivots, and exam proofs!")
 
 
 if __name__ == "__main__":

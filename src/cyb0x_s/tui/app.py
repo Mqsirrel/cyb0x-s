@@ -391,7 +391,8 @@ class CyboxSafeApp(App):
             active = target or self.store.get_active_target()
             if failures is None:
                 failures = self.store.list_failure_logs(target_id=active.id if active else None)
-            self.query_one("#loot-flags-widget", LootAndFlagsWidget).update_data(active, failures)
+            proofs = self.store.list_exam_proofs()
+            self.query_one("#loot-flags-widget", LootAndFlagsWidget).update_data(active, failures, proofs=proofs)
         except Exception:
             pass
 
@@ -494,14 +495,35 @@ class CyboxSafeApp(App):
             self._is_cross_filtering = False
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        """Dynamically preview service guidance when moving through the target tree."""
+        """Dynamically preview service guidance or pivot routing when moving through the target tree."""
         if event.node and event.node.data:
             d = event.node.data
-            if d.get("type") == "service":
+            node_type = d.get("type")
+            if node_type == "service":
                 svc = d.get("service")
                 target = d.get("target")
                 if svc and target:
                     self._guidance_for_service(svc, target.ip)
+            elif node_type == "target" and d.get("is_pivot"):
+                target = d.get("target")
+                proute = d.get("pivot_route") or "192.168.1.0/24 via socks5:1080"
+                try:
+                    gb = self.query_one("#guidance-box", ConsoleBar)
+                    gb.show_command(
+                        f"chisel client {target.ip}:8000 R:socks  # or: ssh -D 1080 user@{target.ip} ({proute})",
+                        target_ip=target.ip,
+                    )
+                except Exception:
+                    pass
+            elif node_type == "subnet":
+                snet = d.get("subnet")
+                try:
+                    gb = self.query_one("#guidance-box", ConsoleBar)
+                    gb.show_command(
+                        f"sudo nmap -sn {snet}  # or: sudo arp-scan -I eth1 {snet}"
+                    )
+                except Exception:
+                    pass
 
     def _refresh_header(
         self,
@@ -1216,6 +1238,13 @@ class CyboxSafeApp(App):
                 for p in ports:
                     svc_name = "http" if p in (80, 443, 8080) else ("ssh" if p == 22 else ("smb" if p == 445 else "unknown"))
                     self.store.add_service(target_id=target.id, port=p, protocol="tcp", service=svc_name)
+
+                if data.get("subnet") or data.get("is_pivot"):
+                    self.store.update_target_details(
+                        target.id,
+                        subnet=data.get("subnet", ""),
+                        is_pivot=bool(data.get("is_pivot", False)),
+                    )
 
                 self.refresh_targets()
                 self.refresh_all()

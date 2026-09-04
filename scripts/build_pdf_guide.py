@@ -82,7 +82,7 @@ def build_pdf(dest_path: Path) -> None:
         leftMargin=36,
         rightMargin=36,
         topMargin=36,
-        bottomMargin=42,
+        bottomMargin=34,
     )
 
     styles = getSampleStyleSheet()
@@ -130,6 +130,13 @@ def build_pdf(dest_path: Path) -> None:
         textColor=C_PRIMARY,
         spaceAfter=2,
     )
+    table_body_style = ParagraphStyle(
+        "TableBody",
+        parent=body_style,
+        fontSize=7.6,
+        leading=9.8,
+        spaceAfter=0,
+    )
     body_bold = ParagraphStyle(
         "BodyBold",
         parent=body_style,
@@ -152,8 +159,8 @@ def build_pdf(dest_path: Path) -> None:
         "CodeText",
         parent=styles["Normal"],
         fontName="Courier",
-        fontSize=7.5,
-        leading=9.5,
+        fontSize=7.2,
+        leading=9.0,
         textColor=colors.HexColor("#0F172A"),
     )
     code_bold = ParagraphStyle(
@@ -243,8 +250,8 @@ def build_pdf(dest_path: Path) -> None:
         ],
         [
             Paragraph("<b>Station 4</b>", body_bold),
-            Paragraph("<b>Loot & Flags Ledger</b><br/>Proof hashes & failure logs", body_style),
-            Paragraph("View user/root flags, hashes, credentials found, and <b>Failure Logs / Rabbit Holes</b>. Ensures you never forget where you got stuck or what you discovered.", body_style),
+            Paragraph("<b>Exam Proofs & Loot</b><br/>Q1–Q35 ledger & flags", body_style),
+            Paragraph("Track exam question answers (Q1–Q35 via <code>:q</code> or <code>[a]</code>), user/root flags, and <b>Failure Logs</b>. Run <code>:export exam</code> to generate an offline Markdown submission report.", body_style),
             Paragraph("<b>[4]</b>", badge_style),
         ],
     ]
@@ -342,6 +349,7 @@ def build_pdf(dest_path: Path) -> None:
         [Paragraph("<b>n</b>", badge_style), Paragraph("Fast Capture", body_style), Paragraph("Open <b>Add Note</b> dialog (or type <code>:n &lt;text&gt;</code> in console).", body_style)],
         [Paragraph("<b>f</b>", badge_style), Paragraph("Fast Capture", body_style), Paragraph("Open <b>Add Finding / Vulnerability</b> dialog (or type <code>:f &lt;title&gt;</code> in console).", body_style)],
         [Paragraph("<b>m</b>", badge_style), Paragraph("Methodology", body_style), Paragraph("Open <b>Methodology Picker</b> dialog (or type <code>:m &lt;name&gt;</code> in console).", body_style)],
+        [Paragraph("<b>a</b>", badge_style), Paragraph("Exam Proof", body_style), Paragraph("In Station 4: Open <b>Add Exam Proof</b> modal to link question number (Q1–Q35) to proof evidence.", body_style)],
         [Paragraph("<b>d</b>", badge_style), Paragraph("Manage", body_style), Paragraph("Delete highlighted entity (requires confirmation).", body_style)],
     ]
     t_keys = Table(keys_data, colWidths=[65, 75, 400])
@@ -388,42 +396,52 @@ def build_pdf(dest_path: Path) -> None:
         ],
         [
             Paragraph("<b>:w &lt;alias&gt;</b>", code_bold),
-            Paragraph("<b>Wordlist Accelerator:</b> Instantly copies standard Kali / SecLists paths to clipboard.", body_style),
+            Paragraph("<b>Wordlist Accelerator:</b> Instantly copies standard Kali / SecLists paths to clipboard.", table_body_style),
             Paragraph("<code>:w rockyou</code> &nbsp; <code>:w common</code> &nbsp; <code>:w medium</code><br/><code>:w raft-d</code> &nbsp; <code>:w raft-f</code> &nbsp; <code>:w users</code>", code_style),
         ],
         [
-            Paragraph("<b>:t &lt;ip&gt; [host] [os]</b>", code_bold),
-            Paragraph("Add target machine with optional hostname and OS tag.", body_style),
-            Paragraph("<code>:t 10.10.10.25 dc01.corp.local Windows</code>", code_style),
+            Paragraph("<b>:t &lt;ip&gt; [opts]</b>", code_bold),
+            Paragraph("Add target with optional host, OS, subnet, and pivot flag.", table_body_style),
+            Paragraph("<code>:t 10.10.10.5 host linux 10.10.10.0/24 pivot</code>", code_style),
+        ],
+        [
+            Paragraph("<b>:pivot / :subnet</b>", code_bold),
+            Paragraph("Tag pivot machine / assign subnet CIDR for Station 1 tree grouping.", table_body_style),
+            Paragraph("<code>:pivot 10.10.10.5 172.16.1.0/24</code><br/><code>:subnet 10.10.10.5 10.10.10.0/24</code>", code_style),
         ],
         [
             Paragraph("<b>:s &lt;port&gt; &lt;svc&gt;</b>", code_bold),
-            Paragraph("Record newly discovered port & service on active target.", body_style),
+            Paragraph("Record newly discovered port & service on active target.", table_body_style),
             Paragraph("<code>:s 445/tcp smb</code> &nbsp; <code>:s 8080 http</code>", code_style),
         ],
         [
             Paragraph("<b>:c &lt;user:pass&gt; [scope]</b>", code_bold),
-            Paragraph("Record discovered credential with optional service scope.", body_style),
+            Paragraph("Record discovered credential with optional service scope.", table_body_style),
             Paragraph("<code>:c admin:Secret123! SMB</code> &nbsp; <code>:c root:toor SSH</code>", code_style),
         ],
         [
-            Paragraph("<b>:m &lt;template&gt;</b>", code_bold),
-            Paragraph("Instantiate standard checklist template (replace or append).", body_style),
-            Paragraph("<code>:m ejpt</code> &nbsp; <code>:m web</code> &nbsp; <code>:m smb append</code>", code_style),
+            Paragraph("<b>:q / :export</b>", code_bold),
+            Paragraph("Pin exam question proof (Q1–Q35) or export markdown exam dossier.", table_body_style),
+            Paragraph("<code>:q 7 /var/www/wp-config.php</code><br/><code>:export exam</code> &nbsp; <code>:export report</code>", code_style),
         ],
         [
             Paragraph("<b>:uflag / :rflag &lt;hash&gt;</b>", code_bold),
-            Paragraph("Record user flag or root/admin flag into Station 4 Loot Ledger.", body_style),
+            Paragraph("Record user flag or root/admin flag into Station 4 Loot Ledger.", table_body_style),
             Paragraph("<code>:uflag 7a9e...</code> &nbsp; <code>:rflag f04b...</code>", code_style),
         ],
         [
             Paragraph("<b>:st &lt;where&gt; / :cl &lt;clue&gt;</b>", code_bold),
-            Paragraph("Record stuck point (rabbit hole) and breakthrough clue.", body_style),
+            Paragraph("Record stuck point (rabbit hole) and breakthrough clue.", table_body_style),
             Paragraph("<code>:st stuck on wp-login</code> &nbsp; <code>:cl found backup.zip</code>", code_style),
         ],
         [
+            Paragraph("<b>:m &lt;template&gt;</b>", code_bold),
+            Paragraph("Instantiate standard checklist template (replace or append).", table_body_style),
+            Paragraph("<code>:m ejpt</code> &nbsp; <code>:m web</code> &nbsp; <code>:m smb append</code>", code_style),
+        ],
+        [
             Paragraph("<b>:theme &lt;name&gt;</b>", code_bold),
-            Paragraph("Switch theme live (e.g. sugary, caramel, midnight, cyber).", body_style),
+            Paragraph("Switch theme live (e.g. sugary, caramel, midnight, cyber).", table_body_style),
             Paragraph("<code>:theme sugary</code> &nbsp; <code>:theme midnight</code>", code_style),
         ],
     ]
@@ -432,11 +450,11 @@ def build_pdf(dest_path: Path) -> None:
         ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
         ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-        ("PADDING", (0, 0), (-1, -1), 2.5),
+        ("PADDING", (0, 0), (-1, -1), 1.2),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.append(t_console)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 2))
 
     # Section 5: The 5-Phase Battle Plan
     story.append(Paragraph("5. Step-by-Step Practical Exam Workflow (\"The Battle Plan\")", h1_style))
@@ -447,87 +465,64 @@ def build_pdf(dest_path: Path) -> None:
 
     phases_data = [
         [
-            Paragraph("PHASE 1: SCOPING & HOST DISCOVERY", th_style),
-        ],
-        [
             Paragraph(
-                "<b>1. Network Route Verification:</b> Run <code>ip a && ip route</code> to identify your assigned lab IP and gateway subnet.<br/>"
-                "<b>2. Subnet Ping Sweep:</b> Run <code>fping -a -g &lt;SUBNET&gt;/24 2>/dev/null</code> or <code>arp-scan --localnet</code>.<br/>"
-                "<b>3. Add Targets to Cockpit:</b> For each live host, type <code>:t &lt;IP&gt;</code> in the console. Cycle between targets with <b>[</b> and <b>]</b>.<br/>"
-                "<b>4. Apply eJPT Checklist:</b> Press <b>[m]</b> and choose <b>eJPT Practical Pentest</b>. The status strip immediately shows your progress bar!",
-                body_style,
+                "<font color='#0284C7'><b>PHASE 1: SCOPING & HOST DISCOVERY</b></font><br/>"
+                "<b>1. Host Discovery:</b> Identify alive target IPs (<code>nmap -sn 10.10.10.0/24</code> or arp-scan).<br/>"
+                "<b>2. Fast Add to CYB0X-S:</b> Type <code>:t 10.10.10.20</code> into console. Assign subnets: <code>:subnet 10.10.10.20 10.10.10.0/24</code>.<br/>"
+                "<b>3. Scope & Routing:</b> Tag dual-homed pivot machines with <code>:pivot 10.10.10.20 172.16.1.0/24</code> for automatic guidance.<br/>"
+                "<b>4. Import XML Option:</b> Mass scans can be imported directly: <code>cyb0x-s import /path/to/scan.xml</code>.",
+                table_body_style,
             )
         ],
         [
-            Paragraph("PHASE 2: PORT ENUMERATION & SERVICE TRIAGE", th_style),
-        ],
-        [
             Paragraph(
-                "<b>1. Full Port Scan:</b> Run full TCP scan: <code>nmap -p- -sS -T4 &lt;TARGET_IP&gt;</code>.<br/>"
-                "<b>2. Record Open Ports:</b> Add discovered services quickly: <code>:s 80/tcp http</code>, <code>:s 445 smb</code>, <code>:s 22 ssh</code>.<br/>"
-                "<b>3. Use Multi-Tool Carousel:</b> Move highlight to a service. Press <b>.</b> and <b>,</b> to cycle alternative inspection recipes in the bottom console! "
-                "For HTTP, cycle between <code>whatweb</code>, <code>feroxbuster</code>, <code>gobuster</code>, <code>nikto</code>, and <code>curl -I</code>. Press <b>[Enter]</b> to copy.<br/>"
-                "<b>4. Service Triage with [Space]:</b> As you test services, press <b>[Space]</b> to cycle: "
-                "<code>UNTESTED</code> → <code>[CHECKED]</code> (done) → <code>[DEAD-END]</code> (no attack vector) → <code>[DEFERRED]</code> (test later).",
-                body_style,
+                "<font color='#0284C7'><b>PHASE 2: DETAILED PORT & SERVICE ENUMERATION</b></font><br/>"
+                "<b>1. Full Port Sweep:</b> <code>nmap -sS -p- --min-rate 1000 &lt;IP&gt;</code>, then version scan: <code>nmap -sV -sC -p &lt;ports&gt; &lt;IP&gt;</code>.<br/>"
+                "<b>2. Record Open Services:</b> Type <code>:s 80 http</code>, <code>:s 445 smb</code>, <code>:s 3306 mysql</code> into the console.<br/>"
+                "<b>3. Inspect Tactical Guidance:</b> Highlight each service in <code>SERVICES & PORTS</code>. Press <code>.</code> to cycle tool recipes (whatweb → feroxbuster → gobuster → nikto → curl). Press <b>[Enter]</b> to copy.<br/>"
+                "<b>4. Service Triage with [Space]:</b> Cycle status: <code>UNTESTED</code> → <code>[CHECKED]</code> → <code>[DEAD-END]</code> → <code>[DEFERRED]</code>.",
+                table_body_style,
             )
         ],
         [
-            Paragraph("PHASE 3: WEB & LOW-HANGING FRUIT EXPLOITATION", th_style),
-        ],
-        [
             Paragraph(
+                "<font color='#0284C7'><b>PHASE 3: WEB & LOW-HANGING FRUIT EXPLOITATION</b></font><br/>"
                 "<b>1. Inspect Anonymous / Default Access:</b> Check anonymous FTP (<code>:s 21</code>), null SMB shares (<code>:s 445</code>), and SNMP strings (<code>:s 161</code>).<br/>"
                 "<b>2. Directory Fuzzing:</b> Type <code>:w common</code> or <code>:w medium</code> to copy the SecLists directory path. Paste directly into feroxbuster or gobuster.<br/>"
-                "<b>3. Cross-Filtering Advantage:</b> When you highlight a service in <code>SERVICES & PORTS</code>, CYB0X-S automatically auto-scrolls the <b>Methodology</b> checklist to that exact service's testing steps!",
-                body_style,
+                "<b>3. Cross-Filtering:</b> Highlighting a service in <code>SERVICES & PORTS</code> auto-scrolls the <b>Methodology</b> checklist to that service's testing steps!",
+                table_body_style,
             )
         ],
         [
-            Paragraph("PHASE 4: CREDENTIAL SPRAYING & LATERAL MOVEMENT (STATION 3)", th_style),
-        ],
-        [
             Paragraph(
-                "<b>1. Record Every Credential:</b> Whenever you find credentials (in web config, source code, or database), press <b>[c]</b> or type <code>:c user:password scope</code>.<br/>"
+                "<font color='#0284C7'><b>PHASE 4: CREDENTIAL SPRAYING & LATERAL MOVEMENT (STATION 3)</b></font><br/>"
+                "<b>1. Record Every Credential:</b> Whenever you find creds (web configs, DB dumps, code), press <b>[c]</b> or type <code>:c user:pass scope</code>.<br/>"
                 "<b>2. Open Station 3 Matrix:</b> Press <b>[3]</b> to switch to the 2D Credential Spray Matrix.<br/>"
-                "<b>3. Instant Spray Generation:</b> Highlight any cell and press <b>[Enter]</b>! CYB0X-S automatically compiles and copies the exact command to your clipboard "
-                "(e.g. <code>netexec smb 10.10.10.20 -u admin -p 'Password123'</code> or <code>evil-winrm -i 10.10.10.20 -u admin -p 'Password123'</code>).<br/>"
-                "<b>4. Record Verification State:</b> Run the command in your terminal. Press <b>[Space]</b> on the cell to cycle: "
-                "<code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>. Never test the same dead cred twice!",
-                body_style,
+                "<b>3. Instant Spray Generation:</b> Highlight any cell and press <b>[Enter]</b> to compile & copy ready-to-run spray commands (netexec, evil-winrm).<br/>"
+                "<b>4. Record Verification State:</b> Press <b>[Space]</b> on the cell to cycle: <code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>. State persists in SQLite!",
+                table_body_style,
             )
         ],
         [
-            Paragraph("PHASE 5: PRIVESC, PIVOTING & EVIDENCE CAPTURE (STATION 4)", th_style),
-        ],
-        [
             Paragraph(
-                "<b>1. Pivoting & Route Addition:</b> If a target has dual NICs, run <code>ip route add &lt;NEW_SUBNET&gt; via &lt;PIVOT_IP&gt;</code> or setup Chisel / autoroute.<br/>"
-                "<b>2. Privilege Escalation:</b> Switch to Station 2 (press <b>[2]</b>) and search Linux SUID, sudo -l, Cron jobs, or Windows token / service permissions.<br/>"
-                "<b>3. Capture Flags & Answers:</b> Immediately type <code>:uflag &lt;hash&gt;</code> or <code>:rflag &lt;hash&gt;</code> when found.<br/>"
-                "<b>4. Avoid Exam Amnesia:</b> Press <b>[4]</b> to open Station 4 Loot. Review your proof ledger to directly answer exam questions without re-exploiting!",
-                body_style,
+                "<font color='#0284C7'><b>PHASE 5: PRIVESC, PIVOTING & EVIDENCE CAPTURE (STATION 4)</b></font><br/>"
+                "<b>1. Pivoting & Route Addition:</b> Tag pivot hosts with <code>:pivot</code> to see dynamic proxy guidance in the console bar.<br/>"
+                "<b>2. Privilege Escalation:</b> Switch to Station 2 (press <b>[2]</b>) and search Linux SUID, sudo -l, Cron jobs, or Windows tokens / services.<br/>"
+                "<b>3. Capture Question Evidence & Flags:</b> Log question proofs with <code>:q &lt;num&gt; &lt;proof&gt;</code> (or press <b>[a]</b> in Station 4). Record flags with <code>:uflag</code> / <code>:rflag</code>.<br/>"
+                "<b>4. Export Exam Submission Bundle:</b> Run <code>:export exam</code> to write a clean Markdown report with all Q1–Q35 evidence, flags, and pivot paths!",
+                table_body_style,
             )
         ],
     ]
     t_phases = Table(phases_data, colWidths=[540])
     t_phases.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#0F172A")),
-        ("BACKGROUND", (0, 2), (0, 2), colors.HexColor("#0284C7")),
-        ("BACKGROUND", (0, 4), (0, 4), colors.HexColor("#0F172A")),
-        ("BACKGROUND", (0, 6), (0, 6), colors.HexColor("#059669")),
-        ("BACKGROUND", (0, 8), (0, 8), colors.HexColor("#7C3AED")),
-        ("BACKGROUND", (0, 1), (0, 1), colors.HexColor("#F8FAFC")),
-        ("BACKGROUND", (0, 3), (0, 3), colors.HexColor("#F8FAFC")),
-        ("BACKGROUND", (0, 5), (0, 5), colors.HexColor("#F8FAFC")),
-        ("BACKGROUND", (0, 7), (0, 7), colors.HexColor("#F8FAFC")),
-        ("BACKGROUND", (0, 9), (0, 9), colors.HexColor("#F8FAFC")),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
         ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-        ("PADDING", (0, 0), (-1, -1), 3),
+        ("PADDING", (0, 0), (-1, -1), 2.0),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.append(t_phases)
-    story.append(Spacer(1, 5))
+    story.append(Spacer(1, 2))
 
     # Anti-Rabbit-Hole Box
     rabbit_hole_box = [
@@ -636,8 +631,9 @@ def build_pdf(dest_path: Path) -> None:
             Paragraph("<b>EXAM START PROCEDURES:</b><br/>"
                       "1. Open terminal on your host or VM and start: <code>cyb0x-s</code><br/>"
                       "2. Pick your favorite visual theme: press <b>[T]</b>, select palette (e.g. <i>Sugary</i>, <i>Midnight</i>, <i>Slate</i>, or <i>Cyber</i>), press <b>[d]</b> to save as default.<br/>"
-                      "3. Import initial Nmap scan: type <code>cyb0x-s import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code>.<br/>"
-                      "4. <b>Database Location:</b> Stored in <code>~/.local/share/cyb0x-s/worksheets.db</code>. Completely local, persistent, and never transmits data outside.", callout_text)
+                      "3. Import initial Nmap scan: type <code>cyb0x-s import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code> (with optional subnet & pivot tags).<br/>"
+                      "4. <b>Offline Markdown Submission Bundle:</b> Run <code>:export exam</code> at any time to output a structured markdown report containing all Q1–Q35 evidence, flags, credentials, and pivot paths.<br/>"
+                      "5. <b>Database Safety:</b> Stored in <code>~/.local/share/cyb0x-s/worksheets.db</code>. 100% local, persistent, zero network calls, and fully compliant with INE exam rules.", callout_text)
         ]
     ]
     t_ready = Table(exam_ready_box, colWidths=[540])

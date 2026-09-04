@@ -7,6 +7,8 @@ zero-height failure log, the no-op zoom, unguarded deletes and j/k movement.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from textual.widgets import Input, ListView
 
@@ -718,4 +720,87 @@ async def test_rapid_scrolling_stability(seeded_store: NotebookStore) -> None:
         # Confirm app remains stable, focused, and cross-filter updated
         assert svc_list.index is not None
         assert not app._is_cross_filtering
+
+
+@pytest.mark.asyncio
+async def test_subnet_and_pivot_tree_rendering(seeded_store: NotebookStore) -> None:
+    """Test multi-subnet grouping and pivot badge display in TargetTreeWidget."""
+    from cyb0x_s.tui.widgets import TargetTreeWidget
+
+    # Add a second subnet target with pivot
+    t1 = seeded_store.get_active_target()
+    assert t1 is not None
+    seeded_store.update_target_details(t1.id, subnet="10.10.10.0/24", is_pivot=True, pivot_route="192.168.1.0/24 via :1080")
+
+    t2 = seeded_store.add_target("192.168.1.50", hostname="db-internal")
+    seeded_store.update_target_details(t2.id, subnet="192.168.1.0/24")
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)):
+        tree = app.query_one("#target-tree", TargetTreeWidget)
+        # Should now have 2 subnet branches
+        assert len(tree.root.children) == 2
+        subnet_nodes = [c.label.plain for c in tree.root.children]
+        assert any("10.10.10.0/24" in s for s in subnet_nodes)
+        assert any("192.168.1.0/24" in s for s in subnet_nodes)
+
+
+@pytest.mark.asyncio
+async def test_cred_matrix_persistence_in_tui(seeded_store: NotebookStore) -> None:
+    """Test that toggling status in CredentialMatrixWidget persists to SQLite."""
+    from cyb0x_s.tui.widgets import CredentialMatrixWidget
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.press("3")  # switch to Station 3 Credentials
+        await pilot.pause()
+
+        matrix = app.query_one("#cred-matrix-widget", CredentialMatrixWidget)
+        table = matrix.query_one("#cred-matrix-table")
+        table.focus()
+        table.move_cursor(row=0, column=1)
+        await pilot.pause()
+
+        # Press space to cycle
+        await pilot.press("space")
+        await pilot.pause()
+
+        # Confirm persisted in store
+        persisted = seeded_store.get_cred_validations()
+        assert len(persisted) > 0
+
+
+@pytest.mark.asyncio
+async def test_exam_proof_ledger_and_commands(seeded_store: NotebookStore, tmp_path: Path) -> None:
+    """Test recording exam proofs via :q command and markdown export."""
+    from cyb0x_s.tui.widgets import LootAndFlagsWidget
+
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        from textual.widgets import Input
+
+        cmd = app.query_one("#cmd-input", Input)
+        cmd.focus()
+        cmd.value = ":q Q14 secret_admin_hash_123"
+        await cmd.action_submit()
+        await pilot.pause()
+
+        # Switch to Station 4 (Loot & Flags)
+        app.action_switch_tab("tab-loot")
+        await pilot.pause()
+
+        loot = app.query_one("#loot-flags-widget", LootAndFlagsWidget)
+        proof_list = loot.query_one("#loot-evidence-list", ListView)
+        assert len(proof_list.children) >= 1
+        assert "Q14" in proof_list.children[0].display_text.plain
+
+        # Test export command
+        cmd.focus()
+        cmd.value = ":export exam"
+        await cmd.action_submit()
+        await pilot.pause()
+        from pathlib import Path
+        assert Path("exam_evidence.md").exists()
+        assert "secret_admin_hash_123" in Path("exam_evidence.md").read_text(encoding="utf-8")
+        Path("exam_evidence.md").unlink(missing_ok=True)
 

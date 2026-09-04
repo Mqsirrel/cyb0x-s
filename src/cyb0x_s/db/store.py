@@ -18,6 +18,7 @@ from cyb0x_s.models import (
     CommandRecord,
     Credential,
     Evidence,
+    ExamProof,
     FailureLog,
     Finding,
     Lead,
@@ -104,6 +105,9 @@ class NotebookStore:
             ("targets", "root_proof", "TEXT DEFAULT ''"),
             ("targets", "user_flag", "TEXT DEFAULT ''"),
             ("targets", "root_flag", "TEXT DEFAULT ''"),
+            ("targets", "subnet", "TEXT DEFAULT ''"),
+            ("targets", "is_pivot", "INTEGER DEFAULT 0"),
+            ("targets", "pivot_route", "TEXT DEFAULT ''"),
             ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
             ("services", "access_potential", "TEXT DEFAULT ''"),
             ("services", "next_action", "TEXT DEFAULT ''"),
@@ -879,6 +883,8 @@ class NotebookStore:
     def update_target_details(
         self,
         target_id: int,
+        hostname: Optional[str] = None,
+        os_name: Optional[str] = None,
         initial_access_vuln: Optional[str] = None,
         foothold_cmd: Optional[str] = None,
         foothold_context: Optional[str] = None,
@@ -887,11 +893,16 @@ class NotebookStore:
         user_flag: Optional[str] = None,
         root_flag: Optional[str] = None,
         is_in_scope: Optional[bool] = None,
+        subnet: Optional[str] = None,
+        is_pivot: Optional[bool] = None,
+        pivot_route: Optional[str] = None,
     ) -> Optional[Target]:
         target = self.get_target(target_id)
         if not target:
             return None
 
+        new_hostname = hostname if hostname is not None else target.hostname
+        new_os = os_name if os_name is not None else target.os
         new_vuln = initial_access_vuln if initial_access_vuln is not None else target.initial_access_vuln
         new_cmd = foothold_cmd if foothold_cmd is not None else target.foothold_cmd
         new_ctx = foothold_context if foothold_context is not None else target.foothold_context
@@ -900,18 +911,40 @@ class NotebookStore:
         new_uflag = user_flag if user_flag is not None else target.user_flag
         new_rflag = root_flag if root_flag is not None else target.root_flag
         new_scope = int(is_in_scope) if is_in_scope is not None else int(target.is_in_scope)
+        new_subnet = subnet if subnet is not None else target.subnet
+        new_pivot = int(is_pivot) if is_pivot is not None else int(target.is_pivot)
+        new_proute = pivot_route if pivot_route is not None else target.pivot_route
         now = _iso_now()
 
         with self.conn:
             self.conn.execute(
                 """UPDATE targets
-                   SET initial_access_vuln = ?, foothold_cmd = ?, foothold_context = ?,
+                   SET hostname = ?, os = ?, initial_access_vuln = ?, foothold_cmd = ?, foothold_context = ?,
                        privesc_vector = ?, root_proof = ?, user_flag = ?, root_flag = ?,
-                       is_in_scope = ?, updated_at = ?
+                       is_in_scope = ?, subnet = ?, is_pivot = ?, pivot_route = ?, updated_at = ?
                    WHERE id = ?""",
-                (new_vuln, new_cmd, new_ctx, new_priv, new_proof, new_uflag, new_rflag, new_scope, now, target_id),
+                (
+                    new_hostname,
+                    new_os,
+                    new_vuln,
+                    new_cmd,
+                    new_ctx,
+                    new_priv,
+                    new_proof,
+                    new_uflag,
+                    new_rflag,
+                    new_scope,
+                    new_subnet,
+                    new_pivot,
+                    new_proute,
+                    now,
+                    target_id,
+                ),
             )
         return self.get_target(target_id)
+
+    # Alias for backwards compatibility
+    update_target_methodology = update_target_details
 
     # -------------------------------------------------------------------------
     # Failure Log & Breakthrough Tracking (Notion Section 06)
@@ -949,4 +982,90 @@ class NotebookStore:
         with self.conn:
             res = self.conn.execute("DELETE FROM failure_log WHERE id = ?", (log_id,))
             return res.rowcount > 0
+
+    # -------------------------------------------------------------------------
+    # Credential Verification Matrix Persistence (Station 3)
+    # -------------------------------------------------------------------------
+
+    def get_cred_validations(self) -> Dict[tuple[int, int], str]:
+        """Fetch all credential cell verification states: (cred_id, svc_id) -> status."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT credential_id, service_id, status FROM cred_validations")
+        return {(r["credential_id"], r["service_id"]): r["status"] for r in cur.fetchall()}
+
+    def set_cred_validation(self, credential_id: int, service_id: int, status: str) -> None:
+        """Store or update verification status of a credential against a service."""
+        now = _iso_now()
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO cred_validations (credential_id, service_id, status, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(credential_id, service_id) DO UPDATE SET
+                   status = excluded.status, updated_at = excluded.updated_at""",
+                (credential_id, service_id, status, now),
+            )
+
+    # -------------------------------------------------------------------------
+    # Exam Question Proofs Ledger (Station 4)
+    # -------------------------------------------------------------------------
+
+    def add_exam_proof(
+        self,
+        question_num: str,
+        answer_proof: str,
+        category: str = "FLAG",
+        notes: str = "",
+        target_id: Optional[int] = None,
+    ) -> ExamProof:
+        now = _iso_now()
+        cur = self.conn.cursor()
+        with self.conn:
+            cur.execute(
+                """INSERT INTO exam_proofs (target_id, question_num, category, answer_proof, notes, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (target_id, question_num.strip().upper(), category.strip().upper(), answer_proof.strip(), notes.strip(), now, now),
+            )
+            proof_id = cur.lastrowid
+        cur.execute("SELECT * FROM exam_proofs WHERE id = ?", (proof_id,))
+        return ExamProof(**dict(cur.fetchone()))
+
+    def list_exam_proofs(self, target_id: Optional[int] = None) -> List[ExamProof]:
+        cur = self.conn.cursor()
+        if target_id is not None:
+            cur.execute("SELECT * FROM exam_proofs WHERE target_id = ? ORDER BY id ASC", (target_id,))
+        else:
+            cur.execute("SELECT * FROM exam_proofs ORDER BY id ASC")
+        return [ExamProof(**dict(r)) for r in cur.fetchall()]
+
+    def delete_exam_proof(self, proof_id: int) -> bool:
+        with self.conn:
+            res = self.conn.execute("DELETE FROM exam_proofs WHERE id = ?", (proof_id,))
+            return res.rowcount > 0
+
+    def export_exam_evidence_markdown(self) -> str:
+        """Export all recorded exam question proofs formatted for review before submission."""
+        proofs = self.list_exam_proofs()
+        lines = [
+            "# eJPT / eCPPT Exam Evidence & Answer Submission Ledger",
+            f"Generated: {_iso_now()} (CYB0X-S Offline Safe Notebook)",
+            "",
+            "| Question | Target | Category | Proof / Answer Value | Notes |",
+            "|---|---|---|---|---|",
+        ]
+        if not proofs:
+            lines.append("| - | - | - | *No question proofs recorded yet* | - |")
+        else:
+            def sort_key(p: ExamProof) -> tuple[int, str]:
+                q = p.question_num.lstrip("Qq")
+                return (int(q) if q.isdigit() else 9999, p.question_num)
+
+            for p in sorted(proofs, key=sort_key):
+                tgt = f"Host #{p.target_id}" if p.target_id else "Global"
+                if p.target_id:
+                    t = self.get_target(p.target_id)
+                    if t:
+                        tgt = t.ip
+                lines.append(f"| **{p.question_num}** | `{tgt}` | `{p.category}` | `{p.answer_proof}` | {p.notes or '-'} |")
+        lines.append("")
+        return "\n".join(lines)
 

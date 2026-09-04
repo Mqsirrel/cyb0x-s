@@ -1257,6 +1257,94 @@ class ReferenceModal(ModalScreen[Optional[str]]):
             self.dismiss(None)
 
 
+class AddExamProofModal(ModalScreen[Optional[dict]]):
+    """Dialog to record an exam question proof (Q1-Q35)."""
+
+    DEFAULT_CSS = """
+    AddExamProofModal {
+        align: center middle;
+    }
+    #add-proof-container {
+        width: 74;
+        height: auto;
+        border: round $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    .proof-hdr {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(self, target_ip: str = "", default_q: str = "Q1", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.target_ip = target_ip
+        self.default_q = default_q
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-proof-container"):
+            yield Label("📝 RECORD EXAM QUESTION PROOF / ANSWER", classes="proof-hdr")
+            with Horizontal(classes="modal-row"):
+                with Vertical(classes="modal-col"):
+                    yield Label("Question (e.g. Q1, Q14, Q35):", classes="field-label")
+                    yield Input(value=self.default_q, placeholder="e.g. Q1", id="proof-q")
+                with Vertical(classes="modal-col"):
+                    yield Label("Proof Category:", classes="field-label")
+                    yield Select(
+                        [
+                            ("Exam Flag (User / Root)", "FLAG"),
+                            ("Password Hash / Secret", "HASH"),
+                            ("Discovered Password / Cred", "CREDENTIAL"),
+                            ("Service / Software Version", "VERSION"),
+                            ("Hidden Path / Directory", "FILE"),
+                            ("Other Lab Evidence", "OTHER"),
+                        ],
+                        value="FLAG",
+                        id="proof-cat",
+                    )
+            with Vertical(classes="modal-row"):
+                yield Label("Proof / Extracted Value:", classes="field-label")
+                yield Input(placeholder="e.g. flag{...} or root hash or service version", id="proof-val")
+            with Vertical(classes="modal-row"):
+                yield Label("Context / Methodology Notes:", classes="field-label")
+                yield Input(placeholder="e.g. Discovered via anonymous FTP / shadow file", id="proof-notes")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Save Proof (Enter)", variant="primary", classes="primary-btn", id="btn-save")
+                yield Button("Cancel (Esc)", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#proof-val", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save":
+            self.submit_data()
+        elif event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.submit_data()
+
+    def submit_data(self) -> None:
+        q_val = self.query_one("#proof-q", Input).value.strip()
+        val_val = self.query_one("#proof-val", Input).value.strip()
+        if not q_val or not val_val:
+            return
+        cat_val = str(self.query_one("#proof-cat", Select).value or "FLAG")
+        notes_val = self.query_one("#proof-notes", Input).value.strip()
+        self.dismiss({
+            "question_num": q_val if q_val.upper().startswith("Q") or not q_val.isdigit() else f"Q{q_val}",
+            "category": cat_val,
+            "answer_proof": val_val,
+            "notes": notes_val,
+        })
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
+
 __all__ = [
     "ConfirmModal",
     "ThemeSwatch",
@@ -1267,6 +1355,7 @@ __all__ = [
     "AddServiceModal",
     "AddCredentialModal",
     "AddFindingModal",
+    "AddExamProofModal",
     "FastInputModal",
     "HelpModal",
     "TemplateSelectionModal",
