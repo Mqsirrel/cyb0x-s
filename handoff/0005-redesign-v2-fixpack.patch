@@ -1,0 +1,200 @@
+Redesign v2 — fixpack for the LOCAL tree (ahead of origin/main).
+Apply from the repo root against your LOCAL working copy:
+
+    git apply handoff/0005-redesign-v2-fixpack.patch
+    # whitespace drift fallback (reads were space-mangled in transit):
+    patch -p1 -l < handoff/0005-redesign-v2-fixpack.patch
+    # last resort:  git apply --reject ...  then inspect *.rej
+
+Then:  uv run pytest -n auto
+
+Contents
+  widgets.py
+    W1  add time/timedelta imports
+    W2  WorksheetHeader: empty counters no longer hide the active IP (break -> continue)
+    W3  MachineStatusStrip: T+ exam clock — persisted start via store settings
+        ("exam_started_at"), session fallback, 1s tick; offline + passive
+    W4  update_status(): accept checklist_total/checklist_done — app.py's
+        _update_checklist_progress already passes them; without this the call
+        raises TypeError and except:pass swallows it (progress silently stale).
+        Recompute happens BEFORE self.refresh() so the bar repaints immediately.
+    W5  render T+ next to the scope badge
+    W6  :theme hint listed retired palettes (moss/neon/mono/warm) -> cyber/sugary/candy/caramel
+  app.py
+    A1  import time
+    A2  import current_palette (needed by A3)
+    A3  scope toggle: hardcoded #8FA876/#E5846B -> palette tokens (P.ok / P.danger)
+    A4  first target added starts the persistent exam clock (store.set_setting)
+  theme.py
+    T1  module docstring listed retired palettes -> current seven
+    T2  APP_CSS: #status-strip never matched (widget mounts as #target-info)
+    T3  same fix in the compact/compact-height rules (strip now shrinks to 2 rows)
+
+Not included (need those files): commands.py audit (help/quit dispatch,
+autocomplete parity), modals.py (theme-picker 1-8 hint label).
+
+diff --git a/src/cyb0x_s/tui/widgets.py b/src/cyb0x_s/tui/widgets.py
+--- a/src/cyb0x_s/tui/widgets.py
++++ b/src/cyb0x_s/tui/widgets.py
+@@ -1,7 +1,9 @@
+ """Textual widgets and modal dialogs for CYB0X-S Worksheet."""
+ 
+ from __future__ import annotations
+ 
++import time
++from datetime import timedelta
+ from typing import Any, Dict, List, Optional, Set
+ 
+ from rich.text import Text
+@@ -160,7 +162,7 @@
+         width = max(self.size.width - 2, 1)
+         for meta in candidates:
+             if not meta:
+-                break
++                continue
+             padding = width - len(t.plain) - len(meta)
+             if padding > 1:
+                 t.append(" " * padding)
+@@ -195,6 +197,23 @@
+         self.progress: tuple[int, int, int] = (0, 0, 0)  # done, total, percent
+         self.blockers: int = 0
+ 
++        # Exam clock: a persisted start (store setting) wins; otherwise the
++        # session clock counts from app launch. Offline and passive either way.
++        self.session_start = time.monotonic()
++        self.exam_start: Optional[float] = None
++
++    def on_mount(self) -> None:
++        """Restore a persisted exam start time; tick the clock every second."""
++        try:
++            store = getattr(self.app, "store", None)
++            if store is not None and hasattr(store, "get_setting"):
++                raw = store.get_setting("exam_started_at")
++                if raw:
++                    self.exam_start = float(raw)
++        except Exception:
++            self.exam_start = None
++        self.set_interval(1, self.refresh)
++
+     def update_status(
+         self,
+         target: Optional[Target] = None,
+@@ -203,7 +222,9 @@
+         next_step: Optional[str] = None,
+         progress: Optional[tuple[int, int, int]] = None,
+         blockers: Optional[int] = None,
+-    ) -> None:
++        checklist_total: Optional[int] = None,
++        checklist_done: Optional[int] = None,
++    ) -> None:
+         if target is not None:
+             self.target = target
+         if counts is not None:
+@@ -216,6 +237,9 @@
+             self.progress = progress
+         if blockers is not None:
+             self.blockers = blockers
++        if checklist_total is not None and checklist_done is not None:
++            pct = int(checklist_done / checklist_total * 100) if checklist_total else 0
++            self.progress = (checklist_done, checklist_total, pct)
+         self.refresh()
+ 
+     @staticmethod
+@@ -244,6 +268,12 @@
+             scope_badge = "IN-SCOPE" if scope_ok else "OUT-OF-SCOPE"
+             row1.append(f" [{scope_badge}] ", style=f"bold {P.ok if scope_ok else P.danger}")
+ 
++            if self.exam_start is not None:
++                elapsed_s = int(time.time() - self.exam_start)
++            else:
++                elapsed_s = int(time.monotonic() - self.session_start)
++            row1.append(f" T+{timedelta(seconds=elapsed_s)} ", style=f"bold {P.muted}")
++
+             for label, value in (("🏁", self.target.user_flag), ("👑", self.target.root_flag)):
+                 row1.append(f" {label} ", style="")
+                 if value:
+@@ -430,9 +460,9 @@
+         elif v.startswith(":th") or v.startswith("theme"):
+             cmd_line.append("[THEME / PALETTE] ", style=f"bold {P.warn}")
+-            cmd_line.append(":theme <1-7 or slate|midnight|ember|moss|neon|mono|warm>", style=f"bold {P.text}")
+-            tip_line.append("e.g. :theme warm, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
++            cmd_line.append(":theme <1-7 or slate|midnight|ember|cyber|sugary|candy|caramel>", style=f"bold {P.text}")
++            tip_line.append("e.g. :theme cyber, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
+         elif v.startswith(":u") or v.startswith(":flag user"):
+             cmd_line.append("[USER FLAG] ", style=f"bold {P.warn}")
+ 
+diff --git a/src/cyb0x_s/tui/app.py b/src/cyb0x_s/tui/app.py
+--- a/src/cyb0x_s/tui/app.py
++++ b/src/cyb0x_s/tui/app.py
+@@ -6,6 +6,7 @@
+ from __future__ import annotations
+ 
++import time
+ from typing import Any, Dict, List, Optional, Set
+ 
+ from rich.text import Text
+@@ -46,6 +47,7 @@
+     PALETTES,
+     S,
++    current_palette,
+     get_default_theme,
+     resolve_palette_name,
+     save_default_theme,
+@@ -560,7 +562,8 @@
+             self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
+             self.refresh_targets()
+-            tag = "[bold #8FA876]IN-SCOPE[/]" if new_scope else "[bold #E5846B]OUT-OF-SCOPE[/bold #E5846B]"
++            P = current_palette()
++            tag = f"[bold {P.ok}]IN-SCOPE[/]" if new_scope else f"[bold {P.danger}]OUT-OF-SCOPE[/]"
+             self.notify(f"Target {active.ip} marked {tag}")
+ 
+     def action_activate_selected(self) -> None:
+@@ -700,6 +703,13 @@
+                 self.refresh_targets()
+                 self.refresh_all()
+                 self.notify(f"Target {data['ip']} added ({len(ports)} ports)")
++
++                # First target starts the persistent exam clock (survives restarts).
++                try:
++                    if hasattr(self.store, "get_setting") and not self.store.get_setting("exam_started_at"):
++                        self.store.set_setting("exam_started_at", str(time.time()))
++                except Exception:
++                    pass
+ 
+         self.push_screen(AddTargetModal(), callback=on_result)
+ 
+diff --git a/src/cyb0x_s/tui/theme.py b/src/cyb0x_s/tui/theme.py
+--- a/src/cyb0x_s/tui/theme.py
++++ b/src/cyb0x_s/tui/theme.py
+@@ -8,10 +8,10 @@
+ * ``midnight`` — indigo / periwinkle, calm and low-flare for long labs.
+ * ``ember`` — amber CRT, warm monochrome-adjacent reading glow.
+-* ``moss`` — forest / lime, low-eye-strain green.
+-* ``neon`` — magenta / electric, high-energy accent.
+-* ``mono`` — luminance only, colour-blind safe (no hue at all).
+-* ``warm`` — the original charcoal / terracotta / kraft identity.
++* ``cyber`` — tokyo / electric cyan, high-energy accent.
++* ``sugary`` — vanilla cream / navy ink (light).
++* ``candy`` — cotton lilac / glaze (light).
++* ``caramel`` — toffee / maple sugar (light).
+ 
+ The stylesheet below deliberately contains **no literal colours**: every rule
+ references a Textual design token (``$surface``, ``$accent``, ``$text-muted`` …)
+@@ -320,7 +320,7 @@
+-#status-strip {
++#target-info {
+ height: 3;
+ background: $surface;
+ border-bottom: solid $border;
+@@ -560,8 +560,8 @@
+ Screen.compact #guidance-box,
+ Screen.compact-height #guidance-box {
+ height: 3;
+ 
+-Screen.compact #status-strip,
+-Screen.compact-height #status-strip {
++Screen.compact #target-info,
++Screen.compact-height #target-info {
+ height: 2;
+ 
+ """
