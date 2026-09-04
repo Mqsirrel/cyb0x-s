@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from datetime import timedelta
 from typing import Any, Dict, List, Optional, Set
 
 from rich.text import Text
@@ -201,7 +203,7 @@ class WorksheetHeader(Static):
         width = max(self.size.width - 2, 1)
         for meta in candidates:
             if not meta:
-                break
+                continue
             padding = width - len(t.plain) - len(meta)
             if padding > 1:
                 t.append(" " * padding)
@@ -236,6 +238,23 @@ class MachineStatusStrip(Static):
         self.progress: tuple[int, int, int] = (0, 0, 0)  # done, total, percent
         self.blockers: int = 0
 
+        # Exam clock: a persisted start (store setting) wins; otherwise the
+        # session clock counts from app launch. Offline and passive either way.
+        self.session_start = time.monotonic()
+        self.exam_start: Optional[float] = None
+
+    def on_mount(self) -> None:
+        """Restore a persisted exam start time; tick the clock every second."""
+        try:
+            store = getattr(self.app, "store", None)
+            if store is not None and hasattr(store, "get_setting"):
+                raw = store.get_setting("exam_started_at")
+                if raw:
+                    self.exam_start = float(raw)
+        except Exception:
+            self.exam_start = None
+        self.set_interval(1, self.refresh)
+
     def update_status(
         self,
         target: Optional[Target] = None,
@@ -243,6 +262,8 @@ class MachineStatusStrip(Static):
         next_step: Optional[str] = None,
         progress: Optional[tuple[int, int, int]] = None,
         blockers: Optional[int] = None,
+        checklist_total: Optional[int] = None,
+        checklist_done: Optional[int] = None,
     ) -> None:
         if target is not None:
             self.target = target
@@ -254,6 +275,9 @@ class MachineStatusStrip(Static):
             self.progress = progress
         if blockers is not None:
             self.blockers = blockers
+        if checklist_total is not None and checklist_done is not None:
+            pct = int(checklist_done / checklist_total * 100) if checklist_total else 0
+            self.progress = (checklist_done, checklist_total, pct)
         self.refresh()
 
     @staticmethod
@@ -301,6 +325,12 @@ class MachineStatusStrip(Static):
             scope_ok = self.target.is_in_scope
             scope_badge = "IN-SCOPE" if scope_ok else "OUT-OF-SCOPE"
             row1.append(f" [{scope_badge}] ", style=f"bold {P.ok if scope_ok else P.danger}")
+
+            if self.exam_start is not None:
+                elapsed_s = int(time.time() - self.exam_start)
+            else:
+                elapsed_s = int(time.monotonic() - self.session_start)
+            row1.append(f" T+{timedelta(seconds=elapsed_s)} ", style=f"bold {P.muted}")
 
             for label, value in (("🏁", self.target.user_flag), ("👑", self.target.root_flag)):
                 row1.append(f" {label} ", style="")
@@ -435,6 +465,13 @@ class ConsoleBar(Container):
         ":stuck": ":stuck ",
         ":cl": ":clue ",
         ":clue": ":clue ",
+        ":ev": ":ev ",
+        ":m": ":m ",
+        ":meth": ":m ",
+        ":pivot": ":pivot ",
+        ":proof": ":q ",
+        ":subnet": ":subnet ",
+        ":export": ":export exam",
         ":w": ":w ",
         ":wordlist": ":w ",
         ":q": ":q",
@@ -517,8 +554,8 @@ class ConsoleBar(Container):
             tip_line.append("e.g. :f Anonymous SMB Share Access (press Enter to save)", style=f"{P.muted}")
         elif v.startswith(":th") or v.startswith("theme"):
             cmd_line.append("[THEME / PALETTE] ", style=f"bold {P.warn}")
-            cmd_line.append(":theme <1-7 or slate|midnight|ember|moss|neon|mono|warm>", style=f"bold {P.text}")
-            tip_line.append("e.g. :theme warm, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
+            cmd_line.append(":theme <1-7 or slate|midnight|ember|cyber|sugary|candy|caramel>", style=f"bold {P.text}")
+            tip_line.append("e.g. :theme cyber, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
         elif v.startswith(":u") or v.startswith(":flag user"):
             cmd_line.append("[USER FLAG] ", style=f"bold {P.warn}")
             cmd_line.append(":uflag <hash_string>", style=f"bold {P.text}")
