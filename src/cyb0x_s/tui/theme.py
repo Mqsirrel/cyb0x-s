@@ -189,14 +189,14 @@ SUGARY = Palette(
     surface="#F0EAE1",
     raised="#E7DFD2",
     border="#CCD5E0",
-    border_strong="#A8B6C7",
+    border_strong="#7AA7E0",
     text="#18263E",
     text_soft="#3D506E",
     muted="#52688A",
-    accent="#D9534F",
+    accent="#1D63B8",
     ok="#1B8755",
     warn="#D97706",
-    danger="#C53030",
+    danger="#6D28D9",
     dark=False,
 )
 
