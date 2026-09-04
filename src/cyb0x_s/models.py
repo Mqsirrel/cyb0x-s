@@ -104,6 +104,9 @@ class Target(BaseModel):
     root_proof: str = ""
     user_flag: str = ""
     root_flag: str = ""
+    subnet: str = ""
+    is_pivot: bool = False
+    pivot_route: str = ""
     is_in_scope: bool = True
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
@@ -217,3 +220,19 @@ class CommandRecord(BaseModel):
     command: str
     notes: str = ""
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class ExamProof(BaseModel):
+    """Generic exam question proof recorded by operator (e.g. Q1-Q35).
+
+    100% compliant with certification policies: stores user-entered findings,
+    hashes, flags, or versions with zero bundled proprietary content.
+    """
+    id: Optional[int] = None
+    target_id: Optional[int] = None
+    question_num: str  # e.g. 'Q1', 'Q14', 'Q35'
+    category: str = "FLAG"  # FLAG, HASH, CREDENTIAL, VERSION, SECRET, DIRECTORY, OTHER
+    answer_proof: str  # The actual extracted proof string / hash
+    notes: str = ""
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)

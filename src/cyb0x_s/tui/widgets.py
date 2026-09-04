@@ -74,20 +74,41 @@ class TargetTreeWidget(Tree):
             svc_map.setdefault(s.target_id, []).append(s)
 
         P = current_palette()
-        for target in targets:
+
+        def _get_subnet(t: Target) -> str:
+            if t.subnet:
+                return t.subnet
+            octets = t.ip.split(".")
+            if len(octets) == 4 and all(o.isdigit() for o in octets):
+                return f"{octets[0]}.{octets[1]}.{octets[2]}.0/24"
+            return "General / External"
+
+        subnets_set = {_get_subnet(t) for t in targets}
+        use_subnet_groups = len(subnets_set) > 1 or any(t.is_pivot or t.subnet for t in targets)
+
+        def _add_target_to_node(parent_node: Any, target: Target) -> None:
             target_svcs = svc_map.get(target.id or 0, [])
             icon = "✔" if target.root_flag else ("★" if target.initial_access_vuln or target.user_flag else "○")
             safe_ip = target.ip
-            # Sidebar is narrow: keep hostnames short so IPs never scroll away.
             host = target.hostname or ""
             if len(host) > 10:
                 host = host[:9] + "…"
             safe_host = f" ({host})" if host else ""
-            label = f"{icon} [bold]{safe_ip}[/bold]{safe_host} [{P.muted}]({len(target_svcs)})[/]"
+            pivot_badge = f" [bold {P.warn}]⇄ [PIVOT][/]" if target.is_pivot else ""
+            label = f"{icon} [bold]{safe_ip}[/bold]{safe_host}{pivot_badge} [{P.muted}]({len(target_svcs)})[/]"
             if not target.is_in_scope:
                 label = f"[{P.muted} strike]{label} ⃠[/]"
 
-            target_node = root.add(label, data={"type": "target", "id": target.id, "target": target})
+            target_node = parent_node.add(
+                label,
+                data={
+                    "type": "target",
+                    "id": target.id,
+                    "target": target,
+                    "is_pivot": target.is_pivot,
+                    "pivot_route": target.pivot_route,
+                },
+            )
 
             for svc in target_svcs:
                 svc_icon = "✓" if svc.status.value == "CHECKED" else ("✗" if svc.status.value == "DEAD-END" else "→")
@@ -107,6 +128,26 @@ class TargetTreeWidget(Tree):
                 )
 
             target_node.expand()
+
+        if use_subnet_groups:
+            subnet_map: dict[str, list[Target]] = {}
+            for t in targets:
+                subnet_map.setdefault(_get_subnet(t), []).append(t)
+
+            for snet, t_list in subnet_map.items():
+                has_pivot = any(t.is_pivot for t in t_list)
+                pivot_lbl = f" [bold {P.warn}]⇄ [PIVOT SEGMENT][/]" if has_pivot else ""
+                snet_label = f"[bold {P.accent}]▼ {snet}[/]{pivot_lbl} [{P.muted}]({len(t_list)} hosts)[/]"
+                snet_node = root.add(
+                    snet_label,
+                    data={"type": "subnet", "subnet": snet, "has_pivot": has_pivot},
+                )
+                for t in t_list:
+                    _add_target_to_node(snet_node, t)
+                snet_node.expand()
+        else:
+            for target in targets:
+                _add_target_to_node(root, target)
 
 
 class WorksheetHeader(Static):
@@ -914,8 +955,6 @@ class LootAndFlagsWidget(Static):
         padding: 0 1;
     }
     #loot-cards-container {
-        /* Explicit height: with `auto` the cards stretched over the whole
-           tab and pushed the failure log off-screen. */
         height: 9;
         layout: horizontal;
         margin-bottom: 1;
@@ -928,15 +967,26 @@ class LootAndFlagsWidget(Static):
         padding: 0 1;
         margin-right: 1;
     }
-    #loot-failure-box {
+    #loot-lower-container {
+        height: 1fr;
+        layout: horizontal;
+    }
+    .loot-lower-box {
+        width: 1fr;
         height: 1fr;
         border: round $border;
         background: $surface;
         padding: 0 1;
+        margin-right: 1;
     }
     .loot-title {
         text-style: bold;
         color: $accent;
+        margin-bottom: 0;
+    }
+    .loot-sub {
+        height: 1;
+        color: $text-muted;
         margin-bottom: 1;
     }
     """
@@ -956,12 +1006,24 @@ class LootAndFlagsWidget(Static):
             with Vertical(classes="loot-box"):
                 yield Label("👑 PRIVILEGE ESCALATION & ROOT PROOF", classes="loot-title")
                 yield Static(id="loot-privesc-content")
-        with Vertical(id="loot-failure-box"):
-            yield Label("🧠 RABBIT HOLE & BREAKTHROUGH ANALYSIS (FAILURE LOG)", classes="loot-title")
-            yield ListView(id="loot-failure-list")
+        with Horizontal(id="loot-lower-container"):
+            with Vertical(id="loot-evidence-box", classes="loot-lower-box"):
+                yield Label("📝 EXAM QUESTION PROOFS (Q1–Q35)", classes="loot-title")
+                yield Label("Press 'a' or :q <num> <proof> • Enter=Copy • e=Export", classes="loot-sub")
+                yield ListView(id="loot-evidence-list")
+            with Vertical(id="loot-failure-box", classes="loot-lower-box"):
+                yield Label("🧠 RABBIT HOLES & BREAKTHROUGHS", classes="loot-title")
+                yield Label("Type :stuck <where> / :clue <breakthrough>", classes="loot-sub")
+                yield ListView(id="loot-failure-list")
 
-    def update_data(self, target: Optional[Target], failures: List[Any]) -> None:
+    def update_data(
+        self,
+        target: Optional[Target],
+        failures: List[Any],
+        proofs: Optional[List[Any]] = None,
+    ) -> None:
         self.target = target
+        P = current_palette()
 
         # Flags Card
         f_txt = Text()
@@ -997,6 +1059,31 @@ class LootAndFlagsWidget(Static):
             pe_txt.append("No PrivEsc recorded yet.\nType :privesc <vector> to record.", style="dim italic")
         self.query_one("#loot-privesc-content", Static).update(pe_txt)
 
+        # Question Proofs List
+        p_list = self.query_one("#loot-evidence-list", ListView)
+        p_list.clear()
+        if proofs is None and hasattr(self.app, "store"):
+            try:
+                proofs = self.app.store.list_exam_proofs()
+            except Exception:
+                proofs = []
+        if proofs:
+            def sort_key(p: Any) -> tuple[int, str]:
+                q = getattr(p, "question_num", "").lstrip("Qq")
+                return (int(q) if q.isdigit() else 9999, getattr(p, "question_num", ""))
+
+            for p in sorted(proofs, key=sort_key):
+                txt = Text()
+                txt.append(f"[{p.question_num}] ", style=f"bold {P.accent}")
+                txt.append(f"[{p.category}] ", style=f"bold {P.warn}")
+                txt.append(f"{p.answer_proof}\n", style=f"bold {P.ok}")
+                if p.notes:
+                    txt.append(f"   ℹ {p.notes}", style="dim italic")
+                p_list.append(DataListItem(data_obj=p.answer_proof, display_text=txt))
+        else:
+            txt = Text("  • No question proofs recorded yet. Press 'a' or :q <num> <proof>", style="dim italic")
+            p_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
         # Failure Log List
         f_list = self.query_one("#loot-failure-list", ListView)
         f_list.clear()
@@ -1013,6 +1100,51 @@ class LootAndFlagsWidget(Static):
         else:
             txt = Text("  • No rabbit holes or failure logs recorded. Type :stuck <where> / :clue <breakthrough>", style="dim italic")
             f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "loot-evidence-list" and isinstance(event.item, DataListItem):
+            if event.item.data_obj and not event.item.is_placeholder:
+                copy_to_clipboard(str(event.item.data_obj))
+                if hasattr(self.app, "notify"):
+                    self.app.notify(f"Copied proof: {event.item.data_obj}")
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "a":
+            self.action_add_proof()
+            event.stop()
+        elif event.key == "e":
+            self.action_export_proofs()
+            event.stop()
+
+    def action_add_proof(self) -> None:
+        from cyb0x_s.tui.modals import AddExamProofModal
+
+        def on_proof_submitted(data: Optional[dict]) -> None:
+            if data and hasattr(self.app, "store"):
+                tgt_id = self.target.id if self.target else None
+                self.app.store.add_exam_proof(
+                    question_num=data["question_num"],
+                    answer_proof=data["answer_proof"],
+                    category=data["category"],
+                    notes=data["notes"],
+                    target_id=tgt_id,
+                )
+                if hasattr(self.app, "refresh_loot_widget"):
+                    self.app.refresh_loot_widget()
+                if hasattr(self.app, "notify"):
+                    self.app.notify(f"Recorded {data['question_num']} proof!")
+
+        tip = self.target.ip if self.target else ""
+        self.app.push_screen(AddExamProofModal(target_ip=tip), callback=on_proof_submitted)
+
+    def action_export_proofs(self) -> None:
+        if hasattr(self.app, "store"):
+            from pathlib import Path
+            md = self.app.store.export_exam_evidence_markdown()
+            out_file = Path("exam_evidence.md")
+            out_file.write_text(md, encoding="utf-8")
+            if hasattr(self.app, "notify"):
+                self.app.notify(f"Exported exam evidence to {out_file.resolve()}")
 
 
 AUTH_SERVICE_NAMES = {
@@ -1105,6 +1237,11 @@ class CredentialMatrixWidget(Static):
     ) -> None:
         self.credentials = credentials
         self.revealed_ids = revealed_ids
+        if hasattr(self.app, "store"):
+            try:
+                self.cell_states.update(self.app.store.get_cred_validations())
+            except Exception:
+                pass
         table = self.query_one("#cred-matrix-table", DataTable)
         table.clear(columns=True)
 
@@ -1212,6 +1349,11 @@ class CredentialMatrixWidget(Static):
         new_state = self.CELL_CYCLE[next_idx]
         self.cell_states[(c.id, s.id)] = new_state
         table.update_cell_at(coord, self._format_state(new_state))
+        if hasattr(self.app, "store") and c.id is not None and s.id is not None:
+            try:
+                self.app.store.set_cred_validation(c.id, s.id, new_state)
+            except Exception:
+                pass
         if hasattr(self.app, "notify"):
             self.app.notify(f"{c.username} on {t.ip}:{s.port} -> {new_state}")
 

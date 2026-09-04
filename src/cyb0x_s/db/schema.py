@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS targets (
     root_proof TEXT DEFAULT '',
     user_flag TEXT DEFAULT '',
     root_flag TEXT DEFAULT '',
+    subnet TEXT DEFAULT '',
+    is_pivot INTEGER DEFAULT 0,
+    pivot_route TEXT DEFAULT '',
     is_in_scope INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -146,6 +149,29 @@ CREATE TABLE IF NOT EXISTS command_history (
     FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS cred_validations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    credential_id INTEGER NOT NULL,
+    service_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT '○ UNTESTED',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(credential_id) REFERENCES credentials(id) ON DELETE CASCADE,
+    FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE,
+    UNIQUE(credential_id, service_id)
+);
+
+CREATE TABLE IF NOT EXISTS exam_proofs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_id INTEGER,
+    question_num TEXT NOT NULL,
+    category TEXT DEFAULT 'FLAG',
+    answer_proof TEXT NOT NULL,
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE
+);
+
 -- Indices for rapid search and retrieval
 CREATE INDEX IF NOT EXISTS idx_targets_ws ON targets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_services_target ON services(target_id);
@@ -153,4 +179,7 @@ CREATE INDEX IF NOT EXISTS idx_findings_target ON findings(target_id);
 CREATE INDEX IF NOT EXISTS idx_creds_target ON credentials(target_id);
 CREATE INDEX IF NOT EXISTS idx_checklist_target ON checklist(target_id);
 CREATE INDEX IF NOT EXISTS idx_notes_target ON notes(target_id);
+CREATE INDEX IF NOT EXISTS idx_cred_validations ON cred_validations(credential_id, service_id);
+CREATE INDEX IF NOT EXISTS idx_exam_proofs_q ON exam_proofs(question_num);
+CREATE INDEX IF NOT EXISTS idx_exam_proofs_target ON exam_proofs(target_id);
 """

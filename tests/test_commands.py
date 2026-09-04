@@ -65,3 +65,11 @@ def test_wordlist_aliases_dictionary() -> None:
     assert "raft-d" in WORDLIST_ALIASES
     assert "users" in WORDLIST_ALIASES
     assert WORDLIST_ALIASES["rockyou"].endswith("rockyou.txt")
+
+
+def test_pivot_subnet_proof_aliases() -> None:
+    assert normalize_command("pivot on") == ":pivot on"
+    assert normalize_command("pivot 192.168.1.0/24 via :1080") == ":pivot 192.168.1.0/24 via :1080"
+    assert normalize_command("subnet 10.10.10.0/24") == ":subnet 10.10.10.0/24"
+    assert normalize_command("proof Q1 flag{123}") == ":q Q1 flag{123}"
+    assert normalize_command("question 14 secret") == ":q 14 secret"

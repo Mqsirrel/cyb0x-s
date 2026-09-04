@@ -57,6 +57,15 @@ def normalize_command(raw: str) -> str:
         return f":theme {raw_val}"
     elif val in ("theme", "palette"):
         return ":theme"
+    elif val.startswith("pivot "):
+        return f":pivot {val[6:].strip()}"
+    elif val in ("pivot", ":pivot"):
+        return ":pivot"
+    elif val.startswith("subnet "):
+        return f":subnet {val[7:].strip()}"
+    elif val.startswith("proof ") or val.startswith("question "):
+        raw_val = val.replace("proof ", "", 1).replace("question ", "", 1).strip()
+        return f":q {raw_val}"
     return val
 
 
@@ -125,6 +134,50 @@ def execute_command(app: Any, raw: str) -> None:
         if active:
             app.store.update_target_details(active.id, privesc_vector=pe)
             app.notify(f"PrivEsc saved: {pe}")
+    elif val.startswith(":pivot"):
+        args = val[6:].strip()
+        if not active:
+            app.notify("No active target selected", severity="error")
+        elif args.lower() in ("off", "none", "false", "0"):
+            app.store.update_target_details(active.id, is_pivot=False, pivot_route="")
+            app.refresh_targets()
+            app.notify(f"Pivot disabled on {active.ip}")
+        else:
+            route = args if args and args.lower() not in ("on", "true", "1") else "192.168.1.0/24 via socks5:1080"
+            app.store.update_target_details(active.id, is_pivot=True, pivot_route=route)
+            app.refresh_targets()
+            app.notify(f"Pivot set on {active.ip} ({route})")
+    elif val.startswith(":subnet "):
+        snet = val[8:].strip()
+        if not active:
+            app.notify("No active target selected", severity="error")
+        else:
+            app.store.update_target_details(active.id, subnet=snet)
+            app.refresh_targets()
+            app.notify(f"Subnet set on {active.ip}: {snet}")
+    elif val.startswith(":q ") or val.startswith(":proof "):
+        parts = val.split(maxsplit=2)
+        if len(parts) >= 3:
+            q_num = parts[1].strip().upper()
+            if not q_num.startswith("Q") and q_num.isdigit():
+                q_num = f"Q{q_num}"
+            proof_val = parts[2].strip()
+            app.store.add_exam_proof(
+                question_num=q_num,
+                answer_proof=proof_val,
+                category="FLAG" if "flag" in proof_val.lower() else ("HASH" if len(proof_val) in (32, 65) else "ANSWER"),
+                target_id=active.id if active else None,
+            )
+            app.refresh_all()
+            app.notify(f"Recorded {q_num} proof: {proof_val[:24]}...")
+        else:
+            app.notify("Usage: :q <num> <proof_value>", severity="error")
+    elif val in (":export exam", ":export evidence"):
+        from pathlib import Path
+        md = app.store.export_exam_evidence_markdown()
+        out_file = Path("exam_evidence.md")
+        out_file.write_text(md, encoding="utf-8")
+        app.notify(f"Exported exam evidence to {out_file.resolve()}")
     elif val.startswith(":stuck ") or val.startswith(":dead "):
         stuck_txt = val.split(maxsplit=1)[1].strip()
         app.store.add_failure_log(target_id=target_id, where_stuck=stuck_txt)
