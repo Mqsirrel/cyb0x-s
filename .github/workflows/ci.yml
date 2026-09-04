@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras
+
+      - name: Fast tier (pull requests)
+        if: github.event_name == 'pull_request'
+        run: uv run pytest -m fast -n auto
+
+      - name: Full suite (main)
+        if: github.event_name == 'push'
+        run: uv run pytest -n auto
