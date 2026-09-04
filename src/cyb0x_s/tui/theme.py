@@ -444,7 +444,7 @@ TabbedContent {
     background: $background;
 }
 
-#status-strip {
+#target-info {
     height: 3;
     background: $surface;
     border-bottom: solid $border;
@@ -974,8 +974,8 @@ Screen.compact-height #guidance-box {
     height: 3;
 }
 
-Screen.compact #status-strip,
-Screen.compact-height #status-strip {
+Screen.compact #target-info,
+Screen.compact-height #target-info {
     height: 2;
 }
 """

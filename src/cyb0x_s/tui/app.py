@@ -6,6 +6,7 @@ Strictly passive: stores human-discovered data, provides instant offline command
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional, Set
 
 from rich.text import Text
@@ -51,6 +52,7 @@ from cyb0x_s.tui.theme import (
     APP_CSS,
     PALETTES,
     S,
+    current_palette,
     get_default_theme,
     resolve_palette_name,
     save_default_theme,
@@ -885,7 +887,8 @@ class CyboxSafeApp(App):
             active.is_in_scope = new_scope
             self.query_one("#target-info", MachineStatusStrip).update_status(target=active)
             self.refresh_targets()
-            tag = "[bold #8FA876]IN-SCOPE[/]" if new_scope else "[bold #E5846B]OUT-OF-SCOPE[/bold #E5846B]"
+            P = current_palette()
+            tag = f"[bold {P.ok}]IN-SCOPE[/]" if new_scope else f"[bold {P.danger}]OUT-OF-SCOPE[/]"
             self.notify(f"Target {active.ip} marked {tag}")
 
     def action_activate_selected(self) -> None:
@@ -1249,6 +1252,13 @@ class CyboxSafeApp(App):
                 self.refresh_targets()
                 self.refresh_all()
                 self.notify(f"Target {data['ip']} added ({len(ports)} ports)")
+
+                # First target starts the persistent exam clock (survives restarts).
+                try:
+                    if hasattr(self.store, "get_setting") and not self.store.get_setting("exam_started_at"):
+                        self.store.set_setting("exam_started_at", str(time.time()))
+                except Exception:
+                    pass
 
         self.push_screen(AddTargetModal(), callback=on_result)
 

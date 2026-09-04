@@ -70,6 +70,11 @@ class NotebookStore:
             check_same_thread=False,
         )
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA busy_timeout = 3000;")
+        try:
+            self.conn.execute("PRAGMA journal_mode = WAL;")
+        except Exception:
+            pass  # :memory: and some filesystems cannot do WAL
         self.init_schema()
 
     def init_schema(self) -> None:
@@ -234,6 +239,7 @@ class NotebookStore:
         os_name: str = "Unknown",
         notes: str = "",
         workspace_id: Optional[int] = None,
+        set_active: bool = True,
     ) -> Target:
         ws_id = workspace_id or self.get_active_workspace().id
         ip_clean = ip.strip()
@@ -269,7 +275,8 @@ class NotebookStore:
             target = self.get_target(target_id)
 
         if target:
-            self.set_active_target(target.id)
+            if set_active:
+                self.set_active_target(target.id)
         return target  # type: ignore
 
     def get_target(self, target_id: int) -> Optional[Target]:
@@ -365,6 +372,7 @@ class NotebookStore:
                     hostname=pt.get("hostname", ""),
                     os_name=pt.get("os", "Unknown"),
                     workspace_id=ws_id,
+                    set_active=False,
                 )
                 targets_added += 1
             else:
