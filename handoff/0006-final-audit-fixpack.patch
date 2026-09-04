@@ -1,0 +1,96 @@
+Final audit fixpack — apply AFTER 0005, against the LOCAL tree.
+
+    git apply handoff/0006-final-audit-fixpack.patch
+    # fallback: patch -p1 -l < handoff/0006-final-audit-fixpack.patch
+
+Then:  uv run pytest -n auto
+
+Contents (from reading commands.py, modals.py, store.py)
+  widgets.py
+    P1  autocomplete parity — commands.py supports :ev, :m, :pivot, :subnet,
+        :proof, :export but ConsoleBar.AUTOCOMPLETE_PREFIXES never completed
+        them; Tab now offers all of them
+  store.py
+    S1  add_target() gains set_active=True param
+    S2  the unconditional set_active_target() call respects it
+    S3  ingest_scan_results() passes set_active=False — importing a 20-host
+        scan no longer yanks the active target to the 20th host mid-exam
+    S4  PRAGMA busy_timeout=3000 + journal_mode=WAL on connect — needed once
+        parsers move to Textual worker threads (the class docstring already
+        promises thread-safety; this makes the claim survivable)
+
+Verified clean, no patch needed:
+  commands.py  — help/quit dispatch now uses hasattr guards (old crash gone);
+                 wordlist aliases complete; :q dual-meaning (quit vs proof)
+                 works but deserves a HelpModal mention
+  modals.py    — theme picker already says 1-7 and keys 1-7; BaseFormModal
+                 extraction is clean
+
+Known follow-ups (not patched blind):
+  * modals.py HelpModal text is stale — missing :, [, ], w, b, , . keys and
+    the :pivot / :subnet / :q / :w / :export commands. Rewrite it from
+    BINDINGS + commands.py (single source of truth) rather than by hand.
+  * commands.py proof-category heuristic: len in (32, 65) — a SHA-256 hex
+    digest is 64 chars, so 65 looks like an off-by-one; verify intent.
+  * store.py "Thread-safe" docstring: true only while SQLite is compiled
+    serialized (usual on Linux); S4's pragmas cover the practical window.
+
+diff --git a/src/cyb0x_s/tui/widgets.py b/src/cyb0x_s/tui/widgets.py
+--- a/src/cyb0x_s/tui/widgets.py
++++ b/src/cyb0x_s/tui/widgets.py
+@@ -395,6 +395,13 @@
+         ":stuck": ":stuck ",
+         ":cl": ":clue ",
+         ":clue": ":clue ",
++        ":ev": ":ev ",
++        ":m": ":m ",
++        ":meth": ":m ",
++        ":pivot": ":pivot ",
++        ":proof": ":q ",
++        ":subnet": ":subnet ",
++        ":export": ":export exam",
+         ":w": ":w ",
+         ":wordlist": ":w ",
+         ":q": ":q",
+
+diff --git a/src/cyb0x_s/db/store.py b/src/cyb0x_s/db/store.py
+--- a/src/cyb0x_s/db/store.py
++++ b/src/cyb0x_s/db/store.py
+@@ -60,6 +60,11 @@
+             check_same_thread=False,
+         )
+         self.conn.row_factory = sqlite3.Row
++        self.conn.execute("PRAGMA busy_timeout = 3000;")
++        try:
++            self.conn.execute("PRAGMA journal_mode = WAL;")
++        except Exception:
++            pass  # :memory: and some filesystems cannot do WAL
+         self.init_schema()
+ 
+     def init_schema(self) -> None:
+@@ -155,6 +160,7 @@
+         os_name: str = "Unknown",
+         notes: str = "",
+         workspace_id: Optional[int] = None,
++        set_active: bool = True,
+     ) -> Target:
+         ws_id = workspace_id or self.get_active_workspace().id
+         ip_clean = ip.strip()
+@@ -190,7 +196,8 @@
+             target = self.get_target(target_id)
+ 
+         if target:
+-            self.set_active_target(target.id)
++            if set_active:
++                self.set_active_target(target.id)
+         return target  # type: ignore
+ 
+     def get_target(self, target_id: int) -> Optional[Target]:
+@@ -280,6 +287,7 @@
+                 hostname=pt.get("hostname", ""),
+                 os_name=pt.get("os", "Unknown"),
+                 workspace_id=ws_id,
++                set_active=False,
+             )
+             targets_added += 1
+         else:
