@@ -585,8 +585,12 @@ Underline > .underline--bar {
     height: 5;
     border: solid $border;
     border-top: solid $accent;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $accent;
+    border-subtitle-align: right;
     background: $surface;
-    padding: 0 1;
+    padding: 0;
     margin: 0 1;
 }
 
@@ -600,21 +604,25 @@ Underline > .underline--bar {
 
 #console-cmd {
     height: 1;
+    padding: 0 1;
     color: $foreground;
 }
 
 #console-tip {
     height: 1;
+    padding: 0 1;
     color: $text-muted;
 }
 
 #console-input-row {
     height: 1;
+    padding: 0 1;
+    background: $surface-darken-1;
     layout: horizontal;
 }
 
 #console-prompt {
-    width: 2;
+    width: auto;
     color: $accent;
     text-style: bold;
 }
@@ -625,10 +633,17 @@ Underline > .underline--bar {
     border: none;
     background: transparent;
     color: $foreground;
+    padding: 0;
 }
 
 #cmd-input:focus {
     border: none;
+}
+
+#console-hotkeys {
+    width: auto;
+    color: $text-muted;
+    text-align: right;
 }
 
 Input {
@@ -673,25 +688,7 @@ ListView > ListItem.-selected {
 }
 
 Footer {
-    background: $background;
-    color: $text-muted;
-    height: 1;
-}
-
-Footer > .footer--key {
-    background: $surface;
-    color: $accent;
-    text-style: bold;
-    padding: 0 1;
-}
-
-Footer > .footer--description {
-    color: $text-soft;
-    margin-right: 1;
-}
-
-Footer > .footer--highlight {
-    background: $accent 30%;
+    display: none;
 }
 
 /* --- stations 2-4 ------------------------------------------------------- */
