@@ -160,6 +160,17 @@ def export_markdown(
                     lines.append(f"- **📌 Permanent Rule for Next Time:** {fl.rule_for_next_time}")
             lines.append("")
 
+        # Golden Reproduction Walkthrough
+        golden_cmds = store.list_commands(target_id=target.id, golden_only=True)
+        if golden_cmds:
+            lines.append("## 🏆 Golden Reproduction Walkthrough")
+            for idx, gc in enumerate(golden_cmds, start=1):
+                step_tag = f"**[{gc.step.upper()}]** " if gc.step else ""
+                lines.append(f"{idx}. {step_tag}`{gc.command}`")
+                if gc.notes:
+                    lines.append(f"   - *Note: {gc.notes}*")
+            lines.append("")
+
         # Evidence
         evidence = store.list_evidence(target_id=target.id)
         if evidence:
@@ -209,6 +220,26 @@ def export_markdown(
             for n in global_notes:
                 lines.append(f"- {n.content}")
             lines.append("")
+
+    # Exam Question Proofs Ledger (Station 4)
+    all_proofs = store.list_exam_proofs()
+    if all_proofs:
+        lines.append("# Exam Evidence & Answer Submission Ledger (Q1–Q35)")
+        lines.append("| Question | Target | Category | Proof / Answer Value | Notes |")
+        lines.append("|---|---|---|---|---|")
+
+        def sort_key(p: Any) -> tuple[int, str]:
+            q = p.question_num.lstrip("Qq")
+            return (int(q) if q.isdigit() else 9999, p.question_num)
+
+        for p in sorted(all_proofs, key=sort_key):
+            tgt = f"Host #{p.target_id}" if p.target_id else "Global"
+            if p.target_id:
+                t = store.get_target(p.target_id)
+                if t:
+                    tgt = t.ip
+            lines.append(f"| **{p.question_num}** | `{tgt}` | `{p.category}` | `{p.answer_proof}` | {p.notes or '-'} |")
+        lines.append("")
 
     return "\n".join(lines).strip() + "\n"
 
@@ -273,6 +304,12 @@ def export_json(store: NotebookStore, workspace_id: Optional[int] = None) -> str
     if not ws:
         return json.dumps({"error": "Workspace not found"})
 
+    validations = store.get_cred_validations()
+    cred_val_list = [
+        {"credential_id": cid, "service_id": sid, "status": stat}
+        for (cid, sid), stat in validations.items()
+    ]
+
     data: Dict[str, Any] = {
         "version": "1.0",
         "format": "cyb0x-s-backup",
@@ -283,6 +320,10 @@ def export_json(store: NotebookStore, workspace_id: Optional[int] = None) -> str
         "credentials": [c.model_dump(mode="json") for c in store.list_credentials() if c.target_id is None],
         "leads": [ld.model_dump(mode="json") for ld in store.list_leads()],
         "notes": [n.model_dump(mode="json") for n in store.list_notes() if n.target_id is None],
+        "failure_logs": [fl.model_dump(mode="json") for fl in store.list_failure_logs() if fl.target_id is None],
+        "exam_proofs": [ep.model_dump(mode="json") for ep in store.list_exam_proofs() if ep.target_id is None],
+        "commands": [cmd.model_dump(mode="json") for cmd in store.list_commands(limit=500) if cmd.target_id is None],
+        "cred_validations": cred_val_list,
     }
 
     targets = store.list_targets(workspace_id=ws.id)
@@ -294,6 +335,9 @@ def export_json(store: NotebookStore, workspace_id: Optional[int] = None) -> str
         t_data["checklist"] = [ci.model_dump(mode="json") for ci in store.list_checklist_items(target_id=t.id)]
         t_data["evidence"] = [ev.model_dump(mode="json") for ev in store.list_evidence(target_id=t.id)]
         t_data["field_notes"] = [n.model_dump(mode="json") for n in store.list_notes(target_id=t.id)]
+        t_data["commands"] = [cmd.model_dump(mode="json") for cmd in store.list_commands(target_id=t.id, limit=500)]
+        t_data["failure_logs"] = [fl.model_dump(mode="json") for fl in store.list_failure_logs(target_id=t.id)]
+        t_data["exam_proofs"] = [ep.model_dump(mode="json") for ep in store.list_exam_proofs(target_id=t.id)]
         data["targets"].append(t_data)
 
     return json.dumps(data, indent=2, default=str)
@@ -331,6 +375,24 @@ def import_json(
             workspace_id=ws.id,
         )
 
+        # Restore methodology, flags, scope, and network details
+        store.update_target_details(
+            target_id=target.id,
+            hostname=t_item.get("hostname", ""),
+            os_name=t_item.get("os", "Unknown"),
+            initial_access_vuln=t_item.get("initial_access_vuln", ""),
+            foothold_cmd=t_item.get("foothold_cmd", ""),
+            foothold_context=t_item.get("foothold_context", ""),
+            privesc_vector=t_item.get("privesc_vector", ""),
+            root_proof=t_item.get("root_proof", ""),
+            user_flag=t_item.get("user_flag", ""),
+            root_flag=t_item.get("root_flag", ""),
+            subnet=t_item.get("subnet", ""),
+            is_pivot=bool(t_item.get("is_pivot", False)),
+            pivot_route=t_item.get("pivot_route", ""),
+            is_in_scope=bool(t_item.get("is_in_scope", True)),
+        )
+
         for s in t_item.get("services", []):
             store.add_service(
                 target_id=target.id,
@@ -338,6 +400,8 @@ def import_json(
                 protocol=s.get("protocol", "tcp"),
                 service=s.get("service", "unknown"),
                 version=s.get("version", ""),
+                access_potential=s.get("access_potential", ""),
+                next_action=s.get("next_action", ""),
                 status=s.get("status", "CHECKED"),
                 notes=s.get("notes", ""),
             )
@@ -389,6 +453,32 @@ def import_json(
                 target_id=target.id,
             )
 
+        for cmd in t_item.get("commands", []):
+            store.add_command(
+                command=cmd["command"],
+                target_id=target.id,
+                notes=cmd.get("notes", ""),
+                is_golden=bool(cmd.get("is_golden", False)),
+                step=cmd.get("step", ""),
+            )
+
+        for fl in t_item.get("failure_logs", []):
+            store.add_failure_log(
+                target_id=target.id,
+                where_stuck=fl.get("where_stuck", ""),
+                breakthrough_clue=fl.get("breakthrough_clue", ""),
+                rule_for_next_time=fl.get("rule_for_next_time", ""),
+            )
+
+        for ep in t_item.get("exam_proofs", []):
+            store.add_exam_proof(
+                question_num=ep["question_num"],
+                answer_proof=ep["answer_proof"],
+                category=ep.get("category", "FLAG"),
+                notes=ep.get("notes", ""),
+                target_id=target.id,
+            )
+
     # Global items
     for f in payload.get("findings", []):
         store.add_finding(
@@ -423,5 +513,41 @@ def import_json(
             content=n["content"],
             target_id=None,
         )
+
+    for fl in payload.get("failure_logs", []):
+        store.add_failure_log(
+            target_id=None,
+            where_stuck=fl.get("where_stuck", ""),
+            breakthrough_clue=fl.get("breakthrough_clue", ""),
+            rule_for_next_time=fl.get("rule_for_next_time", ""),
+        )
+
+    for ep in payload.get("exam_proofs", []):
+        store.add_exam_proof(
+            question_num=ep["question_num"],
+            answer_proof=ep["answer_proof"],
+            category=ep.get("category", "FLAG"),
+            notes=ep.get("notes", ""),
+            target_id=None,
+        )
+
+    for cmd in payload.get("commands", []):
+        store.add_command(
+            command=cmd["command"],
+            target_id=None,
+            notes=cmd.get("notes", ""),
+            is_golden=bool(cmd.get("is_golden", False)),
+            step=cmd.get("step", ""),
+        )
+
+    for cv in payload.get("cred_validations", []):
+        try:
+            store.set_cred_validation(
+                credential_id=cv["credential_id"],
+                service_id=cv["service_id"],
+                status=cv["status"],
+            )
+        except Exception:
+            pass
 
     return ws

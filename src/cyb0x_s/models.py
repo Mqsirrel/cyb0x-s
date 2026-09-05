@@ -219,6 +219,8 @@ class CommandRecord(BaseModel):
     target_id: Optional[int] = None
     command: str
     notes: str = ""
+    is_golden: bool = False
+    step: str = ""  # e.g. enum, foothold, privesc, pivot, loot
     created_at: datetime = Field(default_factory=_utcnow)
 
 

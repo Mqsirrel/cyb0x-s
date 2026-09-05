@@ -145,6 +145,8 @@ CREATE TABLE IF NOT EXISTS command_history (
     target_id INTEGER,
     command TEXT NOT NULL,
     notes TEXT DEFAULT '',
+    is_golden INTEGER DEFAULT 0,
+    step TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE
 );

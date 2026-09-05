@@ -116,6 +116,8 @@ class NotebookStore:
             ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
             ("services", "access_potential", "TEXT DEFAULT ''"),
             ("services", "next_action", "TEXT DEFAULT ''"),
+            ("command_history", "is_golden", "INTEGER DEFAULT 0"),
+            ("command_history", "step", "TEXT DEFAULT ''"),
         ]
         for tbl, col, ctype in migration_cols:
             try:
@@ -856,14 +858,16 @@ class NotebookStore:
         command: str,
         target_id: Optional[int] = None,
         notes: str = "",
+        is_golden: bool = False,
+        step: str = "",
     ) -> CommandRecord:
         now = _iso_now()
         cur = self.conn.cursor()
         with self.conn:
             cur.execute(
-                """INSERT INTO command_history (target_id, command, notes, created_at)
-                   VALUES (?, ?, ?, ?)""",
-                (target_id, command.strip(), notes.strip(), now),
+                """INSERT INTO command_history (target_id, command, notes, is_golden, step, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (target_id, command.strip(), notes.strip(), int(is_golden), step.strip(), now),
             )
             cmd_id = cur.lastrowid
         cur.execute("SELECT * FROM command_history WHERE id = ?", (cmd_id,))
@@ -871,16 +875,27 @@ class NotebookStore:
         return CommandRecord(**dict(row))
 
     def list_commands(
-        self, target_id: Optional[int] = None, limit: int = 50
+        self,
+        target_id: Optional[int] = None,
+        limit: int = 50,
+        golden_only: bool = False,
     ) -> List[CommandRecord]:
         cur = self.conn.cursor()
+        where_clauses = []
+        params: List[Any] = []
         if target_id is not None:
-            cur.execute(
-                "SELECT * FROM command_history WHERE target_id = ? ORDER BY id DESC LIMIT ?",
-                (target_id, limit),
-            )
-        else:
-            cur.execute("SELECT * FROM command_history ORDER BY id DESC LIMIT ?", (limit,))
+            where_clauses.append("target_id = ?")
+            params.append(target_id)
+        if golden_only:
+            where_clauses.append("is_golden = 1")
+
+        query = "SELECT * FROM command_history"
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+
+        cur.execute(query, tuple(params))
         rows = cur.fetchall()
         return [CommandRecord(**dict(r)) for r in reversed(rows)]
 
@@ -953,6 +968,96 @@ class NotebookStore:
 
     # Alias for backwards compatibility
     update_target_methodology = update_target_details
+
+    def audit_target(self, target_id: int) -> Dict[str, Any]:
+        """Perform pre-reset integrity audit to ensure proof artifacts are recorded before VM reverts."""
+        target = self.get_target(target_id)
+        if not target:
+            return {"error": f"Target with ID {target_id} not found", "ready_to_revert": False, "checks": []}
+
+        services = self.list_services(target_id=target.id)
+        evidence = self.list_evidence(target_id=target.id)
+        creds = self.list_credentials(target_id=target.id)
+        golden_cmds = self.list_commands(target_id=target.id, golden_only=True)
+
+        checks = [
+            {
+                "name": "Scope Confirmation",
+                "key": "scope",
+                "passed": bool(target.is_in_scope),
+                "critical": True,
+                "detail": "Target is marked IN-SCOPE" if target.is_in_scope else "TARGET IS OUT-OF-SCOPE",
+            },
+            {
+                "name": "Service Enumeration",
+                "key": "services",
+                "passed": len(services) > 0,
+                "critical": False,
+                "detail": f"{len(services)} service(s) recorded" if services else "No services recorded",
+            },
+            {
+                "name": "Initial Foothold / Exploit",
+                "key": "foothold",
+                "passed": bool(target.foothold_cmd or target.initial_access_vuln),
+                "critical": True,
+                "detail": target.foothold_cmd or target.initial_access_vuln or "MISSING (foothold command or CVE)",
+            },
+            {
+                "name": "User Flag",
+                "key": "user_flag",
+                "passed": bool(target.user_flag),
+                "critical": True,
+                "detail": target.user_flag or "MISSING (user flag not recorded)",
+            },
+            {
+                "name": "PrivEsc & Root Proof",
+                "key": "privesc",
+                "passed": bool(target.privesc_vector or target.root_proof),
+                "critical": True,
+                "detail": target.root_proof or target.privesc_vector or "MISSING (root proof or privesc vector)",
+            },
+            {
+                "name": "Root Flag",
+                "key": "root_flag",
+                "passed": bool(target.root_flag),
+                "critical": True,
+                "detail": target.root_flag or "MISSING (root flag not recorded)",
+            },
+            {
+                "name": "Evidence / Screenshots",
+                "key": "evidence",
+                "passed": len(evidence) > 0,
+                "critical": True,
+                "detail": f"{len(evidence)} evidence item(s) attached" if evidence else "MISSING (no screenshots or loot attached)",
+            },
+        ]
+
+        critical_failed = [c for c in checks if c["critical"] and not c["passed"]]
+        ready_to_revert = len(critical_failed) == 0
+        total_passed = sum(1 for c in checks if c["passed"])
+
+        verdict = (
+            "SAFE TO REVERT: All required proof artifacts are recorded."
+            if ready_to_revert
+            else f"DO NOT REVERT: Missing {len(critical_failed)} critical proof artifact(s)!"
+        )
+
+        return {
+            "target_id": target.id,
+            "ip": target.ip,
+            "hostname": target.hostname,
+            "os": target.os,
+            "ready_to_revert": ready_to_revert,
+            "verdict": verdict,
+            "checks": checks,
+            "score": f"{total_passed}/{len(checks)}",
+            "stats": {
+                "services_count": len(services),
+                "creds_count": len(creds),
+                "evidence_count": len(evidence),
+                "golden_cmds_count": len(golden_cmds),
+            },
+        }
 
     # -------------------------------------------------------------------------
     # Failure Log & Breakthrough Tracking (Notion Section 06)
