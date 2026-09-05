@@ -713,17 +713,31 @@ Footer {
     width: 25%;
     height: 1fr;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
     background: $surface;
-    padding: 0 1;
+    padding: 0;
     margin-right: 1;
+}
+
+#playbook-cat-panel:focus-within {
+    border: solid $accent;
 }
 
 #playbook-cmd-panel {
     width: 75%;
     height: 1fr;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $accent;
+    border-subtitle-align: right;
     background: $surface;
-    padding: 0 1;
+    padding: 0;
+}
+
+#playbook-cmd-panel:focus-within {
+    border: solid $accent;
 }
 
 #cred-matrix-sub {
