@@ -1,6 +1,6 @@
 """Command Line Interface for CYB0X-S (Safe Field Notebook).
 
-Provides ultra-fast capture commands to record operator discoveries in seconds.
+Provides ultra-fast capture commands to record findings and discoveries in seconds.
 Strictly passive: stores verbatim inputs without classification, parsing, or autonomous actions.
 """
 
@@ -291,7 +291,7 @@ def cred_cmd(
     notes: str,
     copy: bool,
 ) -> None:
-    """Record a credential discovered by the operator (e.g. admin:password)."""
+    """Record a discovered credential (e.g. admin:password)."""
     store = _get_store(ctx)
     t_obj = store.resolve_target(target) if target else store.get_active_target()
     target_id = t_obj.id if t_obj else None
@@ -870,7 +870,7 @@ def cmd_cli(
     list_mode: bool,
     golden_only: bool,
 ) -> None:
-    """Record or review commands in the operator audit trail and Golden Replication Chain."""
+    """Record or review commands in the command audit trail and Golden Replication Chain."""
     store = _get_store(ctx)
     t_obj = store.resolve_target(target) if target else store.get_active_target()
     t_id = t_obj.id if t_obj else None

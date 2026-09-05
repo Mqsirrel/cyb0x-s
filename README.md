@@ -27,12 +27,12 @@ CYB0X-S is **NOT** an AI pentesting assistant, solver, attack planner, or automa
 To maintain total transparency and avoid overclaiming:
 * **Default Mode: Strict Passive Recording**: Out of the box, CYB0X-S is a pure manual notebook. It stores only what you type, tracks your manual checklist progress, and searches your local records.
 * **Offline Cognitive Playbooks**: Provides pre-compiled, static command syntax reference sheets (like a built-in `man` page or cheatsheet notebook) so you never need to leave the terminal to look up common utility flags.
-* **Optional Static Guidance (`derive_guidance`)**: CYB0X-S includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`CYB0X_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the operator, it acts as a deterministic local dictionary lookup—never an AI, never a live scanner, and never an autonomous decision-maker.
+* **Optional Static Guidance (`derive_guidance`)**: CYB0X-S includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`CYB0X_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the user, it acts as a deterministic local dictionary lookup—never an AI, never a live scanner, and never an autonomous decision-maker.
 
 ### What It Does
-* **Organizes by Target**: Records target IPs, hostnames, OS info, and operator observations.
+* **Organizes by Target**: Records target IPs, hostnames, OS info, and user observations.
 * **Records Services**: Stores ports, protocols, service banners, and software versions manually observed.
-* **Records Findings**: Stores security findings discovered by the operator, with optional human-assigned severities.
+* **Records Findings**: Stores security findings discovered during assessment, with optional human-assigned severities.
 * **Manages Credentials Safely**: Simple local vault with masked password display (`********`), explicit toggle reveal, and direct clipboard copying.
 * **Tracks Methodology Checklist**: Manually toggled status (`TODO`, `CHECKED`, `DEFERRED`, `DEAD-END`) with static open-source methodology templates.
 * **Captures Evidence**: Logs references and paths to screenshots, flag hashes, and command outputs without automatic collection.
@@ -45,7 +45,7 @@ To maintain total transparency and avoid overclaiming:
 * **NO AI or LLM Calls**: No OpenAI, Anthropic, Ollama, or AI SDK dependencies whatsoever.
 * **NO Autonomous Exploitation**: Never executes exploits, attacks, or payloads against target networks.
 * **NO Automatic Network Scanning**: Does not execute nmap, masscan, gobuster, or any background network probes.
-* **NO Real-Time Collaboration**: Strictly a single-operator local SQLite notebook; no multi-user sharing or external sync.
+* **NO Real-Time Collaboration**: Strictly a single-user local SQLite notebook; no multi-user sharing or external sync.
 * **NO Automatic Vulnerability Classification**: Does not parse live banners to infer CVEs or probe targets.
 * **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `CYB0X_DERIVE_GUIDANCE=1` or press **`G`** in the TUI.
 

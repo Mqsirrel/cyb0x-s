@@ -92,7 +92,7 @@ class CyboxSafeApp(App):
     SUB_TITLE = "Field Notes • Methodology Roadmap • Playbook Reference"
 
     # The footer is a quick reminder, not documentation: only the handful of
-    # keys a new operator needs are shown. Everything lives in `?`.
+    # keys a new user needs are shown. Everything lives in `?`.
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("question_mark", "show_help", "Help"),
@@ -460,7 +460,7 @@ class CyboxSafeApp(App):
         if svc.next_action:
             guidance_box.show_command(
                 svc.next_action,
-                f"Operator note/command recorded for port {svc.port}/{svc.protocol} ({svc.service}).",
+                f"Recorded note/command for port {svc.port}/{svc.protocol} ({svc.service}).",
                 target_ip=target_ip,
                 heading="NOTE",
             )
@@ -946,7 +946,7 @@ class CyboxSafeApp(App):
                         self.notify(f"Copied Command: {obj.next_action}")
                         return
                     # Only auto-suggest a command for a recorded service when the
-                    # operator has opted in; otherwise CYB0X-S stays passive.
+                    # user has opted in; otherwise CYB0X-S stays passive.
                     if derive_guidance_enabled():
                         svc_guidance = get_guidance_for_service(obj.service, obj.port)
                         if svc_guidance and svc_guidance.get("command"):
@@ -1437,7 +1437,7 @@ class CyboxSafeApp(App):
     # -------------------------------------------------------------------------
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Update live command syntax preview as the operator types."""
+        """Update live command syntax preview as the user types."""
         if event.input.id == "cmd-input":
             try:
                 console = self.query_one("#guidance-box", ConsoleBar)

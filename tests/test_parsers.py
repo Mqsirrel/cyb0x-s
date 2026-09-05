@@ -10,7 +10,7 @@ from cyb0x_s.settings import set_derive_guidance
 
 
 def test_derive_potential_and_next_gated_off_by_default() -> None:
-    """Nothing is derived unless the operator opts in (default: exam-safe)."""
+    """Nothing is derived unless the user opts in (default: exam-safe)."""
     assert derive_potential_and_next("smb", 445, "10.10.10.20") == ("", "")
     assert derive_potential_and_next("http", 80, "10.10.10.20") == ("", "")
 

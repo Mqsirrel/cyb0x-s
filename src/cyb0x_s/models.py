@@ -1,6 +1,6 @@
 """Data models for CYB0X-S (Safe Field Notebook).
 
-Strictly passive data structures representing operator-supplied observations.
+Strictly passive data structures representing user-supplied observations.
 No AI, no automatic classification, no dynamic attack generation.
 """
 
@@ -64,7 +64,7 @@ class ServiceStatus(str, Enum):
 
 
 class SeverityLevel(str, Enum):
-    """Optional manual severity assigned solely by the operator."""
+    """Optional manual severity assigned solely by the user."""
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -140,7 +140,7 @@ class FailureLog(BaseModel):
 
 
 class Finding(BaseModel):
-    """Security finding manually discovered by the operator."""
+    """Security finding manually discovered by the analyst."""
     id: Optional[int] = None
     target_id: Optional[int] = None
     title: str
@@ -171,7 +171,7 @@ class Credential(BaseModel):
 
 
 class Lead(BaseModel):
-    """Potential angle or lead noted by the operator."""
+    """Potential angle or lead noted during assessment."""
     id: Optional[int] = None
     target_id: Optional[int] = None
     title: str
@@ -182,7 +182,7 @@ class Lead(BaseModel):
 
 
 class Evidence(BaseModel):
-    """Reference to evidence, screenshot, or output recorded by operator."""
+    """Reference to evidence, screenshot, or output recorded during assessment."""
     id: Optional[int] = None
     target_id: Optional[int] = None
     evidence_type: str = "screenshot"  # screenshot, file, command_output, flag, other
@@ -214,7 +214,7 @@ class ChecklistItem(BaseModel):
 
 
 class CommandRecord(BaseModel):
-    """Command executed by the human operator recorded for audit trail."""
+    """Command executed and recorded for audit trail."""
     id: Optional[int] = None
     target_id: Optional[int] = None
     command: str
@@ -225,7 +225,7 @@ class CommandRecord(BaseModel):
 
 
 class ExamProof(BaseModel):
-    """Generic assessment question proof recorded by operator.
+    """Generic assessment question proof recorded during assessment.
 
     100% compliant with certification policies: stores user-entered findings,
     hashes, flags, or versions with zero bundled proprietary content.
