@@ -464,8 +464,12 @@ class ConsoleBar(Container):
         height: 5;
         border: solid $border;
         border-top: solid $accent;
+        border-title-color: $text-soft;
+        border-title-style: bold;
+        border-subtitle-color: $accent;
+        border-subtitle-align: right;
         background: $surface;
-        padding: 0 1;
+        padding: 0;
         margin: 0 1;
     }
     ConsoleBar:focus-within {
@@ -473,18 +477,22 @@ class ConsoleBar(Container):
     }
     #console-cmd {
         height: 1;
+        padding: 0 1;
         color: $foreground;
     }
     #console-tip {
         height: 1;
+        padding: 0 1;
         color: $text-muted;
     }
     #console-input-row {
         height: 1;
+        padding: 0 1;
+        background: $surface-darken-1;
         layout: horizontal;
     }
     #console-prompt {
-        width: 2;
+        width: auto;
         color: $accent;
         text-style: bold;
     }
@@ -494,6 +502,15 @@ class ConsoleBar(Container):
         border: none;
         background: transparent;
         color: $foreground;
+        padding: 0;
+    }
+    #cmd-input:focus {
+        border: none;
+    }
+    #console-hotkeys {
+        width: auto;
+        color: $text-muted;
+        text-align: right;
     }
     """
 
@@ -546,6 +563,19 @@ class ConsoleBar(Container):
         self.recipe_target_ip: str = ""
         self.active_station: str = "tab-worksheet"
 
+    def _build_hotkey_text(self) -> Text:
+        P = current_palette()
+        t = Text()
+        t.append(" [w]", style=f"bold {P.warn}")
+        t.append(" panels ", style=f"{P.muted}")
+        t.append(" [1-4]", style=f"bold {P.warn}")
+        t.append(" stations ", style=f"{P.muted}")
+        t.append(" [?]", style=f"bold {P.warn}")
+        t.append(" help ", style=f"{P.muted}")
+        t.append(" [q]", style=f"bold {P.warn}")
+        t.append(" quit", style=f"{P.muted}")
+        return t
+
     def set_active_station(self, station_id: str) -> None:
         """Inform console of the currently active station so idle tips stay contextual."""
         self.active_station = station_id
@@ -556,9 +586,11 @@ class ConsoleBar(Container):
         try:
             self._cmd_static = self.query_one("#console-cmd", Static)
             self._tip_static = self.query_one("#console-tip", Static)
+            self._hotkeys_lbl = self.query_one("#console-hotkeys", Label)
         except Exception:
             self._cmd_static = None
             self._tip_static = None
+            self._hotkeys_lbl = None
         # Paint the idle hint straight away so the console is never blank.
         self.call_after_refresh(self._paint)
 
@@ -566,11 +598,12 @@ class ConsoleBar(Container):
         yield Static(id="console-cmd")
         yield Static(id="console-tip")
         with Horizontal(id="console-input-row"):
-            yield Label("❯", id="console-prompt")
+            yield Label(" [ : ] ❯ ", id="console-prompt")
             yield Input(
-                placeholder="Type command (:t target, :s svc, :c cred, :m tmpl, :w wordlist, :theme) or note... (: for menu)",
+                placeholder="Type command (:t, :s, :c, :m, :w) or note... (: for menu, Tab to complete)",
                 id="cmd-input",
             )
+            yield Label(self._build_hotkey_text(), id="console-hotkeys")
 
     def update_input_hint(self, val: str) -> None:
         """Dynamically display live syntax guidance as the user types."""
@@ -579,94 +612,117 @@ class ConsoleBar(Container):
             self._paint()
             return
 
+        self.border_title = " COMMAND RUNNER "
+        self.border_subtitle = " [Enter: Run] · [Esc: Cancel] "
+
         P = current_palette()
         inner = max(self.size.width - 4, 16)
         cmd_line = Text()
         tip_line = Text()
 
-        cmd_line.append("❯ ", style=f"bold {P.accent}")
+        cmd_line.append("RUN ▸ ", style=f"bold {P.accent}")
 
         if v == ":":
             cmd_line.append("[COMMAND MENU] ", style=f"bold {P.warn}")
             cmd_line.append(":t target  :s svc  :c cred  :m tmpl  :w wordlist  :n note  :f finding  :theme  :1-:4  ? help", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Press Tab to autocomplete or type a command name", style=f"{P.muted}")
         elif v.startswith(":w") or v.startswith("wordlist "):
             cmd_line.append("[WORDLIST ALIAS] ", style=f"bold {P.warn}")
             cmd_line.append(":w <rockyou|common|medium|raft-d|users>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Copies standard SecLists/Kali wordlist path to clipboard", style=f"{P.muted}")
         elif v.startswith(":m") or v.startswith(":template") or v.startswith(":methodology"):
             cmd_line.append("[METHODOLOGY CHECKLIST] ", style=f"bold {P.warn}")
             cmd_line.append(":m <name> [append]", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :m web, :m smb, :m pivoting, :m ejpt (press 'm' for modal picker)", style=f"{P.muted}")
         elif v.startswith(":t") or v.startswith("target ") or v.startswith("add target"):
             cmd_line.append("[ADD TARGET] ", style=f"bold {P.warn}")
             cmd_line.append(":t <ip> [hostname] [os]", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :t 10.10.11.10 dc01.corp.local Linux", style=f"{P.muted}")
         elif v.startswith(":s") or v.startswith("service ") or v.startswith("add service"):
             cmd_line.append("[ADD SERVICE] ", style=f"bold {P.warn}")
             cmd_line.append(":s <port/proto> <service_name>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :s 80/tcp http   or   :s 445 smb   or   :s 22/tcp ssh", style=f"{P.muted}")
         elif v.startswith(":c") or v.startswith("cred ") or v.startswith("add cred"):
             cmd_line.append("[ADD CREDENTIAL] ", style=f"bold {P.warn}")
             cmd_line.append(":c <username:password> [scope]", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :c admin:Secret123! SMB   or   :c root:toor SSH", style=f"{P.muted}")
         elif v.startswith(":n") or v.startswith("note ") or v.startswith("add note"):
             cmd_line.append("[FIELD NOTE] ", style=f"bold {P.warn}")
             cmd_line.append(":n <your note observation>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Saves instant note under NOTES & FINDINGS (press Enter to save)", style=f"{P.muted}")
         elif v.startswith(":f") or v.startswith("finding ") or v.startswith("add finding"):
             cmd_line.append("[FINDING / VULN] ", style=f"bold {P.warn}")
             cmd_line.append(":f <vulnerability title>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :f Anonymous SMB Share Access (press Enter to save)", style=f"{P.muted}")
         elif v.startswith(":th") or v.startswith("theme"):
             cmd_line.append("[THEME / PALETTE] ", style=f"bold {P.warn}")
             cmd_line.append(":theme <1-7 or slate|midnight|ember|cyber|sugary|candy|caramel>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :theme cyber, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
         elif v.startswith(":u") or v.startswith(":flag user"):
             cmd_line.append("[USER FLAG] ", style=f"bold {P.warn}")
             cmd_line.append(":uflag <hash_string>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Records captured user.txt flag hash for active target", style=f"{P.muted}")
         elif v.startswith(":r") or v.startswith(":flag root"):
             cmd_line.append("[ROOT FLAG] ", style=f"bold {P.warn}")
             cmd_line.append(":rflag <hash_string>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Records captured root.txt / proof.txt flag hash", style=f"{P.muted}")
         elif v.startswith(":ref") or v.startswith(":cheat"):
             cmd_line.append("[CHEAT SHEET] ", style=f"bold {P.warn}")
             cmd_line.append(":ref <search term>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :ref winrm, :ref smb, :ref pivoting (opens reference modal)", style=f"{P.muted}")
         elif v.startswith(":foot"):
             cmd_line.append("[FOOTHOLD] ", style=f"bold {P.warn}")
             cmd_line.append(":foothold <initial access vulnerability>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :foothold Apache Struts S2-045 RCE", style=f"{P.muted}")
         elif v.startswith(":priv"):
             cmd_line.append("[PRIVESC] ", style=f"bold {P.warn}")
             cmd_line.append(":privesc <privilege escalation vector>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :privesc Sudo NOPASSWD /usr/bin/find GTFOBins", style=f"{P.muted}")
         elif v.startswith(":stuck") or v.startswith(":dead"):
             cmd_line.append("[RABBIT HOLE] ", style=f"bold {P.warn}")
             cmd_line.append(":stuck <where you spent time>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :stuck Brute-forcing SSH for 45m with wrong user", style=f"{P.muted}")
         elif v.startswith(":clue"):
             cmd_line.append("[BREAKTHROUGH] ", style=f"bold {P.warn}")
             cmd_line.append(":clue <breakthrough observation>", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :clue Found cleartext password in db_backup.sql", style=f"{P.muted}")
         elif v in (":1", ":2", ":3", ":4"):
             cmd_line.append("[SWITCH STATION] ", style=f"bold {P.warn}")
             names = {":1": "Cockpit (Workbench)", ":2": "Playbooks & Checklists", ":3": "Credential Vault", ":4": "Loot & Flags"}
             cmd_line.append(f"Switching to {names.get(v, '')}", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Press Enter to switch screen", style=f"{P.muted}")
         elif v in ("?", "help", ":help", ":?"):
             cmd_line.append("[HELP & SHORTCUTS] ", style=f"bold {P.warn}")
             cmd_line.append("Press Enter to open full help reference guide", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Shows all keyboard shortcuts and interactive guide", style=f"{P.muted}")
         elif v.startswith(":q"):
             cmd_line.append("[QUIT] ", style=f"bold {P.warn}")
             cmd_line.append("Press Enter to exit CYB0X-S", style=f"bold {P.text}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Exits the application", style=f"{P.muted}")
         else:
             cmd_line.append("[RAW NOTE] ", style=f"bold {P.warn}")
             cmd_line.append(ConsoleBar._elide(v, inner - 14), style=f"bold {P.text}")
-            tip_line.append("📝 Free-form note — press Enter to save to Notes & Findings", style=f"{P.muted}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
+            tip_line.append("Free-form note — press Enter to save to Notes & Findings", style=f"{P.muted}")
 
         try:
             self.query_one("#console-cmd", Static).update(cmd_line)
@@ -699,14 +755,16 @@ class ConsoleBar(Container):
     def show_copied_feedback(self, cmd: str) -> None:
         """Display an immediate inline copy confirmation in the console preview."""
         P = current_palette()
+        self.border_title = " COMMAND COPIED "
+        self.border_subtitle = " [COPIED TO CLIPBOARD] "
         line = Text()
-        line.append("✔ COPIED  ", style=f"bold {P.ok}")
+        line.append("✔ COPIED ▸ ", style=f"bold {P.ok}")
         inner = max(self.size.width - 16, 20)
         line.append(self._elide(cmd, inner), style=f"bold {P.text}")
         try:
             self.query_one("#console-cmd", Static).update(line)
             self.set_class(True, "copied-flash")
-            self.set_timer(1.8, lambda: self.set_class(False, "copied-flash"))
+            self.set_timer(1.8, lambda: [self.set_class(False, "copied-flash"), self._paint()])
         except Exception:
             pass
 
@@ -776,47 +834,43 @@ class ConsoleBar(Container):
         tip_line = Text()
 
         if self.command:
-            cmd_line.append("❯ ", style=f"bold {P.accent}")
-            room = inner - 2 - len(f"[{self.heading}] ") - 2
-            heading_style = f"bold {P.warn}"
-            cmd_line.append(f"[{self.heading}] ", style=heading_style)
-            cmd_line.append(ConsoleBar._elide(self.command, room), style=f"bold {P.text}")
-            hint = "[Enter]=copy" + (" · [.]=next" if len(self.recipes) > 1 else "")
-            pad = inner - len(cmd_line.plain) - len(hint)
-            if pad > 1:
-                cmd_line.append(" " * pad)
-                cmd_line.append(hint, style=f"bold {P.accent}")
+            if len(self.recipes) > 1:
+                self.border_title = f" ACTION RECIPE ({self.recipe_index + 1}/{len(self.recipes)}) "
+                self.border_subtitle = f" [Enter: Copy] · [. Next ({self.recipe_index + 1}/{len(self.recipes)})] "
+            else:
+                self.border_title = " ACTION RECIPE & LIVE GUIDANCE "
+                self.border_subtitle = " [Enter: Copy] "
+
+            cmd_line.append("RUN ▸ ", style=f"bold {P.accent}")
+            cmd_line.append(ConsoleBar._elide(self.command, inner - 8), style=f"bold {P.text}")
         else:
             if self.active_station == "tab-playbooks":
-                cmd_line.append("📖 ", style=f"bold {P.accent}")
-                cmd_line.append("Station 2 · Playbooks: ", style=f"bold {P.text}")
-                cmd_line.append("browse attack recipes · press [Enter] to copy command · [/] to search", style=f"{P.muted}")
+                self.border_title = " STATION 2 · ATTACK PLAYBOOKS "
+                self.border_subtitle = " [/ Search] · [Enter: Copy] "
+                cmd_line.append("PLAYBOOKS ▸ ", style=f"bold {P.accent}")
+                cmd_line.append("Browse attack recipes by service · [/] search · [Enter] copy command", style=f"bold {P.text}")
             elif self.active_station == "tab-creds":
-                cmd_line.append("🔑 ", style=f"bold {P.accent}")
-                cmd_line.append("Station 3 · Credential Vault: ", style=f"bold {P.text}")
-                cmd_line.append("2D lateral movement matrix · [Space] cycle status · [Enter] copy spray cmd", style=f"{P.muted}")
+                self.border_title = " STATION 3 · CREDENTIAL VAULT "
+                self.border_subtitle = " [Space: Status] · [Enter: Spray] "
+                cmd_line.append("CREDENTIALS ▸ ", style=f"bold {P.accent}")
+                cmd_line.append("2D lateral movement matrix · [Space] cycle status · [Enter] copy spray cmd", style=f"bold {P.text}")
             elif self.active_station == "tab-loot":
-                cmd_line.append("🏁 ", style=f"bold {P.accent}")
-                cmd_line.append("Station 4 · Proofs & Flags: ", style=f"bold {P.text}")
-                cmd_line.append("captured flags & question proofs · [g] flags · [a] proofs · :stuck dead-ends", style=f"{P.muted}")
+                self.border_title = " STATION 4 · PROOFS & FLAGS "
+                self.border_subtitle = " [g: Flags] · [a: Proofs] "
+                cmd_line.append("PROOFS & FLAGS ▸ ", style=f"bold {P.accent}")
+                cmd_line.append("Captured flags & question proofs · [g] flags · [a] proofs · :stuck dead-ends", style=f"bold {P.text}")
             else:
-                cmd_line.append("◈ ", style=f"bold {P.accent}")
-                cmd_line.append("Station 1 · Cockpit: ", style=f"bold {P.text}")
-                cmd_line.append("highlight a service or checklist step to preview & copy commands", style=f"{P.muted}")
+                self.border_title = " CONTEXT GUIDANCE "
+                self.border_subtitle = " [w: Cycle Panels] · [1-4: Stations] "
+                cmd_line.append("COCKPIT ▸ ", style=f"bold {P.accent}")
+                cmd_line.append("Highlight a service or checklist step to preview & copy commands", style=f"bold {P.text}")
 
         if self.tip:
-            tip_line.append("ℹ ", style=f"bold {P.accent}")
-            tip_line.append(ConsoleBar._elide(self.tip, inner - 2), style=f"{P.text_soft}")
+            tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
+            tip_line.append(ConsoleBar._elide(self.tip, inner - 8), style=f"{P.text_soft}")
         else:
-            tip_line.append("💡 Hotkeys: ", style=f"bold {P.accent}")
-            tip_line.append("w", style=f"bold {P.warn}")
-            tip_line.append(" cycle panels · ", style=f"{P.muted}")
-            tip_line.append("1-4", style=f"bold {P.warn}")
-            tip_line.append(" switch stations · ", style=f"{P.muted}")
-            tip_line.append("t/s/c", style=f"bold {P.warn}")
-            tip_line.append(" quick-add · ", style=f"{P.muted}")
-            tip_line.append("?", style=f"bold {P.warn}")
-            tip_line.append(" help guide", style=f"{P.muted}")
+            tip_line.append("STATUS ▸ ", style=f"bold {P.muted}")
+            tip_line.append("Ready for command execution or target exploration", style=f"{P.muted}")
 
         try:
             if getattr(self, "_cmd_static", None) is not None and getattr(self, "_tip_static", None) is not None:
@@ -825,6 +879,11 @@ class ConsoleBar(Container):
             else:
                 self.query_one("#console-cmd", Static).update(cmd_line)
                 self.query_one("#console-tip", Static).update(tip_line)
+
+            if getattr(self, "_hotkeys_lbl", None) is not None:
+                self._hotkeys_lbl.update(self._build_hotkey_text())
+            else:
+                self.query_one("#console-hotkeys", Label).update(self._build_hotkey_text())
         except Exception:
             pass
 
