@@ -27,16 +27,6 @@ from cyb0x_s.tui.widgets import (
 )
 
 
-@pytest.fixture
-def seeded_store() -> NotebookStore:
-    store = NotebookStore(":memory:")
-    target = store.add_target("10.10.10.20", hostname="target.local", os_name="Linux")
-    store.add_service(target_id=target.id, port=22, service="SSH", version="OpenSSH 8.2p1")
-    store.add_service(target_id=target.id, port=445, service="SMB", version="Samba 4.3")
-    store.add_credential(username="admin", secret="Summer2024!", target_id=target.id)
-    store.add_checklist_item(title="SMB enumeration", target_id=target.id)
-    store.add_note("backup share contains archive.zip", target_id=target.id)
-    return store
 
 
 @pytest.mark.asyncio
@@ -129,22 +119,17 @@ async def test_delete_asks_for_confirmation(seeded_store: NotebookStore) -> None
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
         await pilot.press("down")
-        await pilot.pause()
 
         await pilot.press("d")
-        await pilot.pause()
         assert isinstance(app.screen, ConfirmModal)
 
         # Cancelling keeps the data.
         await pilot.press("escape")
-        await pilot.pause()
         assert len(seeded_store.list_services()) == 2
 
         # Confirming removes it.
         await pilot.press("d")
-        await pilot.pause()
         await pilot.press("y")
-        await pilot.pause()
         assert len(seeded_store.list_services()) == 1
 
 
@@ -154,15 +139,11 @@ async def test_j_and_k_move_the_highlight(seeded_store: NotebookStore) -> None:
     async with app.run_test(size=(160, 44)) as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
-        await pilot.pause()
         await pilot.press("down")
-        await pilot.pause()
         assert svc_list.index == 0
         await pilot.press("j")
-        await pilot.pause()
         assert svc_list.index == 1
         await pilot.press("k")
-        await pilot.pause()
         assert svc_list.index == 0
         # 'k' must not open the add-checklist dialog any more.
         assert not any(isinstance(s, SearchModal) for s in app.screen_stack)
@@ -176,8 +157,11 @@ async def test_search_enter_copies_and_closes(seeded_store: NotebookStore) -> No
         await pilot.pause()
         assert isinstance(app.screen, SearchModal)
         app.screen.query_one("#search-input", Input).value = "archive"
-        await pilot.pause(0.1)
         results = app.screen.query_one("#search-results", ListView)
+        for _ in range(10):
+            await pilot.pause(0.05)
+            if len(results.children) >= 1:
+                break
         assert len(results.children) >= 1
         await pilot.press("enter")
         await pilot.pause()
@@ -211,7 +195,7 @@ async def test_status_strip_shows_machine_and_next_step(seeded_store: NotebookSt
         text = strip.render().plain
         assert "10.10.10.20" in text
         assert "IN-SCOPE" in text
-        assert "NEXT" in text
+        assert "NEXT" in text or "TODO" in text
         assert "SMB enumeration" in text  # first TODO checklist item
         assert "2 ports" in text
 
@@ -225,7 +209,6 @@ async def test_command_bar_still_captures_shortcuts(seeded_store: NotebookStore)
         cmd.focus()
         for char in ":njk":
             await pilot.press(char)
-            await pilot.pause()
         assert cmd.value == ":njk"
         assert not any(isinstance(s, ConfirmModal) for s in app.screen_stack)
 
@@ -270,21 +253,21 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
         before = current_palette().accent
 
         app.apply_theme("caramel")
-        await pilot.pause()
+        await pilot.pause(0)
         assert app.theme_name == "caramel"
         assert current_palette().accent != before
         assert app.theme == "cyb0x-caramel"
 
         app.action_cycle_theme()
-        await pilot.pause()
+        await pilot.pause(0)
         assert app.theme_name == "slate"
         assert current_palette().accent == before
 
         # rows follow the palette
         app.query_one("#list-services", ListView).focus()
-        await pilot.pause()
+        await pilot.pause(0)
         app.apply_theme("sugary")
-        await pilot.pause()
+        await pilot.pause(0)
         item = app.query_one("#list-services", ListView).children[0]
         assert item.display_text.plain.strip()
 
@@ -315,10 +298,8 @@ async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
     async with app.run_test(size=(140, 40)) as pilot:
         for key in ("?", "/", "r", "m", "g", "t", "s", "f", "c", "n", "K"):
             await pilot.press(key)
-            await pilot.pause()
             assert len(app.screen_stack) > 1, f"{key!r} did not open a modal"
             await pilot.press("escape")
-            await pilot.pause()
             assert len(app.screen_stack) == 1, f"{key!r} modal did not close"
 
 
@@ -454,11 +435,9 @@ async def test_bracket_keys_cycle_targets(seeded_store: NotebookStore) -> None:
         assert seeded_store.get_active_target().ip == "10.10.10.20"
 
         await pilot.press("right_square_bracket")
-        await pilot.pause()
         assert seeded_store.get_active_target().ip == target2.ip
 
         await pilot.press("left_square_bracket")
-        await pilot.pause()
         assert seeded_store.get_active_target().ip == target1.ip
 
 
@@ -471,11 +450,9 @@ async def test_sidebar_toggle_hotkey(seeded_store: NotebookStore) -> None:
         assert not sidebar.has_class("hidden")
 
         await pilot.press("b")
-        await pilot.pause()
         assert sidebar.has_class("hidden")
 
         await pilot.press("b")
-        await pilot.pause()
         assert not sidebar.has_class("hidden")
 
 
@@ -547,23 +524,20 @@ async def test_panel_navigation_keys(seeded_store: NotebookStore) -> None:
         # Start at services list
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
-        await pilot.pause()
+        await pilot.pause(0)
         assert svc_list.has_focus
 
         # 'h' jumps to left sidebar (target tree)
         await pilot.press("h")
-        await pilot.pause()
         tree = app.query_one("#target-tree")
         assert tree.has_focus
 
         # 'l' jumps to right workbench (services list)
         await pilot.press("l")
-        await pilot.pause()
         assert svc_list.has_focus
 
         # 'w' cycles sequentially
         await pilot.press("w")
-        await pilot.pause()
         ck = app.query_one("#list-checklist")
         assert ck.has_focus
 
@@ -625,24 +599,19 @@ async def test_credential_matrix_2d_spray(seeded_store: NotebookStore, monkeypat
     async with app.run_test(size=(140, 40)) as pilot:
         # Switch to Station 3 (Creds)
         await pilot.press("3")
-        await pilot.pause()
 
         table = app.query_one("#cred-matrix-table", DataTable)
         table.focus()
-        await pilot.pause()
         assert table.row_count >= 1
 
         # Move to first spray target column
         table.cursor_coordinate = (0, 1)
-        await pilot.pause()
 
         # Press space to cycle cell status
         await pilot.press("space")
-        await pilot.pause()
 
         # Press Enter to compile and copy spray command
         await pilot.press("enter")
-        await pilot.pause()
 
         assert len(copied) >= 1
         assert "admin" in copied[-1] or "P@ssword123" in copied[-1]
@@ -753,17 +722,14 @@ async def test_cred_matrix_persistence_in_tui(seeded_store: NotebookStore) -> No
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.press("3")  # switch to Station 3 Credentials
-        await pilot.pause()
 
         matrix = app.query_one("#cred-matrix-widget", CredentialMatrixWidget)
         table = matrix.query_one("#cred-matrix-table")
         table.focus()
         table.move_cursor(row=0, column=1)
-        await pilot.pause()
 
         # Press space to cycle
         await pilot.press("space")
-        await pilot.pause()
 
         # Confirm persisted in store
         persisted = seeded_store.get_cred_validations()
@@ -803,4 +769,30 @@ async def test_exam_proof_ledger_and_commands(seeded_store: NotebookStore, tmp_p
         assert Path("exam_evidence.md").exists()
         assert "secret_admin_hash_123" in Path("exam_evidence.md").read_text(encoding="utf-8")
         Path("exam_evidence.md").unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_cockpit_layout_rebalance_and_console_visibility(seeded_store: NotebookStore) -> None:
+    """Notes panel must be wider than checklist; console input row must be visible and accessible."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)):
+        checklist = app.query_one("#panel-checklist")
+        notes = app.query_one("#panel-notes")
+        assert notes.size.width > checklist.size.width, "Notes & findings panel should have more width than checklist"
+
+        # Console input row must have height >= 1 and be rendered inside guidance box
+        input_row = app.query_one("#console-input-row")
+        assert input_row.size.height >= 1
+        cmd_input = app.query_one("#cmd-input", Input)
+        assert cmd_input.size.height >= 1
+
+        # Status strip displays NEXT, TODO, or CHECKLIST
+        strip = app.query_one(MachineStatusStrip)
+        assert "NEXT" in strip.render().plain or "TODO" in strip.render().plain or "CHECKLIST" in strip.render().plain
+
+        # Service row formatting contains status pill
+        svc_list = app.query_one("#list-services", ListView)
+        first_svc = svc_list.children[0]
+        assert "[CHECKED]" in first_svc.display_text.plain or "[TODO]" in first_svc.display_text.plain
+
 

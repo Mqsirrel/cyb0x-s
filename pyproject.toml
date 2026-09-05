@@ -34,6 +34,7 @@ dev = [
 minversion = "8.0"
 testpaths = ["tests"]
 asyncio_mode = "strict"
+addopts = "-n auto --dist load"
 markers = [
     "tui: Interactive Textual UI tests (full app lifecycle and pilot simulations)",
     "fast: Fast unit, database, CLI, and model tests",

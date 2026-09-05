@@ -136,7 +136,7 @@ class MissionDeckPreview(App):
                 with TabPane("3 Vault", id="pane-vault"):
                     yield Static("2D credential x service matrix — cycle cells UNTESTED > VALID > PWN3D > INVALID.")
                 with TabPane("4 Intel", id="pane-intel"):
-                    yield Static("Flags, foothold, privesc, Q1-Q35 proofs, rabbit holes.")
+                    yield Static("Flags, foothold, privesc, proofs, rabbit holes.")
         yield Static(self.render_console(), id="console")
         yield Input(placeholder=": palette — type to filter verbs (try 'flag')", id="cmd")
         yield Footer()

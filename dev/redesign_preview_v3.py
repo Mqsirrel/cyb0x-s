@@ -181,7 +181,7 @@ class MissionDeckV3(App):
         return "\n".join(lines)
 
     def render_proofs(self) -> str:
-        lines = ["EXAM PROOFS Q1-Q35", ""]
+        lines = ["QUESTION PROOFS", ""]
         for q, p in PROOFS:
             lines.append(f"[{q}]  {p}")
         return "\n".join(lines)

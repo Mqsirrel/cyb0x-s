@@ -298,7 +298,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         [
             Paragraph("<b>Station 4</b>", body_bold),
             Paragraph("<b>Exam Proofs & Loot</b>", body_style),
-            Paragraph("Track exam question answers (Q1–Q35 via <code>:q</code> or <code>[a]</code>), user/root flags, and <b>Failure Logs</b>. Run <code>:export exam</code> for offline Markdown submission dossier.", body_style),
+            Paragraph("Track assessment question answers (via <code>:q</code> or <code>[a]</code>), user/root flags, and <b>Failure Logs</b>. Run <code>:export exam</code> for offline Markdown submission dossier.", body_style),
             Paragraph("<b>[4]</b>", badge_style),
         ],
     ]
@@ -362,7 +362,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         [Paragraph("<b>/</b> or <b>Ctrl+F</b>", badge_style), Paragraph("Search", body_style), Paragraph("<b>Global Fuzzy Search:</b> Search across targets, services, credentials, checklists, and notes.", body_style)],
         [Paragraph("<b>r</b>", badge_style), Paragraph("Reference", body_style), Paragraph("<b>Quick Reference Modal:</b> Open offline practical cheatsheet for instant syntax lookup.", body_style)],
         [Paragraph("<b>t / s / c / n</b>", badge_style), Paragraph("Fast Capture", body_style), Paragraph("Modal dialogs to quickly add Target (t), Service (s), Credential (c), or Note (n).", body_style)],
-        [Paragraph("<b>a</b>", badge_style), Paragraph("Exam Proof", body_style), Paragraph("In Station 4: Open <b>Add Exam Proof</b> modal to link question number (Q1–Q35) to proof evidence.", body_style)],
+        [Paragraph("<b>a</b>", badge_style), Paragraph("Question Proof", body_style), Paragraph("In Station 4: Open <b>Add Proof</b> modal to link question/item number to proof evidence.", body_style)],
     ]
     t_keys = Table(keys_data, colWidths=[65, 75, 400])
     t_keys.setStyle(
@@ -455,7 +455,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         ],
         [
             Paragraph("<b>:q / :export</b>", code_bold),
-            Paragraph("Pin exam question proof (Q1–Q35) or export markdown exam dossier.", table_body_style),
+            Paragraph("Pin assessment question proof or export markdown evidence dossier.", table_body_style),
             Paragraph("<code>:q 7 /var/www/wp-config.php</code><br/><code>:export exam</code> &nbsp; <code>:export report</code>", code_style),
         ],
         [
@@ -542,7 +542,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
                 "<b>1. Pivoting & Route Addition:</b> Tag pivot hosts with <code>:pivot</code> to see dynamic proxy guidance in the console bar.<br/>"
                 "<b>2. Privilege Escalation:</b> Switch to Station 2 (press <b>[2]</b>) and search Linux SUID, sudo -l, Cron jobs, or Windows tokens / services.<br/>"
                 "<b>3. Capture Question Evidence & Flags:</b> Log question proofs with <code>:q &lt;num&gt; &lt;proof&gt;</code> (or press <b>[a]</b> in Station 4). Record flags with <code>:uflag</code> / <code>:rflag</code>.<br/>"
-                "<b>4. Export Exam Submission Bundle:</b> Run <code>:export exam</code> to write a clean Markdown report with all Q1–Q35 evidence, flags, and pivot paths!",
+                "<b>4. Export Assessment Submission Bundle:</b> Run <code>:export exam</code> to write a clean Markdown report with all evidence, flags, and pivot paths!",
                 table_body_style,
             )
         ],
@@ -681,11 +681,11 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     story.append(PageBreak())
 
     # =========================================================================
-    # PAGE 5: STATION 4 DEEP DIVE — EXAM PROOFS (Q1-Q35) & LOOT LEDGER
+    # PAGE 5: STATION 4 DEEP DIVE — QUESTION PROOFS & LOOT LEDGER
     # =========================================================================
-    story.append(Paragraph("7. Station 4 Deep Dive: Exam Question Proofs (Q1–Q35) & Loot Ledger", h1_style))
+    story.append(Paragraph("7. Station 4 Deep Dive: Question Proofs & Loot Ledger", h1_style))
     story.append(Paragraph(
-        "The eJPTv2 exam consists of 35 dynamic practical questions that require concrete evidence: hashes, specific directory names, database records, usernames, or service versions. "
+        "Practical exams require concrete evidence: hashes, specific directory names, database records, usernames, or service versions. "
         "Station 4 provides a dedicated ledger to link lab findings directly to question numbers, plus a Failure Log to manage stuck points:",
         body_style,
     ))
@@ -693,7 +693,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     # Figure 4: Station 4 Loot & Proofs UI
     fig4 = make_screenshot_card(
         screenshots_dir / "04-loot.png",
-        "Figure 4: Station 4 Exam Proofs & Loot Ledger — Question Proofs (Q1–Q35), User/Root Flags, and Failure / Rabbit Hole Logs.",
+        "Figure 4: Station 4 Proofs & Loot Ledger — Question Proofs, User/Root Flags, and Failure / Rabbit Hole Logs.",
         width=480,
         height=215,
         caption_style=caption_style,
@@ -709,7 +709,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph("Operational Purpose & Deliverable", th_style),
         ],
         [
-            Paragraph("<b>Question Proofs (Q1–Q35)</b>", body_bold),
+            Paragraph("<b>Question Proofs</b>", body_bold),
             Paragraph("Press <b>[a]</b> (modal) or<br/><code>:q &lt;num&gt; &lt;proof&gt; [notes]</code>", code_style),
             Paragraph("Links evidence directly to an exam question number (e.g. <code>:q 14 /etc/passwd root hash</code>). Prevents having to re-exploit targets at exam end.", table_body_style),
         ],
@@ -824,7 +824,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
                 "1. Open terminal on your host or VM and launch: <code>cyb0x-s</code><br/>"
                 "2. Pick your visual theme: press <b>[T]</b>, select palette (e.g. <i>Sugary</i>, <i>Midnight</i>, <i>Slate</i>, or <i>Cyber</i>), press <b>[d]</b> to save as default.<br/>"
                 "3. Import initial Nmap scan: run <code>cyb0x-s import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code>.<br/>"
-                "4. <b>Offline Markdown Submission Bundle:</b> Run <code>:export exam</code> at any time to output a structured markdown report containing all Q1–Q35 evidence, flags, credentials, and pivot paths.<br/>"
+                "4. <b>Offline Markdown Submission Bundle:</b> Run <code>:export exam</code> at any time to output a structured markdown report containing all recorded evidence, flags, credentials, and pivot paths.<br/>"
                 "5. <b>Database Safety:</b> Stored in <code>~/.local/share/cyb0x-s/worksheets.db</code>. 100% local, persistent, zero network calls, and fully compliant with INE exam rules.",
                 callout_text,
             )

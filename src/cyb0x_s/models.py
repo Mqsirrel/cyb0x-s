@@ -225,14 +225,14 @@ class CommandRecord(BaseModel):
 
 
 class ExamProof(BaseModel):
-    """Generic exam question proof recorded by operator (e.g. Q1-Q35).
+    """Generic assessment question proof recorded by operator.
 
     100% compliant with certification policies: stores user-entered findings,
     hashes, flags, or versions with zero bundled proprietary content.
     """
     id: Optional[int] = None
     target_id: Optional[int] = None
-    question_num: str  # e.g. 'Q1', 'Q14', 'Q35'
+    question_num: str  # e.g. '1', 'Q1', 'Proof-1'
     category: str = "FLAG"  # FLAG, HASH, CREDENTIAL, VERSION, SECRET, DIRECTORY, OTHER
     answer_proof: str  # The actual extracted proof string / hash
     notes: str = ""
