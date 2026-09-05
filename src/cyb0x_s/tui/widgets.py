@@ -333,16 +333,19 @@ class MachineStatusStrip(Static):
                 elapsed_s = int(time.monotonic() - self.session_start)
             row1.append(f"T+{timedelta(seconds=elapsed_s)} ", style=f"bold {P.muted}")
 
-            for label, value in (("🏁", self.target.user_flag), ("👑", self.target.root_flag)):
-                row1.append(f"{label} ", style="")
-                if value:
-                    row1.append(self._elide(value, 14) + " ", style=f"bold {P.ok}")
-                else:
-                    row1.append("— ", style=f"{P.muted}")
+            # Clean Status Badges for User and Root Flags
+            if self.target.user_flag:
+                row1.append("[USER: ✔] ", style=f"bold {P.ok}")
+            else:
+                row1.append("[USER: ◯] ", style=f"{P.muted}")
+
+            if self.target.root_flag:
+                row1.append("[ROOT: ✔] ", style=f"bold {P.ok}")
+            else:
+                row1.append("[ROOT: ◯] ", style=f"{P.muted}")
 
             if self.target.initial_access_vuln:
-                row1.append("⚡ ", style="")
-                row1.append(self._elide(self.target.initial_access_vuln, 18) + " ", style=f"bold {P.warn}")
+                row1.append(f"[{self._elide(self.target.initial_access_vuln, 16)}] ", style=f"bold {P.warn}")
         else:
             row1.append("◇ TARGET ▸ ", style=f"bold {P.warn}")
             row1.append("no target selected  ·  press 't' to add one", style=f"{P.muted}")
