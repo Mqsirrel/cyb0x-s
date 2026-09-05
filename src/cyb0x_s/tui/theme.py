@@ -487,9 +487,9 @@ Underline > .underline--bar {
 }
 
 #sidebar {
-    width: 32;
-    min-width: 26;
-    max-width: 40;
+    width: 30;
+    min-width: 24;
+    max-width: 36;
     height: 100%;
     padding: 0 1;
 }
@@ -553,7 +553,7 @@ Underline > .underline--bar {
 
 #panel-services {
     height: 3fr;
-    min-height: 7;
+    min-height: 8;
 }
 
 #lower-band {
@@ -563,13 +563,13 @@ Underline > .underline--bar {
 }
 
 #panel-checklist {
-    width: 1fr;
+    width: 38%;
     height: 100%;
     margin-bottom: 0;
 }
 
 #panel-notes {
-    width: 1fr;
+    width: 62%;
     height: 100%;
     margin-bottom: 0;
     margin-left: 1;
@@ -577,7 +577,7 @@ Underline > .underline--bar {
 
 /* --- console ------------------------------------------------------------ */
 #guidance-box {
-    height: 4;
+    height: 5;
     border: round $border;
     background: $surface;
     padding: 0 1;
@@ -730,10 +730,17 @@ Footer > .footer--highlight {
     margin-bottom: 1;
 }
 
-#cred-matrix-list {
+#cred-matrix-list, #cred-matrix-table {
     height: 1fr;
     border: round $border;
     background: $surface;
+}
+
+#cred-matrix-empty {
+    height: 1fr;
+    border: round $border;
+    background: $surface;
+    padding: 1 3;
 }
 
 #loot-cards-container {
@@ -971,7 +978,7 @@ Screen.compact-height #console-tip {
 
 Screen.compact #guidance-box,
 Screen.compact-height #guidance-box {
-    height: 3;
+    height: 4;
 }
 
 Screen.compact #target-info,

@@ -183,7 +183,7 @@ class CyboxSafeApp(App):
                     with Vertical(id="sidebar"):
                         with Vertical(id="panel-surface", classes="panel-box"):
                             with Horizontal(classes="panel-header-row"):
-                                yield Label("ATTACK SURFACE", classes="panel-title")
+                                yield Label("TARGET ROSTER", classes="panel-title")
                                 yield Label("", id="cnt-surface", classes="panel-count")
                             yield TargetTreeWidget(id="target-tree")
                         with Vertical(id="panel-creds", classes="panel-box"):
@@ -228,6 +228,7 @@ class CyboxSafeApp(App):
         self.refresh_targets()
         self.refresh_all()
         self._apply_responsive_layout()
+        self._sync_station_tab("tab-worksheet")
 
     def on_resize(self, event: Any) -> None:
         """Switch to a stacked, single-column workbench on narrow terminals."""
@@ -362,8 +363,22 @@ class CyboxSafeApp(App):
         """Switch active TabbedContent pane."""
         tabbed = self.query_one("#tabs", TabbedContent)
         tabbed.active = tab_id
+        self._sync_station_tab(tab_id)
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Handle mouse clicks or direct tab switches on the station TabbedContent."""
+        tab_id = event.pane.id if event.pane else str(event.tabbed_content.active)
+        self._sync_station_tab(tab_id)
+
+    def _sync_station_tab(self, tab_id: str) -> None:
+        """Synchronize station widgets and contextual console guide when station changes."""
         active = self.store.get_active_target()
         target_ip = active.ip if active else ""
+
+        try:
+            self.query_one(ConsoleBar).set_active_station(tab_id)
+        except Exception:
+            pass
 
         if tab_id == "tab-playbooks":
             try:
@@ -373,7 +388,7 @@ class CyboxSafeApp(App):
         elif tab_id == "tab-creds":
             self.refresh_cred_matrix()
         elif tab_id == "tab-loot":
-            self.refresh_loot_widget()
+            self.refresh_loot_widget(active)
 
     def refresh_cred_matrix(self) -> None:
         """Update Station 3 Credential Vault & Matrix on demand."""
@@ -442,15 +457,15 @@ class CyboxSafeApp(App):
             if derive_guidance_enabled()
             else []
         )
-        if recipes:
-            guidance_box.show_recipes(recipes, index=0, target_ip=target_ip)
-        elif svc.next_action:
+        if svc.next_action:
             guidance_box.show_command(
                 svc.next_action,
-                f"Custom next action recorded for port {svc.port}/{svc.protocol}.",
+                f"Operator note/command recorded for port {svc.port}/{svc.protocol} ({svc.service}).",
                 target_ip=target_ip,
-                heading="NEXT",
+                heading="NOTE",
             )
+        elif recipes:
+            guidance_box.show_recipes(recipes, index=0, target_ip=target_ip)
         else:
             guidance_box.reset()
 
@@ -667,30 +682,47 @@ class CyboxSafeApp(App):
 
     def _format_service_row(self, s: Service) -> Text:
         txt = Text()
-        txt.append(get_service_status_icon(s.status.value, self.theme_name))
-        txt.append(get_protocol_badge(s.port, s.protocol, self.theme_name))
-        txt.append(f"{s.service:<12} ", style=S("text"))
-        if s.access_potential in ("HIGH", "CRITICAL"):
-            txt.append(f"[{s.access_potential}] ", style=S("danger"))
-        elif s.access_potential == "LOW":
-            txt.append("[LOW] ", style=S("muted", bold=False))
+        status_val = s.status.value if hasattr(s.status, "value") else str(s.status)
+        if status_val == "CHECKED":
+            txt.append("[CHECKED] ", style=S("ok"))
+        elif status_val == "DEFERRED":
+            txt.append("[DEFER]   ", style=S("warn"))
+        elif status_val == "DEAD-END":
+            txt.append("[DEAD-END]", style=S("danger"))
+        else:
+            txt.append("[TODO]    ", style=S("accent"))
+
+        port_proto = f"{s.port}/{s.protocol}"
+        txt.append(f" {port_proto:<9} ", style=S("accent"))
+
+        txt.append(f"{s.service.upper():<9} ", style=S("text"))
+        txt.append("· ", style=S("muted", bold=False))
+
         if s.version:
-            txt.append(f"{s.version} ", style=S("muted", bold=False))
+            txt.append(f"{s.version} ", style=S("text_soft", bold=False))
+
+        if s.access_potential in ("HIGH", "CRITICAL"):
+            txt.append(f"[⚡ {s.access_potential}] ", style=S("danger"))
+        elif s.access_potential and s.access_potential != "LOW":
+            txt.append(f"[{s.access_potential}] ", style=S("warn"))
+
         if s.next_action:
-            txt.append(f"→ `{s.next_action}` ", style=S("warn"))
+            txt.append(f"▸ `{s.next_action}` ", style=S("warn"))
+
         if s.notes:
             txt.append(f"({s.notes})", style="dim italic")
+
         return txt
 
     def _format_credential_row(self, c: Credential) -> Text:
         txt = Text()
         txt.append("🔑 ", style=S("ok"))
-        txt.append(f"{c.username} ", style=S("text"))
-        txt.append("› ", style=S("muted", bold=False))
+        txt.append(f"{c.username}", style=S("text"))
+        txt.append(" : ", style=S("muted", bold=False))
         secret = c.secret if c.id in self.revealed_creds else c.masked_secret
         txt.append(f"{secret} ", style=S("accent"))
         if c.service_scope:
-            txt.append(f"[{c.service_scope}] ", style=S("warn"))
+            txt.append(f"[{c.service_scope.upper()}] ", style=S("warn"))
         if c.source:
             txt.append(f"({c.source})", style=S("muted", bold=False))
         return txt
@@ -748,7 +780,7 @@ class CyboxSafeApp(App):
             except Exception:
                 active_tab = "tab-worksheet"
 
-            # 1. Services & Ports (Notion 01 format with Potential and Next Action)
+            # 1. Services & Ports (Notion 01 format with Potential and Command Recipe)
             svc_list = self.query_one("#list-services", ListView)
             saved_svc_idx = svc_list.index
             svc_list.clear()
@@ -758,7 +790,7 @@ class CyboxSafeApp(App):
                 for s in services:
                     svc_list.append(DataListItem(data_obj=s, display_text=self._format_service_row(s)))
             else:
-                txt = Text("  • No services recorded (Press 's' to add or type ':s 80/tcp http')", style="dim italic")
+                txt = Text("  • No services recorded · Press 's' to add a port or type ':s 80/tcp http'", style="dim italic")
                 svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_svc_idx is not None and len(svc_list.children) > 0:
                 svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
@@ -773,7 +805,7 @@ class CyboxSafeApp(App):
                 for c in creds:
                     c_list.append(DataListItem(data_obj=c, display_text=self._format_credential_row(c)))
             else:
-                txt = Text("  • No credentials saved (Press 'c' to add)", style="dim italic")
+                txt = Text("  • No credentials saved · Press 'c' to add or type ':c admin:pass'", style="dim italic")
                 c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_c_idx is not None and len(c_list.children) > 0:
                 c_list.index = min(saved_c_idx, len(c_list.children) - 1)
@@ -801,7 +833,7 @@ class CyboxSafeApp(App):
                 for item in items:
                     ck_list.append(DataListItem(data_obj=item, display_text=self._format_checklist_row(item)))
             else:
-                txt = Text("  • Press 'm' to load templates (ejpt, web, pivoting, smb, privesc)", style="dim italic")
+                txt = Text("  • No methodology loaded · Press 'm' for templates (ejpt, web, smb) or 'K' to add item", style="dim italic")
                 ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_ck_idx is not None and len(ck_list.children) > 0:
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
@@ -846,7 +878,7 @@ class CyboxSafeApp(App):
                         txt.append(f"({ld.notes})", style=S("muted", bold=False))
                     n_list.append(DataListItem(data_obj=ld, display_text=txt))
             else:
-                txt = Text("  • No notes recorded (Press 'n' or type :n <note> below)", style="dim italic")
+                txt = Text("  • No notes or findings · Press 'n' for note, 'f' for finding, or type :n <note>", style="dim italic")
                 n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_n_idx is not None and len(n_list.children) > 0:
                 n_list.index = min(saved_n_idx, len(n_list.children) - 1)
@@ -911,7 +943,7 @@ class CyboxSafeApp(App):
                 elif isinstance(obj, Service):
                     if obj.next_action:
                         copy_to_clipboard(obj.next_action)
-                        self.notify(f"Copied Next Action: {obj.next_action}")
+                        self.notify(f"Copied Command: {obj.next_action}")
                         return
                     # Only auto-suggest a command for a recorded service when the
                     # operator has opted in; otherwise CYB0X-S stays passive.

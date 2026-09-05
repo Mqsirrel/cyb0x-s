@@ -678,7 +678,7 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
                 id="svc-potential",
             )
 
-            yield Label("Next Action / Command Recipe:", classes="field-label")
+            yield Label("Command Recipe / Note:", classes="field-label")
             yield Input(placeholder="e.g. feroxbuster, smbmap, hydra...", id="svc-next")
 
             with Horizontal(classes="modal-buttons"):
@@ -1029,7 +1029,7 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
   [{P.accent}]Esc[/]              : Close any dialog
 
 [bold]Working with the highlighted item:[/bold]
-  [{P.accent}]Enter[/]            : Copy the ready-to-paste command / next action
+  [{P.accent}]Enter[/]            : Copy the ready-to-paste command / recipe
   [{P.accent}]y[/]                : Copy the value (IP, IP:port, secret, note text)
   [{P.accent}]Space[/]            : Cycle checklist status (TODO → CHECKED → DEFERRED → DEAD-END)
                      or reveal / re-mask a credential
@@ -1258,7 +1258,7 @@ class ReferenceModal(ModalScreen[Optional[str]]):
 
 
 class AddExamProofModal(ModalScreen[Optional[dict]]):
-    """Dialog to record an exam question proof (Q1-Q35)."""
+    """Dialog to record an assessment question proof / evidence."""
 
     DEFAULT_CSS = """
     AddExamProofModal {
@@ -1285,16 +1285,16 @@ class AddExamProofModal(ModalScreen[Optional[dict]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-proof-container"):
-            yield Label("📝 RECORD EXAM QUESTION PROOF / ANSWER", classes="proof-hdr")
+            yield Label("📝 RECORD QUESTION PROOF / EVIDENCE", classes="proof-hdr")
             with Horizontal(classes="modal-row"):
                 with Vertical(classes="modal-col"):
-                    yield Label("Question (e.g. Q1, Q14, Q35):", classes="field-label")
+                    yield Label("Question / Item ID (e.g. Q1, Item-1):", classes="field-label")
                     yield Input(value=self.default_q, placeholder="e.g. Q1", id="proof-q")
                 with Vertical(classes="modal-col"):
                     yield Label("Proof Category:", classes="field-label")
                     yield Select(
                         [
-                            ("Exam Flag (User / Root)", "FLAG"),
+                            ("Captured Flag (User / Root)", "FLAG"),
                             ("Password Hash / Secret", "HASH"),
                             ("Discovered Password / Cred", "CREDENTIAL"),
                             ("Service / Software Version", "VERSION"),

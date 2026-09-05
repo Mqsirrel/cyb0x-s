@@ -46,31 +46,25 @@ async def test_tui_lifecycle_and_navigation() -> None:
 
         # Exit search modal with Escape
         await pilot.press("escape")
-        await pilot.pause()
 
         # Focus non-input widget so number hotkeys trigger
         app.query_one("#list-services").focus()
-        await pilot.pause()
 
         # Test tab switching with hotkeys: 2 -> Playbooks
         await pilot.press("2")
-        await pilot.pause()
         tabbed = app.query_one("#tabs")
         assert tabbed.active == "tab-playbooks"
 
         # Test tab switching: 3 -> Creds
         await pilot.press("3")
-        await pilot.pause()
         assert tabbed.active == "tab-creds"
 
         # Test tab switching: 4 -> Loot / Flags
         await pilot.press("4")
-        await pilot.pause()
         assert tabbed.active == "tab-loot"
 
         # Test tab switching back: 1 -> Worksheet
         await pilot.press("1")
-        await pilot.pause()
         assert tabbed.active == "tab-worksheet"
 
         # Test tree population
@@ -80,7 +74,7 @@ async def test_tui_lifecycle_and_navigation() -> None:
 
         # Test scope toggle action
         app.action_toggle_scope()
-        await pilot.pause()
+        await pilot.pause(0)
         updated_target = store.get_target(target.id)
         assert updated_target is not None
         assert updated_target.is_in_scope is False

@@ -282,3 +282,29 @@ def test_exam_proofs_crud_and_export(store: NotebookStore) -> None:
     assert store.delete_exam_proof(p1.id)
     assert len(store.list_exam_proofs()) == 1
 
+
+def test_pragma_user_version_migration(temp_db_path) -> None:
+    """Verify that user_version is stamped to CURRENT_SCHEMA_VERSION and legacy DB is migrated."""
+    from cyb0x_s.db.store import CURRENT_SCHEMA_VERSION
+    import sqlite3
+
+    # 1. New store should have PRAGMA user_version = CURRENT_SCHEMA_VERSION
+    store = NotebookStore(db_path=temp_db_path)
+    cur = store.conn.cursor()
+    cur.execute("PRAGMA user_version")
+    assert cur.fetchone()[0] == CURRENT_SCHEMA_VERSION
+    store.close()
+
+    # 2. Simulate opening a legacy database with user_version = 0
+    raw_conn = sqlite3.connect(str(temp_db_path))
+    raw_conn.execute("PRAGMA user_version = 0")
+    raw_conn.commit()
+    raw_conn.close()
+
+    # Reopening store should run migration and stamp version back to CURRENT_SCHEMA_VERSION
+    store2 = NotebookStore(db_path=temp_db_path)
+    cur2 = store2.conn.cursor()
+    cur2.execute("PRAGMA user_version")
+    assert cur2.fetchone()[0] == CURRENT_SCHEMA_VERSION
+    store2.close()
+

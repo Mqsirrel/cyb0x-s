@@ -30,6 +30,9 @@ from cyb0x_s.models import (
 )
 
 
+CURRENT_SCHEMA_VERSION = 2
+
+
 def _iso_now() -> str:
     """Return current UTC timestamp in ISO 8601 string format."""
     return datetime.now(timezone.utc).isoformat()
@@ -65,26 +68,32 @@ class NotebookStore:
             self.db_path = Path(db_path)
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.conn = sqlite3.connect(
-            str(self.db_path),
-            check_same_thread=False,
-        )
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA busy_timeout = 3000;")
+        self.conn.execute("PRAGMA temp_store = MEMORY;")
         try:
             self.conn.execute("PRAGMA journal_mode = WAL;")
+            self.conn.execute("PRAGMA synchronous = NORMAL;")
         except Exception:
             pass  # :memory: and some filesystems cannot do WAL
         self.init_schema()
 
     def init_schema(self) -> None:
-        """Run initial DDL script and ensure a default workspace exists."""
+        """Run initial DDL script, migrations, and ensure a default workspace exists."""
+        cur = self.conn.cursor()
+        cur.execute("PRAGMA user_version")
+        row = cur.fetchone()
+        current_version = row[0] if row else 0
+
+        is_fresh_db = False
         with self.conn:
             self.conn.executescript(SCHEMA_SQL)
             cur = self.conn.cursor()
             cur.execute("SELECT id FROM workspaces WHERE name = 'default'")
             row = cur.fetchone()
             if not row:
+                is_fresh_db = True
                 now = _iso_now()
                 cur.execute(
                     "INSERT INTO workspaces (name, description, created_at, updated_at) VALUES ('default', 'Default assessment workspace', ?, ?)",
@@ -101,30 +110,38 @@ class NotebookStore:
                     (str(ws_id),),
                 )
 
-        # Non-destructive migrations for existing databases
-        migration_cols = [
-            ("targets", "initial_access_vuln", "TEXT DEFAULT ''"),
-            ("targets", "foothold_cmd", "TEXT DEFAULT ''"),
-            ("targets", "foothold_context", "TEXT DEFAULT ''"),
-            ("targets", "privesc_vector", "TEXT DEFAULT ''"),
-            ("targets", "root_proof", "TEXT DEFAULT ''"),
-            ("targets", "user_flag", "TEXT DEFAULT ''"),
-            ("targets", "root_flag", "TEXT DEFAULT ''"),
-            ("targets", "subnet", "TEXT DEFAULT ''"),
-            ("targets", "is_pivot", "INTEGER DEFAULT 0"),
-            ("targets", "pivot_route", "TEXT DEFAULT ''"),
-            ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
-            ("services", "access_potential", "TEXT DEFAULT ''"),
-            ("services", "next_action", "TEXT DEFAULT ''"),
-            ("command_history", "is_golden", "INTEGER DEFAULT 0"),
-            ("command_history", "step", "TEXT DEFAULT ''"),
-        ]
-        for tbl, col, ctype in migration_cols:
-            try:
-                with self.conn:
-                    self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {ctype};")
-            except Exception:
-                pass
+        if is_fresh_db:
+            # Newly initialized database already created with complete up-to-date schema
+            with self.conn:
+                self.conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION};")
+        elif current_version < CURRENT_SCHEMA_VERSION:
+            # Upgrade existing pre-versioned database
+            migration_cols = [
+                ("targets", "initial_access_vuln", "TEXT DEFAULT ''"),
+                ("targets", "foothold_cmd", "TEXT DEFAULT ''"),
+                ("targets", "foothold_context", "TEXT DEFAULT ''"),
+                ("targets", "privesc_vector", "TEXT DEFAULT ''"),
+                ("targets", "root_proof", "TEXT DEFAULT ''"),
+                ("targets", "user_flag", "TEXT DEFAULT ''"),
+                ("targets", "root_flag", "TEXT DEFAULT ''"),
+                ("targets", "subnet", "TEXT DEFAULT ''"),
+                ("targets", "is_pivot", "INTEGER DEFAULT 0"),
+                ("targets", "pivot_route", "TEXT DEFAULT ''"),
+                ("targets", "is_in_scope", "INTEGER DEFAULT 1"),
+                ("services", "access_potential", "TEXT DEFAULT ''"),
+                ("services", "next_action", "TEXT DEFAULT ''"),
+                ("command_history", "is_golden", "INTEGER DEFAULT 0"),
+                ("command_history", "step", "TEXT DEFAULT ''"),
+            ]
+            for tbl, col, ctype in migration_cols:
+                try:
+                    with self.conn:
+                        self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {ctype};")
+                except Exception:
+                    pass
+
+            with self.conn:
+                self.conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION};")
 
     def close(self) -> None:
         """Close SQLite database connection."""
@@ -1159,7 +1176,7 @@ class NotebookStore:
         """Export all recorded exam question proofs formatted for review before submission."""
         proofs = self.list_exam_proofs()
         lines = [
-            "# eJPT / eCPPT Exam Evidence & Answer Submission Ledger",
+            "# Assessment Evidence & Submission Ledger",
             f"Generated: {_iso_now()} (CYB0X-S Offline Safe Notebook)",
             "",
             "| Question | Target | Category | Proof / Answer Value | Notes |",

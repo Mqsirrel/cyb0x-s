@@ -174,14 +174,20 @@ CREATE TABLE IF NOT EXISTS exam_proofs (
     FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE
 );
 
--- Indices for rapid search and retrieval
+-- Indices for rapid search, foreign key cascade verification, and status retrieval
 CREATE INDEX IF NOT EXISTS idx_targets_ws ON targets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_services_target ON services(target_id);
 CREATE INDEX IF NOT EXISTS idx_findings_target ON findings(target_id);
 CREATE INDEX IF NOT EXISTS idx_creds_target ON credentials(target_id);
 CREATE INDEX IF NOT EXISTS idx_checklist_target ON checklist(target_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_target_status ON checklist(target_id, status);
 CREATE INDEX IF NOT EXISTS idx_notes_target ON notes(target_id);
+CREATE INDEX IF NOT EXISTS idx_leads_target ON leads(target_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_target ON evidence(target_id);
+CREATE INDEX IF NOT EXISTS idx_failure_log_target ON failure_log(target_id);
+CREATE INDEX IF NOT EXISTS idx_command_history_target ON command_history(target_id);
 CREATE INDEX IF NOT EXISTS idx_cred_validations ON cred_validations(credential_id, service_id);
+CREATE INDEX IF NOT EXISTS idx_cred_validations_service ON cred_validations(service_id);
 CREATE INDEX IF NOT EXISTS idx_exam_proofs_q ON exam_proofs(question_num);
 CREATE INDEX IF NOT EXISTS idx_exam_proofs_target ON exam_proofs(target_id);
 """

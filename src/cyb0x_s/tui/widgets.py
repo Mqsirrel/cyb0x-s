@@ -60,7 +60,7 @@ class TargetTreeWidget(Tree):
     """
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__("Targets & Attack Surface", **kwargs)
+        super().__init__("Target Roster", **kwargs)
         self.show_root = False
 
     def populate(
@@ -140,7 +140,7 @@ class TargetTreeWidget(Tree):
             for snet, t_list in subnet_map.items():
                 has_pivot = any(t.is_pivot for t in t_list)
                 pivot_lbl = f" [bold {P.warn}]⇄ [PIVOT SEGMENT][/]" if has_pivot else ""
-                snet_label = f"[bold {P.accent}]▼ {snet}[/]{pivot_lbl} [{P.muted}]({len(t_list)} hosts)[/]"
+                snet_label = f"[bold {P.accent}]{snet}[/]{pivot_lbl} [{P.muted}]({len(t_list)} host{'s' if len(t_list) != 1 else ''})[/]"
                 snet_node = root.add(
                     snet_label,
                     data={"type": "subnet", "subnet": snet, "has_pivot": has_pivot},
@@ -311,7 +311,7 @@ class MachineStatusStrip(Static):
     def render(self) -> Text:
         P = current_palette()
         t = Text()
-        width = max(self.size.width - 4, 20)
+        width = max(self.size.width - 4, 20) if self.size.width > 0 else 120
 
         # ---- row 1: identity + loot ------------------------------------
         row1 = Text()
@@ -325,35 +325,38 @@ class MachineStatusStrip(Static):
 
             scope_ok = self.target.is_in_scope
             scope_badge = "IN-SCOPE" if scope_ok else "OUT-OF-SCOPE"
-            row1.append(f" [{scope_badge}] ", style=f"bold {P.ok if scope_ok else P.danger}")
+            row1.append(f"[{scope_badge}] ", style=f"bold {P.ok if scope_ok else P.danger}")
 
             if self.exam_start is not None:
                 elapsed_s = int(time.time() - self.exam_start)
             else:
                 elapsed_s = int(time.monotonic() - self.session_start)
-            row1.append(f" T+{timedelta(seconds=elapsed_s)} ", style=f"bold {P.muted}")
+            row1.append(f"T+{timedelta(seconds=elapsed_s)} ", style=f"bold {P.muted}")
 
             for label, value in (("🏁", self.target.user_flag), ("👑", self.target.root_flag)):
-                row1.append(f" {label} ", style="")
+                row1.append(f"{label} ", style="")
                 if value:
-                    row1.append(self._elide(value, 12), style=f"bold {P.ok}")
+                    row1.append(self._elide(value, 14) + " ", style=f"bold {P.ok}")
                 else:
-                    row1.append("—", style=f"{P.muted}")
+                    row1.append("— ", style=f"{P.muted}")
 
             if self.target.initial_access_vuln:
-                row1.append("  ⚡ ", style="")
-                row1.append(self._elide(self.target.initial_access_vuln, 18), style=f"bold {P.warn}")
+                row1.append("⚡ ", style="")
+                row1.append(self._elide(self.target.initial_access_vuln, 18) + " ", style=f"bold {P.warn}")
         else:
-            row1.append("◇ ", style=f"bold {P.warn}")
+            row1.append("◇ TARGET ▸ ", style=f"bold {P.warn}")
             row1.append("no target selected  ·  press 't' to add one", style=f"{P.muted}")
 
         # right-hand counters
+        placed_counters_row1 = False
+        counts_text = ""
         if self.counts:
             counts_text = "   ".join(f"{v} {k}" for k, v in self.counts.items())
             pad = width - len(row1.plain) - len(counts_text)
-            if pad > 2:
+            if pad >= 4:
                 row1.append(" " * pad)
                 row1.append(counts_text, style=f"bold {P.muted}")
+                placed_counters_row1 = True
 
         if self.size.height < 2:
             # Short terminal: return single identity line without newline.
@@ -366,27 +369,42 @@ class MachineStatusStrip(Static):
         t.append("\n")
 
         # ---- row 2: next step + progress + blockers ---------------------
-        row2 = Text()
         done, total, pct = self.progress
-        if self.next_step:
-            row2.append("NEXT ▸ ", style=f"bold {P.warn}")
-            row2.append(f"{self.next_step} ", style=f"bold {P.text}")
-        elif total:
-            row2.append("NEXT ▸ ", style=f"bold {P.warn}")
-            row2.append("methodology complete ", style=f"bold {P.ok}")
-        else:
-            row2.append("NEXT ▸ ", style=f"bold {P.warn}")
-            row2.append("press 'm' to load a methodology template ", style=f"{P.muted}")
 
+        # Tail of row 2: progress bar + counts (if not on row 1) + blockers
+        tail2 = Text()
         if total:
-            row2.append_text(self._progress_bar(pct, 12, P))
-            row2.append(f" {pct:>3d}% ({done}/{total})", style=f"{P.text_soft}")
+            tail2.append_text(self._progress_bar(pct, 10, P))
+            tail2.append(f" {pct:>3d}% ({done}/{total})  ", style=f"{P.text_soft}")
 
-        tail = f"🕳 {self.blockers} dead end" + ("s" if self.blockers != 1 else "") if self.blockers else "no blockers"
-        pad = width - len(row2.plain) - len(tail)
-        if pad > 2:
-            row2.append(" " * pad)
-            row2.append(tail, style=f"bold {P.danger}" if self.blockers else f"{P.muted}")
+        if not placed_counters_row1 and counts_text:
+            tail2.append(counts_text + "   ", style=f"bold {P.muted}")
+
+        blocker_text = f"🕳 {self.blockers} dead end" + ("s" if self.blockers != 1 else "") if self.blockers else "no blockers"
+        tail2.append(blocker_text, style=f"bold {P.danger}" if self.blockers else f"{P.muted}")
+
+        # Left side of row 2: TODO or CHECKLIST
+        left2 = Text()
+        avail_left = max(width - len(tail2.plain) - 4, 16)
+        if self.next_step:
+            left2.append("TODO ▸ ", style=f"bold {P.warn}")
+            step_room = max(avail_left - 7, 8)
+            left2.append(self._elide(self.next_step, step_room), style=f"bold {P.text}")
+        elif total:
+            left2.append("CHECKLIST ▸ ", style=f"bold {P.ok}")
+            left2.append(self._elide("methodology complete", max(avail_left - 12, 8)), style=f"bold {P.ok}")
+        else:
+            left2.append("CHECKLIST ▸ ", style=f"bold {P.muted}")
+            left2.append(self._elide("press 'm' to load a methodology template", max(avail_left - 12, 8)), style=f"{P.muted}")
+
+        pad2 = width - len(left2.plain) - len(tail2.plain)
+        row2 = Text()
+        row2.append_text(left2)
+        if pad2 > 0:
+            row2.append(" " * pad2)
+        else:
+            row2.append(" ")
+        row2.append_text(tail2)
 
         if len(row2.plain) > width:
             t.append(self._elide(row2.plain, width))
@@ -404,7 +422,7 @@ class ConsoleBar(Container):
 
     DEFAULT_CSS = """
     ConsoleBar {
-        height: 4;
+        height: 5;
         border: round $border;
         background: $surface;
         padding: 0 1;
@@ -486,6 +504,13 @@ class ConsoleBar(Container):
         self.recipes: List[Dict[str, str]] = []
         self.recipe_index: int = 0
         self.recipe_target_ip: str = ""
+        self.active_station: str = "tab-worksheet"
+
+    def set_active_station(self, station_id: str) -> None:
+        """Inform console of the currently active station so idle tips stay contextual."""
+        self.active_station = station_id
+        if not self.command and not self.tip:
+            self._paint()
 
     def on_mount(self) -> None:
         try:
@@ -503,7 +528,7 @@ class ConsoleBar(Container):
         with Horizontal(id="console-input-row"):
             yield Label("❯", id="console-prompt")
             yield Input(
-                placeholder="Type : for command menu (:t target, :s svc, :c cred, :theme, :1-4) or type any note...",
+                placeholder="Type command (:t target, :s svc, :c cred, :m tmpl, :w wordlist, :theme) or note... (: for menu)",
                 id="cmd-input",
             )
 
@@ -713,24 +738,45 @@ class ConsoleBar(Container):
         if self.command:
             cmd_line.append("❯ ", style=f"bold {P.accent}")
             room = inner - 2 - len(f"[{self.heading}] ") - 2
-            cmd_line.append(f"[{self.heading}] ", style=f"bold {P.warn}")
+            heading_style = f"bold {P.warn}"
+            cmd_line.append(f"[{self.heading}] ", style=heading_style)
             cmd_line.append(ConsoleBar._elide(self.command, room), style=f"bold {P.text}")
-            hint = "[Enter]=copy"
+            hint = "[Enter]=copy" + (" · [.]=next" if len(self.recipes) > 1 else "")
             pad = inner - len(cmd_line.plain) - len(hint)
             if pad > 1:
                 cmd_line.append(" " * pad)
                 cmd_line.append(hint, style=f"bold {P.accent}")
         else:
-            cmd_line.append("❯ ", style=f"bold {P.accent}")
-            cmd_line.append(
-                ConsoleBar._elide(
-                    "highlight a service or checklist step to see its command", inner - 2
-                ),
-                style=f"{P.muted}",
-            )
+            if self.active_station == "tab-playbooks":
+                cmd_line.append("📖 ", style=f"bold {P.accent}")
+                cmd_line.append("Station 2 · Playbooks: ", style=f"bold {P.text}")
+                cmd_line.append("browse attack recipes · press [Enter] to copy command · [/] to search", style=f"{P.muted}")
+            elif self.active_station == "tab-creds":
+                cmd_line.append("🔑 ", style=f"bold {P.accent}")
+                cmd_line.append("Station 3 · Credential Vault: ", style=f"bold {P.text}")
+                cmd_line.append("2D lateral movement matrix · [Space] cycle status · [Enter] copy spray cmd", style=f"{P.muted}")
+            elif self.active_station == "tab-loot":
+                cmd_line.append("🏁 ", style=f"bold {P.accent}")
+                cmd_line.append("Station 4 · Proofs & Flags: ", style=f"bold {P.text}")
+                cmd_line.append("captured flags & question proofs · [g] flags · [a] proofs · :stuck dead-ends", style=f"{P.muted}")
+            else:
+                cmd_line.append("◈ ", style=f"bold {P.accent}")
+                cmd_line.append("Station 1 · Cockpit: ", style=f"bold {P.text}")
+                cmd_line.append("highlight a service or checklist step to preview & copy commands", style=f"{P.muted}")
 
         if self.tip:
-            tip_line.append(ConsoleBar._elide(self.tip, inner), style=f"{P.muted}")
+            tip_line.append("ℹ ", style=f"bold {P.accent}")
+            tip_line.append(ConsoleBar._elide(self.tip, inner - 2), style=f"{P.text_soft}")
+        else:
+            tip_line.append("💡 Hotkeys: ", style=f"bold {P.accent}")
+            tip_line.append("w", style=f"bold {P.warn}")
+            tip_line.append(" cycle panels · ", style=f"{P.muted}")
+            tip_line.append("1-4", style=f"bold {P.warn}")
+            tip_line.append(" switch stations · ", style=f"{P.muted}")
+            tip_line.append("t/s/c", style=f"bold {P.warn}")
+            tip_line.append(" quick-add · ", style=f"{P.muted}")
+            tip_line.append("?", style=f"bold {P.warn}")
+            tip_line.append(" help guide", style=f"{P.muted}")
 
         try:
             if getattr(self, "_cmd_static", None) is not None and getattr(self, "_tip_static", None) is not None:
@@ -1033,10 +1079,21 @@ class LootAndFlagsWidget(Static):
         super().__init__(**kwargs)
         self.target: Optional[Target] = None
 
+    def on_mount(self) -> None:
+        """Ensure Loot & Flags data is populated as soon as the station is mounted."""
+        if hasattr(self.app, "store"):
+            try:
+                active = self.app.store.get_active_target()
+                failures = self.app.store.list_failure_logs(target_id=active.id if active else None)
+                proofs = self.app.store.list_exam_proofs()
+                self.update_data(active, failures, proofs=proofs)
+            except Exception:
+                pass
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="loot-cards-container"):
             with Vertical(classes="loot-box"):
-                yield Label("🏁 CAPTURED EXAM FLAGS", classes="loot-title")
+                yield Label("🏁 CAPTURED FLAGS", classes="loot-title")
                 yield Static(id="loot-flags-content")
             with Vertical(classes="loot-box"):
                 yield Label("⚡ INITIAL FOOTHOLD & EXPLOIT", classes="loot-title")
@@ -1046,7 +1103,7 @@ class LootAndFlagsWidget(Static):
                 yield Static(id="loot-privesc-content")
         with Horizontal(id="loot-lower-container"):
             with Vertical(id="loot-evidence-box", classes="loot-lower-box"):
-                yield Label("📝 EXAM QUESTION PROOFS (Q1–Q35)", classes="loot-title")
+                yield Label("📝 QUESTION & EVIDENCE PROOFS", classes="loot-title")
                 yield Label("Press 'a' or :q <num> <proof> • Enter=Copy • e=Export", classes="loot-sub")
                 yield ListView(id="loot-evidence-list")
             with Vertical(id="loot-failure-box", classes="loot-lower-box"):
@@ -1072,7 +1129,7 @@ class LootAndFlagsWidget(Static):
             f_txt.append(f"{target.root_flag or '<NOT CAPTURED YET>'}\n\n", style=S("ok") if target.root_flag else S("muted", bold=False))
             f_txt.append("[Press 'g' or type :uflag / :rflag to set flags]", style="dim italic")
         else:
-            f_txt.append("No active target selected.", style="dim italic")
+            f_txt.append("No active target selected.\nPress 't' to add a target machine or switch with [ / ].", style="dim italic")
         self.query_one("#loot-flags-content", Static).update(f_txt)
 
         # Foothold Card
@@ -1084,7 +1141,7 @@ class LootAndFlagsWidget(Static):
             fh_txt.append(f"{target.foothold_context or 'N/A'}\n", style=S("text"))
             fh_txt.append(f"Command:\n❯ {target.foothold_cmd or 'N/A'}", style=S("warn"))
         else:
-            fh_txt.append("No foothold recorded yet.\nType :foothold <vuln> to record.", style="dim italic")
+            fh_txt.append("No foothold recorded yet.\nType :foothold <vuln> or :foot <cmd> to record.", style="dim italic")
         self.query_one("#loot-foothold-content", Static).update(fh_txt)
 
         # PrivEsc Card
@@ -1094,7 +1151,7 @@ class LootAndFlagsWidget(Static):
             pe_txt.append(f"{target.privesc_vector or 'N/A'}\n", style=S("text"))
             pe_txt.append(f"Root Proof:\n❯ {target.root_proof or 'whoami && id && ip a'}", style=S("warn"))
         else:
-            pe_txt.append("No PrivEsc recorded yet.\nType :privesc <vector> to record.", style="dim italic")
+            pe_txt.append("No PrivEsc recorded yet.\nType :privesc <vector> to record root proof.", style="dim italic")
         self.query_one("#loot-privesc-content", Static).update(pe_txt)
 
         # Question Proofs List
@@ -1244,6 +1301,13 @@ class CredentialMatrixWidget(Static):
     #cred-matrix-table:focus {
         border: round $accent;
     }
+    #cred-matrix-empty {
+        height: 1fr;
+        border: round $border;
+        background: $surface;
+        padding: 1 3;
+        display: none;
+    }
     """
 
     CELL_CYCLE = ["○ UNTESTED", "✔ VALID", "👑 PWN3D", "✗ INVALID"]
@@ -1255,6 +1319,17 @@ class CredentialMatrixWidget(Static):
         self.revealed_ids: Set[int] = set()
         self.cell_states: Dict[tuple[int, int], str] = {}
 
+    def on_mount(self) -> None:
+        """Ensure Credential Matrix data is populated as soon as mounted."""
+        if hasattr(self.app, "store"):
+            try:
+                creds = self.app.store.list_credentials()
+                targets = self.app.store.list_targets()
+                services = self.app.store.list_services()
+                self.update_data(creds, targets, services, getattr(self.app, "revealed_creds", set()))
+            except Exception:
+                pass
+
     def compose(self) -> ComposeResult:
         yield Label(
             Text("CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX"),
@@ -1262,9 +1337,34 @@ class CredentialMatrixWidget(Static):
             classes="panel-header",
         )
         yield Label("", id="cred-matrix-sub", classes="panel-subtitle")
+        yield Static(id="cred-matrix-empty")
         table = DataTable(id="cred-matrix-table", cursor_type="cell")
         table.zebra_stripes = True
         yield table
+
+    def _render_empty_guide(self) -> Text:
+        P = current_palette()
+        t = Text()
+        t.append("\n")
+        t.append("  🔑 CREDENTIAL SPRAY & LATERAL MOVEMENT MATRIX\n", style=f"bold {P.accent}")
+        t.append("  ──────────────────────────────────────────────────────────────────────────────────────────\n", style=f"{P.border}")
+        t.append("  This 2D matrix automatically maps discovered credentials against authenticating services\n", style=f"{P.text}")
+        t.append("  across all in-scope target machines (SSH, SMB, RDP, WinRM, FTP, databases).\n\n", style=f"{P.text_soft}")
+        t.append("  OPERATIONAL WORKFLOW:\n", style=f"bold {P.warn}")
+        t.append("  1. Record Credentials:\n", style=f"bold {P.text}")
+        t.append("     • Press 'c' to open credential modal, or type in bottom console:\n", style=f"{P.text_soft}")
+        t.append("       :c <username:password> [scope]       e.g. :c admin:Summer2024! smb\n", style=f"bold {P.accent}")
+        t.append("     • Secrets are masked by default (press [Space] to reveal/mask).\n\n", style=f"{P.muted}")
+        t.append("  2. Map Target Services:\n", style=f"bold {P.text}")
+        t.append("     • Discover open ports in Station 1 (:s 445 smb, :s 22 ssh, :s 3389 rdp).\n", style=f"{P.text_soft}")
+        t.append("     • Every service accepting credentials becomes a matrix column.\n\n", style=f"{P.text_soft}")
+        t.append("  3. Test & Track Lateral Movement:\n", style=f"bold {P.text}")
+        t.append("     • Move between cells using Arrow keys or j / k / h / l.\n", style=f"{P.text_soft}")
+        t.append("     • Press [Space] on any cell to cycle verification state:\n", style=f"{P.text_soft}")
+        t.append("       ○ UNTESTED  →  ✔ VALID  →  👑 PWN3D  →  ✗ INVALID\n", style=f"bold {P.ok}")
+        t.append("     • Press [Enter] on any cell to compile & copy ready-to-run spray command (netexec, hydra).\n\n", style=f"bold {P.accent}")
+        t.append("  [Press 'c' now to record a credential, or press '1' to return to Cockpit]", style="dim italic")
+        return t
 
     def update_data(
         self,
@@ -1280,8 +1380,11 @@ class CredentialMatrixWidget(Static):
                 self.cell_states.update(self.app.store.get_cred_validations())
             except Exception:
                 pass
+
         table = self.query_one("#cred-matrix-table", DataTable)
         table.clear(columns=True)
+
+        empty_box = self.query_one("#cred-matrix-empty", Static)
 
         # Build in-scope authenticating service pairs
         in_scope_targets = {t.id: t for t in targets if t.is_in_scope}
@@ -1295,9 +1398,23 @@ class CredentialMatrixWidget(Static):
         # Summary subtitle
         tested = sum(1 for c in credentials if (c.status or "").lower() in ("valid", "tested"))
         subtitle = self.query_one("#cred-matrix-sub", Label)
+
+        if not credentials:
+            subtitle.update("No credentials recorded yet — press 'c' to add one or :c user:pass [scope]")
+            empty_box.styles.display = "block"
+            table.styles.display = "none"
+            empty_box.update(self._render_empty_guide())
+            return
+
+        empty_box.styles.display = "none"
+        table.styles.display = "block"
+
         if credentials:
             sub_text = Text()
-            sub_text.append(f"{len(credentials)} credential(s) • {tested} validated • {len(auth_pairs)} spray target(s)   ")
+            if auth_pairs:
+                sub_text.append(f"{len(credentials)} credential(s) • {tested} validated • {len(auth_pairs)} spray target(s)   ")
+            else:
+                sub_text.append(f"{len(credentials)} credential(s) recorded • Add SSH/SMB/RDP in Cockpit to enable 2D spray columns   ")
             sub_text.append("[Space]", style=f"bold {current_palette().accent}")
             sub_text.append("=Cycle Status  ")
             sub_text.append("[Enter]", style=f"bold {current_palette().accent}")
@@ -1305,13 +1422,6 @@ class CredentialMatrixWidget(Static):
             sub_text.append("[c]", style=f"bold {current_palette().accent}")
             sub_text.append("=Add")
             subtitle.update(sub_text)
-        else:
-            subtitle.update("No credentials recorded yet — press 'c' to add one or :c user:pass")
-
-        if not credentials:
-            table.add_column("VAULT STATUS", key="status")
-            table.add_row("No credentials recorded in database yet — press 'c' to add one.")
-            return
 
         # Setup Table Columns
         table.add_column("CREDENTIAL (USER : SECRET)", key="cred")
@@ -1323,6 +1433,7 @@ class CredentialMatrixWidget(Static):
             table.add_column("SCOPE", key="scope")
             table.add_column("STATUS", key="status")
             table.add_column("SOURCE", key="source")
+            table.add_column("LATERAL TARGETS", key="note")
 
         # Setup Table Rows
         for c in credentials:
@@ -1343,7 +1454,7 @@ class CredentialMatrixWidget(Static):
                     row_vals.append(self._format_state(state))
                 table.add_row(*row_vals, key=f"cred_{c.id}")
             else:
-                table.add_row(cred_str, c.service_scope or "GLOBAL", c.status.upper(), c.source or "-", key=f"cred_{c.id}")
+                table.add_row(cred_str, c.service_scope or "GLOBAL", c.status.upper(), c.source or "-", "Add SSH/SMB/RDP in Cockpit to spray", key=f"cred_{c.id}")
 
     def _format_state(self, state: str) -> Text:
         P = current_palette()

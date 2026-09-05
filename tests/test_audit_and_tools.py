@@ -204,7 +204,7 @@ def test_lossless_markdown_and_json_export(store: NotebookStore) -> None:
     assert "## 🏆 Golden Reproduction Walkthrough" in md
     assert "[FOOTHOLD]" in md
     assert "curl http://10.10.10.77/exploit" in md
-    assert "# Exam Evidence & Answer Submission Ledger (Q1–Q35)" in md
+    assert "# Assessment Evidence & Submission Ledger" in md
     assert "**Q14**" in md
     assert "flag{root77}" in md
 

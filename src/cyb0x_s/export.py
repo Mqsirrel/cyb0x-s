@@ -224,7 +224,7 @@ def export_markdown(
     # Exam Question Proofs Ledger (Station 4)
     all_proofs = store.list_exam_proofs()
     if all_proofs:
-        lines.append("# Exam Evidence & Answer Submission Ledger (Q1–Q35)")
+        lines.append("# Assessment Evidence & Submission Ledger")
         lines.append("| Question | Target | Category | Proof / Answer Value | Notes |")
         lines.append("|---|---|---|---|---|")
 
