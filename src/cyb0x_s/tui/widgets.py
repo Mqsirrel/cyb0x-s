@@ -1011,22 +1011,28 @@ class PlaybookBrowserWidget(Static):
         width: 25%;
         height: 1fr;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
         background: $surface;
-        padding: 0 1;
+        padding: 0;
         margin-right: 1;
+    }
+    #playbook-cat-panel:focus-within {
+        border: solid $accent;
     }
     #playbook-cmd-panel {
         width: 75%;
         height: 1fr;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
+        border-subtitle-color: $accent;
+        border-subtitle-align: right;
         background: $surface;
-        padding: 0 1;
+        padding: 0;
     }
-    .panel-hdr {
-        text-style: bold;
-        color: $accent;
-        padding: 0 1;
-        height: 1;
+    #playbook-cmd-panel:focus-within {
+        border: solid $accent;
     }
     """
 
@@ -1042,13 +1048,16 @@ class PlaybookBrowserWidget(Static):
             yield Input(placeholder="Search all commands: smb, winrm, mimikatz, pivot, privesc, sql, hydra...", id="playbook-search-input")
         with Horizontal(id="playbook-body"):
             with Vertical(id="playbook-cat-panel"):
-                yield Label("CATEGORIES", classes="panel-hdr")
                 yield ListView(id="playbook-cat-list")
             with Vertical(id="playbook-cmd-panel"):
-                yield Label("READY-TO-PASTE COMMANDS", id="playbook-cmd-hdr", classes="panel-hdr")
                 yield ListView(id="playbook-cmd-list")
 
     def on_mount(self) -> None:
+        try:
+            self.query_one("#playbook-cat-panel", Vertical).border_title = " CATEGORIES "
+            self.query_one("#playbook-cmd-panel", Vertical).border_subtitle = " [Enter: Copy] "
+        except Exception:
+            pass
         self._populate_categories()
         self._populate_commands()
 
@@ -1112,8 +1121,13 @@ class PlaybookBrowserWidget(Static):
         if self.selected_category != "ALL":
             matches = [m for m in matches if m["category"].lower() == self.selected_category.lower()]
 
-        hdr = self.query_one("#playbook-cmd-hdr", Label)
-        hdr.update(f"COMMAND REFERENCE: {self.selected_category} ({len(matches)} ready commands)")
+        try:
+            cmd_panel = self.query_one("#playbook-cmd-panel", Vertical)
+            count_str = f" ({len(matches)} ready commands)" if matches else ""
+            cmd_panel.border_title = f" COMMAND REFERENCE: {self.selected_category}{count_str} "
+            cmd_panel.border_subtitle = " [Enter: Copy] "
+        except Exception:
+            pass
 
         if matches:
             for item in matches:
@@ -1121,7 +1135,9 @@ class PlaybookBrowserWidget(Static):
                 txt.append(f"[{item['category']}] ", style=S("warn"))
                 txt.append(f"{item['title']}\n", style=S("text"))
                 txt.append(f"  ❯ {item['command']}\n", style=S("warn"))
-                txt.append(f"    ℹ {item['desc']}  [Press Enter to copy]", style="dim italic")
+                desc = item.get("desc", "")
+                if desc:
+                    txt.append(f"    • {desc}", style="dim italic")
                 cmd_list.append(DataListItem(data_obj=item["command"], display_text=txt))
         else:
             txt = Text("  • No matching commands found.", style="dim italic")
