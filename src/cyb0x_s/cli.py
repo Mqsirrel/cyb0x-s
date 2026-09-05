@@ -645,35 +645,39 @@ def flag_cmd(ctx: click.Context, flag_type: str, value: str, target: Optional[st
 
 
 @cli.command("foothold")
+@click.argument("cmd_arg", required=False, default="")
 @click.option("--vuln", default="", help="Vulnerability / CVE exploited")
 @click.option("--cmd", default="", help="Exploit command executed")
 @click.option("--context", default="", help="User context obtained (e.g. www-data)")
 @click.option("--target", "-t", default=None, help="Target IP or ID")
 @click.pass_context
-def foothold_cmd_cli(ctx: click.Context, vuln: str, cmd: str, context: str, target: Optional[str]) -> None:
+def foothold_cmd_cli(ctx: click.Context, cmd_arg: str, vuln: str, cmd: str, context: str, target: Optional[str]) -> None:
     """Record initial foothold exploitation details."""
     store = _get_store(ctx)
     t = store.resolve_target(target)
     if not t:
         err_console.print("[red]Error: No target specified and no active target set.[/red]")
         sys.exit(1)
-    store.update_target_details(t.id, initial_access_vuln=vuln, foothold_cmd=cmd, foothold_context=context)
+    actual_cmd = cmd or cmd_arg
+    store.update_target_details(t.id, initial_access_vuln=vuln, foothold_cmd=actual_cmd, foothold_context=context)
     console.print(f"[green]✓ Recorded initial foothold on {t.ip}[/green]")
 
 
 @cli.command("privesc")
+@click.argument("vector_arg", required=False, default="")
 @click.option("--vector", default="", help="Privilege escalation vector")
 @click.option("--proof", default="", help="Root proof command (e.g. whoami && id && ip a)")
 @click.option("--target", "-t", default=None, help="Target IP or ID")
 @click.pass_context
-def privesc_cmd_cli(ctx: click.Context, vector: str, proof: str, target: Optional[str]) -> None:
+def privesc_cmd_cli(ctx: click.Context, vector_arg: str, vector: str, proof: str, target: Optional[str]) -> None:
     """Record privilege escalation details and root proof."""
     store = _get_store(ctx)
     t = store.resolve_target(target)
     if not t:
         err_console.print("[red]Error: No target specified and no active target set.[/red]")
         sys.exit(1)
-    store.update_target_details(t.id, privesc_vector=vector, root_proof=proof)
+    actual_vector = vector or vector_arg
+    store.update_target_details(t.id, privesc_vector=actual_vector, root_proof=proof)
     console.print(f"[green]✓ Recorded privilege escalation on {t.ip}[/green]")
 
 
@@ -745,6 +749,198 @@ def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -
 @click.pass_context
 def cheat_alias(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
     ctx.invoke(ref_cmd, query=query, target=target, copy=copy)
+
+
+# -----------------------------------------------------------------------------
+# Exam & Integrity Workflow Commands
+# -----------------------------------------------------------------------------
+
+ANSI_ESCAPE_RE = re.compile(
+    r"(?:\x1B[@-Z\\-_]|[\x80-\x9A\x9C-\x9F]|(?:\x1B\[|\x9B)[0-?]*[ -/]*[@-~])"
+)
+
+
+@cli.command("audit")
+@click.argument("target", required=False, default=None)
+@click.option("--all", "audit_all", is_flag=True, help="Audit all targets in the active workspace")
+@click.pass_context
+def audit_cmd(ctx: click.Context, target: Optional[str], audit_all: bool) -> None:
+    """Pre-reset integrity audit gate to verify proof before reverting a VM."""
+    store = _get_store(ctx)
+
+    targets_to_audit = []
+    if audit_all:
+        ws = store.get_active_workspace()
+        targets_to_audit = store.list_targets(workspace_id=ws.id) if ws else []
+        if not targets_to_audit:
+            console.print("[yellow]No targets recorded in current workspace.[/yellow]")
+            return
+    else:
+        t_obj = store.resolve_target(target) if target else store.get_active_target()
+        if not t_obj:
+            err_console.print("[red]Error: No target specified and no active target set. Try 'cyb0x-s audit <IP>' or '--all'.[/red]")
+            sys.exit(1)
+        targets_to_audit = [t_obj]
+
+    for t in targets_to_audit:
+        res = store.audit_target(t.id)
+        if "error" in res:
+            console.print(f"[red]{res['error']}[/red]")
+            continue
+
+        table = Table(
+            title=f"Pre-Reset Integrity Audit — {t.ip} ({t.hostname or 'no-host'}) [{t.os}]",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        table.add_column("Requirement / Check", style="bold white", width=28)
+        table.add_column("Status", width=14, justify="center")
+        table.add_column("Recorded Evidence / Proof Details", style="dim")
+
+        for c in res["checks"]:
+            if c["passed"]:
+                status = "[green]✓ PASS[/green]"
+            elif c["critical"]:
+                status = "[bold red]✗ FAIL[/bold red]"
+            else:
+                status = "[yellow]○ OPTIONAL[/yellow]"
+            table.add_row(c["name"], status, escape(str(c["detail"])))
+
+        console.print(table)
+        score_str = f"Score: {res['score']}"
+        if res["ready_to_revert"]:
+            console.print(f"[bold green]✓ {res['verdict']} ({score_str})[/bold green]\n")
+        else:
+            console.print(f"[bold red]⚠️  {res['verdict']} ({score_str})[/bold red]\n")
+
+
+@cli.command("proof-cmd")
+@click.option("--os", "os_name", type=click.Choice(["linux", "windows"], case_sensitive=False), default=None, help="Target operating system")
+@click.option("--target", "-t", default=None, help="Target IP to auto-detect OS")
+@click.option("--flag-path", default="", help="Custom flag path to append")
+@click.option("--copy/--no-copy", default=True, help="Copy one-liner to clipboard (default: enabled)")
+@click.pass_context
+def proof_cmd_cli(ctx: click.Context, os_name: Optional[str], target: Optional[str], flag_path: str, copy: bool) -> None:
+    """Generate and copy standard composite proof command (whoami, id, hostname, ip, flag)."""
+    store = _get_store(ctx)
+
+    detected_os = os_name
+    if not detected_os:
+        t_obj = store.resolve_target(target) if target else store.get_active_target()
+        if t_obj and t_obj.os and t_obj.os.lower() != "unknown":
+            if "win" in t_obj.os.lower():
+                detected_os = "windows"
+            else:
+                detected_os = "linux"
+        else:
+            detected_os = "linux"
+
+    if detected_os.lower() == "windows":
+        flag_snippet = f"type {flag_path} 2>nul" if flag_path else "type proof.txt 2>nul || type C:\\Users\\Administrator\\Desktop\\proof.txt 2>nul"
+        compound_cmd = f"whoami /priv && whoami && hostname && ipconfig && ({flag_snippet})"
+        title = "Windows Composite Proof One-Liner (OffSec / INE Compliant)"
+    else:
+        flag_snippet = f"cat {flag_path} 2>/dev/null" if flag_path else "cat /root/proof.txt 2>/dev/null || cat proof.txt 2>/dev/null || cat /home/*/user.txt 2>/dev/null"
+        compound_cmd = f"id && whoami && hostname && ip a && ({flag_snippet})"
+        title = "Linux Composite Proof One-Liner (OffSec / INE Compliant)"
+
+    console.print(f"[bold cyan]─── {title} ───[/bold cyan]")
+    console.print(f"[bold yellow]{compound_cmd}[/bold yellow]")
+    if copy:
+        copy_to_clipboard(compound_cmd)
+        console.print("[dim]→ Copied one-liner to clipboard[/dim]")
+
+
+@cli.command("cmd")
+@click.argument("command_text", required=False, default="")
+@click.option("--golden", "-g", is_flag=True, help="Mark as verified breakthrough/reproduction step")
+@click.option("--step", "-s", default="", help="Step label: foothold, privesc, pivot, enum, loot")
+@click.option("--notes", "-n", default="", help="Notes on command outcome")
+@click.option("--target", "-t", default=None, help="Target IP or ID")
+@click.option("--list", "-l", "list_mode", is_flag=True, help="List command history")
+@click.option("--golden-only", is_flag=True, help="List only golden breakthrough commands")
+@click.pass_context
+def cmd_cli(
+    ctx: click.Context,
+    command_text: str,
+    golden: bool,
+    step: str,
+    notes: str,
+    target: Optional[str],
+    list_mode: bool,
+    golden_only: bool,
+) -> None:
+    """Record or review commands in the operator audit trail and Golden Replication Chain."""
+    store = _get_store(ctx)
+    t_obj = store.resolve_target(target) if target else store.get_active_target()
+    t_id = t_obj.id if t_obj else None
+
+    if list_mode:
+        cmds = store.list_commands(target_id=t_id, limit=50, golden_only=golden_only)
+        if not cmds:
+            filter_str = " (golden only)" if golden_only else ""
+            t_str = f" for {t_obj.ip}" if t_obj else ""
+            console.print(f"[yellow]No commands recorded{filter_str}{t_str}.[/yellow]")
+            return
+
+        table = Table(
+            title="Command History & Golden Replication Chain" if not golden_only else "🏆 Golden Reproduction Chain",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        table.add_column("Type", width=12)
+        table.add_column("Step", width=12)
+        table.add_column("Command", style="bold yellow")
+        table.add_column("Notes", style="dim")
+
+        for c in cmds:
+            type_badge = "[bold gold1]★ GOLDEN[/bold gold1]" if c.is_golden else "[dim]NORMAL[/dim]"
+            step_badge = f"[cyan]{c.step}[/cyan]" if c.step else "-"
+            table.add_row(type_badge, step_badge, escape(c.command), escape(c.notes))
+
+        console.print(table)
+        return
+
+    if not command_text:
+        err_console.print("[red]Usage: cyb0x-s cmd <COMMAND> [--golden] [--step <STEP>] [--notes <NOTES>] or --list[/red]")
+        sys.exit(1)
+
+    rec = store.add_command(
+        command=command_text,
+        target_id=t_id,
+        notes=notes,
+        is_golden=golden,
+        step=step,
+    )
+    t_info = f" (Target: {t_obj.ip})" if t_obj else " (Global)"
+    badge = " [bold gold1]★ GOLDEN REPRODUCTION STEP[/bold gold1]" if golden else ""
+    step_info = f" [{step.upper()}]" if step else ""
+    console.print(f"[green]✓ Recorded command{t_info}{badge}{step_info}:[/green] {rec.command}")
+
+
+@cli.command("clean")
+@click.argument("file_path", type=click.Path(exists=True), required=False, default=None)
+@click.option("--copy", "-c", is_flag=True, help="Copy sanitized output to clipboard")
+@click.pass_context
+def clean_cmd(ctx: click.Context, file_path: Optional[str], copy: bool) -> None:
+    """Sanitize raw terminal output by stripping ANSI color codes and control sequences."""
+    if file_path:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            raw_text = f.read()
+    else:
+        if sys.stdin.isatty():
+            err_console.print("[yellow]Reading from stdin... (Paste text and press Ctrl+D, or pipe via 'cat file | cyb0x-s clean')[/yellow]")
+        raw_text = sys.stdin.read()
+
+    # Strip ANSI escapes and carriage returns
+    clean_text = ANSI_ESCAPE_RE.sub("", raw_text).replace("\r\n", "\n").replace("\r", "\n")
+
+    # Output to stdout directly
+    click.echo(clean_text, nl=False)
+
+    if copy:
+        copy_to_clipboard(clean_text)
+        err_console.print("\n[dim]→ Copied sanitized text to clipboard[/dim]")
 
 
 # -----------------------------------------------------------------------------
