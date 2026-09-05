@@ -184,19 +184,19 @@ CYBER = Palette(
 
 SUGARY = Palette(
     name="sugary",
-    label="Sugary · warm oat / navy ink",
-    bg="#EFE8DD",
-    surface="#E5DDD0",
-    raised="#DBD1C2",
-    border="#BAC5D3",
-    border_strong="#5B87C2",
-    text="#121E33",
-    text_soft="#2E3F59",
-    muted="#4B5F7D",
-    accent="#1856A3",
-    ok="#167347",
-    warn="#C26600",
-    danger="#6020C0",
+    label="Sugary · crisp light / navy ink",
+    bg="#EEF2F6",
+    surface="#FFFFFF",
+    raised="#E2E8F0",
+    border="#CBD5E1",
+    border_strong="#0284C7",
+    text="#0F172A",
+    text_soft="#334155",
+    muted="#475569",
+    accent="#0284C7",
+    ok="#16A34A",
+    warn="#D97706",
+    danger="#DC2626",
     dark=False,
 )
 
@@ -681,8 +681,17 @@ ListView > ListItem {
     color: $foreground;
 }
 
+ListView:focus > ListItem.-highlight,
+ListView > ListItem.-highlight,
 ListView > ListItem.-selected {
-    background: $accent 22%;
+    background: $accent 18%;
+    color: $foreground;
+    text-style: bold;
+}
+
+Tree:focus > .tree--cursor,
+Tree > .tree--cursor {
+    background: $accent 18%;
     color: $foreground;
     text-style: bold;
 }
