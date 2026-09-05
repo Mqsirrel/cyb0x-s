@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import time
 from datetime import timedelta
 from typing import Any, Dict, List, Optional, Set
@@ -1195,25 +1196,25 @@ AUTH_SERVICE_PORTS = {21, 22, 80, 443, 445, 1433, 3306, 3389, 5432, 5985, 5986, 
 def compile_spray_command(user: str, secret: str, service: str, ip: str, port: int) -> str:
     """Generate ready-to-run credential verification or lateral spray command."""
     s_low = service.strip().lower()
-    clean_u = user.strip()
-    clean_p = secret.strip()
+    clean_u = shlex.quote(user.strip())
+    clean_p = shlex.quote(secret.strip())
     if s_low in ("smb", "microsoft-ds", "netbios-ssn") or port in (139, 445):
-        return f"netexec smb {ip} -u '{clean_u}' -p '{clean_p}'"
+        return f"netexec smb {ip} -u {clean_u} -p {clean_p}"
     elif s_low == "ssh" or port == 22:
-        return f"sshpass -p '{clean_p}' ssh -o StrictHostKeyChecking=no {clean_u}@{ip}"
+        return f"sshpass -p {clean_p} ssh -o StrictHostKeyChecking=no {clean_u}@{ip}"
     elif s_low in ("winrm", "wsman") or port in (5985, 5986):
-        return f"evil-winrm -i {ip} -u '{clean_u}' -p '{clean_p}'"
+        return f"evil-winrm -i {ip} -u {clean_u} -p {clean_p}"
     elif s_low in ("rdp", "ms-wbt-server") or port == 3389:
-        return f"xfreerdp /u:'{clean_u}' /p:'{clean_p}' /v:{ip} /cert:ignore /smart-sizing"
+        return f"xfreerdp /u:{clean_u} /p:{clean_p} /v:{ip} /cert:ignore /smart-sizing"
     elif s_low in ("mssql", "ms-sql-s") or port == 1433:
-        return f"netexec mssql {ip} -u '{clean_u}' -p '{clean_p}'"
+        return f"netexec mssql {ip} -u {clean_u} -p {clean_p}"
     elif s_low in ("mysql",) or port == 3306:
-        return f"mysql -h {ip} -u '{clean_u}' -p'{clean_p}'"
+        return f"mysql -h {ip} -u {clean_u} -p{clean_p}"
     elif s_low in ("ftp",) or port == 21:
-        return f"hydra -l '{clean_u}' -p '{clean_p}' ftp://{ip}"
+        return f"hydra -l {clean_u} -p {clean_p} ftp://{ip}"
     elif s_low in ("http", "https", "web") or port in (80, 443, 8080):
         proto = "https" if port == 443 or "https" in s_low else "http"
-        return f"curl -s -u '{clean_u}:{clean_p}' -I {proto}://{ip}:{port}/"
+        return f"curl -s -u {clean_u}:{clean_p} -I {proto}://{ip}:{port}/"
     return f"# Test credential {clean_u}:{clean_p} against {ip}:{port} ({service})"
 
 
@@ -1373,7 +1374,7 @@ class CredentialMatrixWidget(Static):
             return
         row_idx = coord.row
         col_idx = coord.column - 1
-        if row_idx >= len(self.credentials) or col_idx >= len(self.auth_services):
+        if row_idx < 0 or row_idx >= len(self.credentials) or col_idx < 0 or col_idx >= len(self.auth_services):
             return
         c = self.credentials[row_idx]
         t, s = self.auth_services[col_idx]
@@ -1402,7 +1403,7 @@ class CredentialMatrixWidget(Static):
             return
         row_idx = coord.row
         col_idx = coord.column - 1
-        if row_idx >= len(self.credentials) or col_idx >= len(self.auth_services):
+        if row_idx < 0 or row_idx >= len(self.credentials) or col_idx < 0 or col_idx >= len(self.auth_services):
             return
         c = self.credentials[row_idx]
         t, s = self.auth_services[col_idx]

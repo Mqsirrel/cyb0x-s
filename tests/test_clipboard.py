@@ -56,3 +56,17 @@ def test_osc52_generation() -> None:
     # Verify osc52 executes without throwing exceptions
     res = copy_osc52("test_copy_payload")
     assert isinstance(res, bool)
+
+
+def test_compile_spray_command_shell_quoting() -> None:
+    from cyb0x_s.tui.widgets import compile_spray_command
+    import shlex
+
+    # Credential with single quote and shell metacharacters
+    cmd = compile_spray_command("admin", "p@ss'word$123", "ssh", "10.10.10.20", 22)
+    # Shell splitting must succeed without SyntaxError / unclosed quotes
+    tokens = shlex.split(cmd)
+    assert "sshpass" in tokens
+    assert "p@ss'word$123" in tokens
+    assert "admin@10.10.10.20" in tokens
+
