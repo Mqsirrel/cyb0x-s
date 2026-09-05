@@ -796,3 +796,92 @@ async def test_cockpit_layout_rebalance_and_console_visibility(seeded_store: Not
         assert "[CHECKED]" in first_svc.display_text.plain or "[TODO]" in first_svc.display_text.plain
 
 
+@pytest.mark.asyncio
+async def test_station_indicator_breadcrumb(seeded_store: NotebookStore) -> None:
+    """Station indicator breadcrumb updates dynamically in WorksheetHeader on tab switch."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        header = app.query_one(WorksheetHeader)
+        assert "[ Cockpit ]" in header.render().plain
+
+        app.action_switch_tab("tab-playbooks")
+        await pilot.pause()
+        assert "[ Playbooks ]" in header.render().plain
+
+        app.action_switch_tab("tab-creds")
+        await pilot.pause()
+        assert "[ Credentials ]" in header.render().plain
+
+        app.action_switch_tab("tab-loot")
+        await pilot.pause()
+        assert "[ Loot & Flags ]" in header.render().plain
+
+        app.action_switch_tab("tab-worksheet")
+        await pilot.pause()
+        assert "[ Cockpit ]" in header.render().plain
+
+
+@pytest.mark.asyncio
+async def test_persistent_panel_focus_and_selection_memory(seeded_store: NotebookStore) -> None:
+    """Exact list indices and focused cockpit widget are preserved across tab switches."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)) as pilot:
+        svc_list = app.query_one("#list-services", ListView)
+        svc_list.focus()
+        assert len(svc_list.children) > 1
+        svc_list.index = 1
+        await pilot.pause()
+
+        # Switch away to Station 2
+        app.action_switch_tab("tab-playbooks")
+        await pilot.pause()
+
+        # Switch back to Cockpit (Station 1)
+        app.action_switch_tab("tab-worksheet")
+        await pilot.pause()
+
+        # Services list should retain focus and exact row index
+        assert svc_list.has_focus, "Services list should retain keyboard focus on tab return"
+        assert svc_list.index == 1, "Services list row selection index should be preserved"
+
+
+@pytest.mark.asyncio
+async def test_tree_folding_persistence(seeded_store: NotebookStore) -> None:
+    """Collapsed tree nodes remain collapsed across populate cycles."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)):
+        tree = app.query_one("#target-tree", TargetTreeWidget)
+        targets = seeded_store.list_targets()
+        services = seeded_store.list_services()
+
+        # Collapse the first child node (a subnet or target)
+        assert len(tree.root.children) > 0
+        first_child = tree.root.children[0]
+        first_child.collapse()
+        assert not first_child.is_expanded
+
+        # Repopulate
+        tree.populate(targets, services)
+        assert len(tree.root.children) > 0
+        repopulated_child = tree.root.children[0]
+        assert not repopulated_child.is_expanded, "Collapsed node must remain collapsed after populate"
+
+
+@pytest.mark.asyncio
+async def test_precision_borders_and_native_border_titles(seeded_store: NotebookStore) -> None:
+    """Panels utilize native border_title and dynamic border_subtitle counters."""
+    app = CyboxSafeApp(store=seeded_store)
+    async with app.run_test(size=(140, 40)):
+        surface_panel = app.query_one("#panel-surface")
+        svc_panel = app.query_one("#panel-services")
+        creds_panel = app.query_one("#panel-creds")
+
+        assert surface_panel.border_title == " TARGET ROSTER "
+        assert svc_panel.border_title == " SERVICES & PORTS "
+        assert creds_panel.border_title == " CREDENTIALS "
+
+        # Subtitle contains count
+        assert svc_panel.border_subtitle and "port" in svc_panel.border_subtitle
+
+
+

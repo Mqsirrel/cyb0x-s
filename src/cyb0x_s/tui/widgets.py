@@ -69,6 +69,23 @@ class TargetTreeWidget(Tree):
         services: List[Service],
         selected_target_id: Optional[int] = None,
     ) -> None:
+        # Preserve user's collapsed node state across refreshes
+        collapsed_keys: set[tuple[str, Any]] = set()
+
+        def _collect_collapsed(node: Any) -> None:
+            for child in getattr(node, "children", []):
+                if getattr(child, "data", None) and isinstance(child.data, dict):
+                    ntype = child.data.get("type")
+                    nkey = child.data.get("subnet") if ntype == "subnet" else child.data.get("id")
+                    if ntype and nkey is not None and not child.is_expanded:
+                        collapsed_keys.add((ntype, nkey))
+                _collect_collapsed(child)
+
+        try:
+            _collect_collapsed(self.root)
+        except Exception:
+            pass
+
         self.clear()
         root = self.root
 
@@ -130,7 +147,10 @@ class TargetTreeWidget(Tree):
                     data={"type": "service", "id": svc.id, "target_id": target.id, "service": svc, "target": target},
                 )
 
-            target_node.expand()
+            if ("target", target.id) in collapsed_keys:
+                target_node.collapse()
+            else:
+                target_node.expand()
 
         if use_subnet_groups:
             subnet_map: dict[str, list[Target]] = {}
@@ -147,7 +167,10 @@ class TargetTreeWidget(Tree):
                 )
                 for t in t_list:
                     _add_target_to_node(snet_node, t)
-                snet_node.expand()
+                if ("subnet", snet) in collapsed_keys:
+                    snet_node.collapse()
+                else:
+                    snet_node.expand()
         else:
             for target in targets:
                 _add_target_to_node(root, target)
@@ -165,9 +188,15 @@ class WorksheetHeader(Static):
     }
     """
 
-    def __init__(self, workspace_name: str = "default", **kwargs: Any) -> None:
+    def __init__(
+        self,
+        workspace_name: str = "default",
+        active_station: str = "Cockpit",
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.workspace_name = workspace_name
+        self.active_station = active_station
         self.counts: dict[str, int] = {}
         self.active_ip: str = ""
 
@@ -176,13 +205,17 @@ class WorksheetHeader(Static):
         workspace_name: str = "",
         counts: Optional[dict[str, int]] = None,
         active_ip: str = "",
+        active_station: str = "",
     ) -> None:
-        """Refresh the header meta information (workspace, counters, target)."""
+        """Refresh the header meta information (workspace, counters, target, station)."""
         if workspace_name:
             self.workspace_name = workspace_name
         if counts is not None:
             self.counts = counts
-        self.active_ip = active_ip
+        if active_ip:
+            self.active_ip = active_ip
+        if active_station:
+            self.active_station = active_station
         self.refresh()
 
     def render(self) -> Text:
@@ -192,6 +225,9 @@ class WorksheetHeader(Static):
         t.append("WORKSHEET", style=f"bold {P.text_soft}")
         t.append("  ›  ", style=f"{P.muted}")
         t.append(f"[ {self.workspace_name} ]", style=f"bold {P.accent}")
+        if self.active_station:
+            t.append("  ›  ", style=f"{P.muted}")
+            t.append(f"[ {self.active_station} ]", style=f"bold {P.text}")
 
         if not (self.counts or self.active_ip):
             return t
@@ -426,13 +462,14 @@ class ConsoleBar(Container):
     DEFAULT_CSS = """
     ConsoleBar {
         height: 5;
-        border: round $border;
+        border: solid $border;
+        border-top: solid $accent;
         background: $surface;
         padding: 0 1;
         margin: 0 1;
     }
     ConsoleBar:focus-within {
-        border: round $accent;
+        border: solid $accent;
     }
     #console-cmd {
         height: 1;
@@ -914,7 +951,7 @@ class PlaybookBrowserWidget(Static):
     #playbook-cat-panel {
         width: 25%;
         height: 1fr;
-        border: round $border;
+        border: solid $border;
         background: $surface;
         padding: 0 1;
         margin-right: 1;
@@ -922,7 +959,7 @@ class PlaybookBrowserWidget(Static):
     #playbook-cmd-panel {
         width: 75%;
         height: 1fr;
-        border: round $border;
+        border: solid $border;
         background: $surface;
         padding: 0 1;
     }
@@ -1049,7 +1086,7 @@ class LootAndFlagsWidget(Static):
     .loot-box {
         width: 1fr;
         height: 9;
-        border: round $border;
+        border: solid $border;
         background: $surface;
         padding: 0 1;
         margin-right: 1;
@@ -1061,7 +1098,7 @@ class LootAndFlagsWidget(Static):
     .loot-lower-box {
         width: 1fr;
         height: 1fr;
-        border: round $border;
+        border: solid $border;
         background: $surface;
         padding: 0 1;
         margin-right: 1;
@@ -1298,15 +1335,15 @@ class CredentialMatrixWidget(Static):
     }
     #cred-matrix-table {
         height: 1fr;
-        border: round $border;
+        border: solid $border;
         background: $surface;
     }
     #cred-matrix-table:focus {
-        border: round $accent;
+        border: solid $accent;
     }
     #cred-matrix-empty {
         height: 1fr;
-        border: round $border;
+        border: solid $border;
         background: $surface;
         padding: 1 3;
         display: none;
