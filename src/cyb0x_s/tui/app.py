@@ -160,6 +160,8 @@ class CyboxSafeApp(App):
         self.zoomed_widget: Optional[Vertical] = None
         self.hidden_by_zoom: List[Any] = []
         self._cached_active_target: Optional[Target] = None
+        self._last_cockpit_focused_id: str = "#list-services"
+        self._saved_list_indices: dict[str, int] = {}
 
     def get_current_target(self) -> Optional[Target]:
         """Return the active target from memory cache, querying SQLite only if unpopulated."""
@@ -225,6 +227,14 @@ class CyboxSafeApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        try:
+            self.query_one("#panel-surface").border_title = " TARGET ROSTER "
+            self.query_one("#panel-creds").border_title = " CREDENTIALS "
+            self.query_one("#panel-services").border_title = " SERVICES & PORTS "
+            self.query_one("#panel-checklist").border_title = " METHODOLOGY "
+            self.query_one("#panel-notes").border_title = " NOTES & FINDINGS "
+        except Exception:
+            pass
         self.refresh_targets()
         self.refresh_all()
         self._apply_responsive_layout()
@@ -262,9 +272,18 @@ class CyboxSafeApp(App):
     def action_focus_workbench(self) -> None:
         """Restore focus to workbench list after exiting command bar."""
         try:
-            self.query_one("#list-services", ListView).focus()
+            target_id = getattr(self, "_last_cockpit_focused_id", "#list-services")
+            w = self.query_one(target_id)
+            if isinstance(w, ListView):
+                saved_idx = self._saved_list_indices.get(target_id)
+                if saved_idx is not None and len(w.children) > 0:
+                    w.index = min(saved_idx, len(w.children) - 1)
+            w.focus()
         except Exception:
-            pass
+            try:
+                self.query_one("#list-services", ListView).focus()
+            except Exception:
+                pass
 
     def action_prev_target(self) -> None:
         """Switch to previous target in list via '[' hotkey."""
@@ -323,6 +342,25 @@ class CyboxSafeApp(App):
         except Exception:
             pass
 
+    def _save_cockpit_focus_state(self) -> None:
+        """Capture current focused cockpit widget and scroll/selection indices."""
+        cockpit_panel_ids = ["#target-tree", "#list-creds", "#list-services", "#list-checklist", "#list-notes"]
+        for pid in cockpit_panel_ids:
+            try:
+                w = self.query_one(pid)
+                if w.has_focus:
+                    self._last_cockpit_focused_id = pid
+                    break
+            except Exception:
+                pass
+        for lid in ("#list-creds", "#list-services", "#list-checklist", "#list-notes"):
+            try:
+                lv = self.query_one(lid, ListView)
+                if lv.index is not None:
+                    self._saved_list_indices[lid] = lv.index
+            except Exception:
+                pass
+
     def action_cycle_panel(self) -> None:
         """Cycle focus sequentially through the five Cockpit panels ('w' hotkey)."""
         panel_ids = ["#target-tree", "#list-creds", "#list-services", "#list-checklist", "#list-notes"]
@@ -336,22 +374,40 @@ class CyboxSafeApp(App):
             except Exception:
                 pass
         next_idx = (curr_idx + 1) % len(panel_ids)
+        next_id = panel_ids[next_idx]
         try:
-            self.query_one(panel_ids[next_idx]).focus()
+            target_widget = self.query_one(next_id)
+            if isinstance(target_widget, ListView):
+                saved_idx = self._saved_list_indices.get(next_id)
+                if saved_idx is not None and len(target_widget.children) > 0:
+                    target_widget.index = min(saved_idx, len(target_widget.children) - 1)
+                elif target_widget.index is None and len(target_widget.children) > 0:
+                    target_widget.index = 0
+            target_widget.focus()
+            self._last_cockpit_focused_id = next_id
         except Exception:
             pass
 
     def action_focus_left(self) -> None:
         """Jump focus to Sidebar (Attack Surface tree) via 'h' hotkey."""
         try:
-            self.query_one("#target-tree").focus()
+            tree = self.query_one("#target-tree")
+            tree.focus()
+            self._last_cockpit_focused_id = "#target-tree"
         except Exception:
             pass
 
     def action_focus_right(self) -> None:
         """Jump focus to Workbench (Services list) via 'l' hotkey."""
         try:
-            self.query_one("#list-services", ListView).focus()
+            svc_list = self.query_one("#list-services", ListView)
+            saved_idx = self._saved_list_indices.get("#list-services")
+            if saved_idx is not None and len(svc_list.children) > 0:
+                svc_list.index = min(saved_idx, len(svc_list.children) - 1)
+            elif svc_list.index is None and len(svc_list.children) > 0:
+                svc_list.index = 0
+            svc_list.focus()
+            self._last_cockpit_focused_id = "#list-services"
         except Exception:
             pass
 
@@ -362,25 +418,60 @@ class CyboxSafeApp(App):
     def action_switch_tab(self, tab_id: str) -> None:
         """Switch active TabbedContent pane."""
         tabbed = self.query_one("#tabs", TabbedContent)
+        if tabbed.active == "tab-worksheet":
+            self._save_cockpit_focus_state()
         tabbed.active = tab_id
         self._sync_station_tab(tab_id)
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Handle mouse clicks or direct tab switches on the station TabbedContent."""
         tab_id = event.pane.id if event.pane else str(event.tabbed_content.active)
+        if tab_id != "tab-worksheet":
+            self._save_cockpit_focus_state()
         self._sync_station_tab(tab_id)
 
     def _sync_station_tab(self, tab_id: str) -> None:
-        """Synchronize station widgets and contextual console guide when station changes."""
+        """Synchronize station widgets, breadcrumb, and contextual console guide when station changes."""
         active = self.store.get_active_target()
         target_ip = active.ip if active else ""
+
+        station_titles = {
+            "tab-worksheet": "Cockpit",
+            "tab-playbooks": "Playbooks",
+            "tab-creds": "Credentials",
+            "tab-loot": "Loot & Flags",
+        }
+        active_title = station_titles.get(tab_id, "Cockpit")
+        try:
+            workspace = self.store.get_active_workspace()
+            ws_name = workspace.name if workspace else "default"
+            self.query_one(WorksheetHeader).update_status(
+                workspace_name=ws_name,
+                active_station=active_title,
+            )
+        except Exception:
+            pass
 
         try:
             self.query_one(ConsoleBar).set_active_station(tab_id)
         except Exception:
             pass
 
-        if tab_id == "tab-playbooks":
+        if tab_id == "tab-worksheet":
+            target_wid = getattr(self, "_last_cockpit_focused_id", "#list-services")
+            try:
+                w = self.query_one(target_wid)
+                if isinstance(w, ListView):
+                    saved_idx = self._saved_list_indices.get(target_wid)
+                    if saved_idx is not None and len(w.children) > 0:
+                        w.index = min(saved_idx, len(w.children) - 1)
+                w.focus()
+            except Exception:
+                try:
+                    self.query_one("#list-services", ListView).focus()
+                except Exception:
+                    pass
+        elif tab_id == "tab-playbooks":
             try:
                 self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
             except Exception:
@@ -643,6 +734,13 @@ class CyboxSafeApp(App):
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         """Update guidance drawer when a checklist item or service is highlighted."""
+        if event.list_view and event.list_view.id:
+            lid = f"#{event.list_view.id}"
+            if event.list_view.index is not None:
+                self._saved_list_indices[lid] = event.list_view.index
+            if event.list_view.id in ("list-services", "list-creds", "list-checklist", "list-notes"):
+                self._last_cockpit_focused_id = lid
+
         if getattr(self, "_is_cross_filtering", False):
             return
 
@@ -675,6 +773,20 @@ class CyboxSafeApp(App):
     # -------------------------------------------------------------------------
 
     def _set_count(self, label_id: str, text: str) -> None:
+        panel_map = {
+            "cnt-surface": "#panel-surface",
+            "cnt-creds": "#panel-creds",
+            "cnt-services": "#panel-services",
+            "cnt-checklist": "#panel-checklist",
+            "cnt-notes": "#panel-notes",
+        }
+        panel_id = panel_map.get(label_id)
+        if panel_id:
+            try:
+                p = self.query_one(panel_id)
+                p.border_subtitle = f" {text} " if text and text != "—" else ""
+            except Exception:
+                pass
         try:
             self.query_one(f"#{label_id}", Label).update(text)
         except Exception:
@@ -782,7 +894,7 @@ class CyboxSafeApp(App):
 
             # 1. Services & Ports (Notion 01 format with Potential and Command Recipe)
             svc_list = self.query_one("#list-services", ListView)
-            saved_svc_idx = svc_list.index
+            saved_svc_idx = svc_list.index if svc_list.index is not None else self._saved_list_indices.get("#list-services")
             svc_list.clear()
             services = self.store.list_services(target_id=target_id) if target_id else []
             self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
@@ -794,10 +906,11 @@ class CyboxSafeApp(App):
                 svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_svc_idx is not None and len(svc_list.children) > 0:
                 svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
+                self._saved_list_indices["#list-services"] = svc_list.index
 
             # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
             c_list = self.query_one("#list-creds", ListView)
-            saved_c_idx = c_list.index
+            saved_c_idx = c_list.index if c_list.index is not None else self._saved_list_indices.get("#list-creds")
             c_list.clear()
             creds = self.store.list_credentials(target_id=target_id)
             self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
@@ -809,6 +922,7 @@ class CyboxSafeApp(App):
                 c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_c_idx is not None and len(c_list.children) > 0:
                 c_list.index = min(saved_c_idx, len(c_list.children) - 1)
+                self._saved_list_indices["#list-creds"] = c_list.index
 
             # Tab 3 Credential Matrix: only update if user is looking at Tab 3
             if active_tab == "tab-creds":
@@ -816,7 +930,7 @@ class CyboxSafeApp(App):
 
             # 3. Checklist & Progress Bar
             ck_list = self.query_one("#list-checklist", ListView)
-            saved_ck_idx = ck_list.index
+            saved_ck_idx = ck_list.index if ck_list.index is not None else self._saved_list_indices.get("#list-checklist")
             ck_list.clear()
             items = self.store.list_checklist_items(target_id=target_id)
             checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
@@ -837,10 +951,11 @@ class CyboxSafeApp(App):
                 ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_ck_idx is not None and len(ck_list.children) > 0:
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
+                self._saved_list_indices["#list-checklist"] = ck_list.index
 
             # 4. Combined Field Notes, Evidence & Findings
             n_list = self.query_one("#list-notes", ListView)
-            saved_n_idx = n_list.index
+            saved_n_idx = n_list.index if n_list.index is not None else self._saved_list_indices.get("#list-notes")
             n_list.clear()
             notes = self.store.list_notes(target_id=target_id)
             findings = self.store.list_findings(target_id=target_id)
@@ -882,6 +997,7 @@ class CyboxSafeApp(App):
                 n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_n_idx is not None and len(n_list.children) > 0:
                 n_list.index = min(saved_n_idx, len(n_list.children) - 1)
+                self._saved_list_indices["#list-notes"] = n_list.index
 
             # 5. Fast Header and Status Strip update (reusing already-queried lists!)
             failures = self.store.list_failure_logs(target_id=target_id)

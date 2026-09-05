@@ -506,20 +506,25 @@ Underline > .underline--bar {
 }
 
 .panel-box {
-    border: round $border;
+    border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
     background: $surface;
     margin-bottom: 1;
-    padding: 0 1;
+    padding: 0;
 }
 
 .panel-box:focus-within {
-    border: round $accent;
+    border: solid $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
     background: $surface-lighten-1;
 }
 
 .panel-header-row {
-    height: 1;
-    layout: horizontal;
+    display: none;
 }
 
 .panel-title {
@@ -578,18 +583,19 @@ Underline > .underline--bar {
 /* --- console ------------------------------------------------------------ */
 #guidance-box {
     height: 5;
-    border: round $border;
+    border: solid $border;
+    border-top: solid $accent;
     background: $surface;
     padding: 0 1;
     margin: 0 1;
 }
 
 #guidance-box:focus-within {
-    border: round $accent;
+    border: solid $accent;
 }
 
 #guidance-box.copied-flash {
-    border: round $success;
+    border: solid $success;
 }
 
 #console-cmd {
@@ -696,7 +702,7 @@ Footer > .footer--highlight {
 
 #playbook-search-input {
     height: 3;
-    border: round $border;
+    border: solid $border;
     background: $surface;
     margin-bottom: 1;
 }
@@ -709,7 +715,7 @@ Footer > .footer--highlight {
 #playbook-cat-panel {
     width: 25%;
     height: 1fr;
-    border: round $border;
+    border: solid $border;
     background: $surface;
     padding: 0 1;
     margin-right: 1;
@@ -718,7 +724,7 @@ Footer > .footer--highlight {
 #playbook-cmd-panel {
     width: 75%;
     height: 1fr;
-    border: round $border;
+    border: solid $border;
     background: $surface;
     padding: 0 1;
 }
@@ -732,13 +738,13 @@ Footer > .footer--highlight {
 
 #cred-matrix-list, #cred-matrix-table {
     height: 1fr;
-    border: round $border;
+    border: solid $border;
     background: $surface;
 }
 
 #cred-matrix-empty {
     height: 1fr;
-    border: round $border;
+    border: solid $border;
     background: $surface;
     padding: 1 3;
 }
@@ -752,7 +758,7 @@ Footer > .footer--highlight {
 .loot-box {
     width: 1fr;
     height: 9;
-    border: round $border;
+    border: solid $border;
     background: $surface;
     padding: 0 1;
     margin-right: 1;
@@ -760,7 +766,7 @@ Footer > .footer--highlight {
 
 #loot-failure-box {
     height: 1fr;
-    border: round $border;
+    border: solid $border;
     background: $surface;
     padding: 0 1;
 }
