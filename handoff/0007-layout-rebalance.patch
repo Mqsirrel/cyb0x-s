@@ -1,0 +1,52 @@
+Layout rebalance — screenshot audit findings F5/F6. Pure CSS, theme.py only.
+Apply AFTER 0006, against the LOCAL tree:
+
+    git apply handoff/0007-layout-rebalance.patch
+    # fallback: patch -p1 -l < handoff/0007-layout-rebalance.patch
+
+Contents
+  R1  #panel-services 3fr -> 2fr: the services grid was holding 3 rows in a
+      ~15-row panel; the freed third goes to the lower band
+  R2  #lower-band 2fr -> 3fr: methodology + notes (the text-heavy panels)
+      get the reclaimed space
+  R3  #loot-cards-container fixed 9 rows -> auto (max 12): the flags card
+      stopped wrapping its hint, the empty foothold/privesc cards stop
+      squatting on the Intel station
+  R4  .loot-box height 9 -> auto (same rationale; the copy in widgets.py
+      DEFAULT_CSS keeps losing priority to APP_CSS, no edit needed there)
+
+Note: F1 (emoji tofu) is handled by dev/emoji_purge.py, not this patch —
+emoji bytes are more reliable via scripted replacement than diff context.
+
+diff --git a/src/cyb0x_s/tui/theme.py b/src/cyb0x_s/tui/theme.py
+--- a/src/cyb0x_s/tui/theme.py
++++ b/src/cyb0x_s/tui/theme.py
+@@ -380,7 +380,7 @@
+ #panel-services {
+-height: 3fr;
++height: 2fr;
+ min-height: 7;
+ 
+ #lower-band {
+@@ -390,7 +390,7 @@
+ #lower-band {
+-height: 2fr;
++height: 3fr;
+ min-height: 6;
+ layout: horizontal;
+ 
+@@ -470,7 +470,8 @@
+ #loot-cards-container {
+-height: 9;
++height: auto;
++max-height: 12;
+ layout: horizontal;
+ margin-bottom: 1;
+ 
+@@ -478,7 +479,7 @@
+ .loot-box {
+ width: 1fr;
+-height: 9;
++height: auto;
+ border: round $border;
+ background: $surface;
