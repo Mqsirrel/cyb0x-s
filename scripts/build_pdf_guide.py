@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build a comprehensive, beautifully styled illustrated PDF Operator Guide for CYB0X-S.
+"""Build a comprehensive, beautifully styled illustrated PDF Field Guide for CYB0X-S.
 
-Targeted for eJPTv2 / eCPPT practical pentesting exams and security operators.
+Targeted for eJPTv2 / eCPPT practical pentesting exams and security assessments.
 Includes high-resolution UI screenshots from docs/screenshots/.
 Outputs to:
-  1. /home/albraa/Desktop/CYB0X-S_Operator_Guide.pdf
-  2. /home/albraa/Documents/antigravity/kind-lavoisier/cyb0x-s/docs/CYB0X-S_Operator_Guide.pdf
+  1. /home/albraa/Desktop/CYB0X-S_Field_Guide.pdf
+  2. /home/albraa/Documents/antigravity/kind-lavoisier/cyb0x-s/docs/CYB0X-S_Field_Guide.pdf
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ class NumberedCanvas(canvas.Canvas):
             self.drawString(
                 36,
                 792 - 25,
-                "CYB0X-S · Operator Guide & Practical Exam Workflow Reference (eJPTv2 / eCPPT)",
+                "CYB0X-S · Field Guide & Practical Exam Workflow Reference (eJPTv2 / eCPPT)",
             )
             self.setStrokeColor(colors.HexColor("#CBD5E1"))
             self.setLineWidth(0.5)
@@ -228,7 +228,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     # =========================================================================
     # PAGE 1: TITLE, COMPLIANCE, 4 STATIONS & STATION 1 COCKPIT ANATOMY
     # =========================================================================
-    story.append(Paragraph("CYB0X-S: OPERATOR GUIDE & PRACTICAL WORKFLOW REFERENCE", title_style))
+    story.append(Paragraph("CYB0X-S: FIELD GUIDE & PRACTICAL WORKFLOW REFERENCE", title_style))
     story.append(Paragraph("High-Speed Offline Penetration Testing Worksheet · eJPTv2 / eCPPT Practical Companion", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_ACCENT, spaceBefore=0, spaceAfter=4))
 
@@ -394,7 +394,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     protip_box = [
         [
             Paragraph(
-                "<b>PRO-TIP: THE ZERO-MOUSE OPERATOR FLOW</b><br/>"
+                "<b>PRO-TIP: THE ZERO-MOUSE KEYBOARD FLOW</b><br/>"
                 "1. Highlight any port in <b>SERVICES & PORTS</b> with <code>j</code> / <code>k</code>.<br/>"
                 "2. Watch the bottom console display the exact syntax with the target IP already substituted.<br/>"
                 "3. Press <code>.</code> to cycle alternative tools (e.g., feroxbuster → gobuster → nikto → curl).<br/>"
@@ -850,8 +850,8 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
 def main() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     screenshots_dir = repo_root / "docs" / "screenshots"
-    desktop_pdf = Path("/home/albraa/Desktop/CYB0X-S_Operator_Guide.pdf")
-    repo_pdf = repo_root / "docs" / "CYB0X-S_Operator_Guide.pdf"
+    desktop_pdf = Path("/home/albraa/Desktop/CYB0X-S_Field_Guide.pdf")
+    repo_pdf = repo_root / "docs" / "CYB0X-S_Field_Guide.pdf"
 
     build_pdf(desktop_pdf, screenshots_dir)
     build_pdf(repo_pdf, screenshots_dir)

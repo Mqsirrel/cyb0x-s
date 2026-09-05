@@ -106,7 +106,7 @@ def copy_to_clipboard(text: str) -> bool:
 
 
 def extract_copy_value(entity: Any, target_ip: Optional[str] = None) -> str:
-    """Extract strictly the requested operator value from an entity.
+    """Extract strictly the requested value from an entity.
 
     Rules from specification:
     - Target: IP address (e.g. 10.10.10.20)

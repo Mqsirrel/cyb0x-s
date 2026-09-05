@@ -13,7 +13,7 @@ Strictly non-proprietary:
 This module contains zero proprietary exam materials, zero question bank leaks,
 zero past-attempt data, zero walkthroughs, and zero target-specific solutions.
 They serve purely as static cognitive checklists and syntax reference lookups
-for the human operator.
+for the user.
 """
 
 from __future__ import annotations

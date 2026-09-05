@@ -533,7 +533,7 @@ class ConsoleBar(Container):
             )
 
     def update_input_hint(self, val: str) -> None:
-        """Dynamically display live syntax guidance as the operator types."""
+        """Dynamically display live syntax guidance as the user types."""
         v = val.strip()
         if not v:
             self._paint()

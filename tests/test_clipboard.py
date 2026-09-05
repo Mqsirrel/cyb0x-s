@@ -28,7 +28,7 @@ def test_extract_copy_value_service() -> None:
 
 def test_extract_copy_value_credential() -> None:
     c = Credential(username="admin", secret="SecretPassword123!")
-    # Extracts the unmasked secret so operator can paste it into shell/tool
+    # Extracts the unmasked secret so user can paste it into shell/tool
     assert extract_copy_value(c) == "SecretPassword123!"
 
 
