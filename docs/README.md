@@ -1,16 +1,16 @@
 # Documentation
 
-The documentation is intentionally small and task-oriented. The README covers installation and the basic workflow; this directory contains material that needs more detail.
+User-facing documentation for CYB0X-S. Keep this directory focused on material that helps someone install, use, or understand the project.
 
-## Start here
+## Guides
 
-- [Operator Guide](CYB0X-S_Operator_Guide.pdf) — full usage guide
-- [Workflow](WORKFLOW.md) — how the worksheet is intended to fit into a lab
-- [eJPT Methodology Templates](EJPT_METHODOLOGY_TEMPLATES.md) — bundled workflow templates
-- [Exam Compliance](EXAM_COMPLIANCE.md) — notes about the project's intended exam-safe posture
+- [Operator Guide](CYB0X-S_Operator_Guide.pdf) — detailed usage reference
+- [Workflow](WORKFLOW.md) — a practical lab workflow
+- [eJPT Methodology Templates](EJPT_METHODOLOGY_TEMPLATES.md) — bundled static checklists
+- [Exam Compliance](EXAM_COMPLIANCE.md) — intended exam-safe usage and scope
 
-## Design notes
+## Project documentation
 
-The repository also contains historical UI/design reviews. They document decisions made during development and are not required reading for users.
+Implementation details and development notes belong with the code or development tooling rather than in the user documentation.
 
-When a design document conflicts with the current application, the code and current README take precedence.
+The root [README](../README.md) is the starting point for installation, features, and project overview.
