@@ -6,7 +6,9 @@
   <img src="docs/assets/cyb0x-s-terminal.svg" alt="CYB0X-S terminal preview" width="900">
 </p>
 
-<p align="center"><strong>Run the tools. Capture what you found. Keep the investigation organized.</strong></p>
+<p align="center">
+  <strong>Run the tools. Capture what you found. Keep the investigation organized.</strong>
+</p>
 
 <p align="center">
   <a href="https://github.com/Mqsirrel/cyb0x-s/actions"><img src="https://github.com/Mqsirrel/cyb0x-s/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -27,7 +29,7 @@ Long lab sessions create a surprisingly simple problem: useful information ends 
 CYB0X-S keeps that working context in one local notebook without getting between you and the tools you are actually using.
 
 ```text
-┌─ Terminal ───────────────────────┐
+┌─ YOUR TERMINAL ──────────────────┐
 │ nmap ...                         │
 │ gobuster ...                     │
 │ smbclient ...                    │
@@ -35,12 +37,12 @@ CYB0X-S keeps that working context in one local notebook without getting between
                 │
                 │  you decide what matters
                 ▼
-┌─ CYB0X-S ───────────────────────┐
-│ Target                           │
-│  ├─ Services                     │
-│  ├─ Findings                     │
-│  ├─ Notes                        │
-│  └─ Evidence                     │
+┌─ CYB0X-S ────────────────────────┐
+│ TARGET                           │
+│  ├─ SERVICES                     │
+│  ├─ FINDINGS                     │
+│  ├─ NOTES                        │
+│  └─ EVIDENCE                     │
 └──────────────────────────────────┘
 ```
 
@@ -61,30 +63,23 @@ CYB0X-S does **not** run scanners, exploit targets, make network connections, or
 ## Workflow
 
 ```text
-       YOUR TOOLS
-           │
-           ▼
-    ┌──────────────┐
-    │   Discover   │
-    └──────┬───────┘
-           │
-           ▼
-    ┌──────────────┐
-    │   Capture    │──── notes / services / findings / evidence
-    └──────┬───────┘
-           │
-           ▼
-    ┌──────────────┐
-    │    Review    │
-    └──────┬───────┘
-           │
-           ▼
-    ┌──────────────┐
-    │   Continue   │
-    └──────┬───────┘
-           │
-           ▼
-         EXPORT
+             DISCOVER
+                │
+                ▼
+        ┌──────────────┐
+        │    CAPTURE   │──── service / note / finding / evidence
+        └──────┬───────┘
+               │
+               ▼
+        ┌──────────────┐
+        │    REVIEW    │
+        └──────┬───────┘
+               │
+               ▼
+            CONTINUE
+               │
+               ▼
+             EXPORT
 ```
 
 The project is intentionally closer to a **terminal notebook** than an autonomous security tool.
