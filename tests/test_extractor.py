@@ -5,6 +5,7 @@ Guarantees zero auto-population without explicit confirmation.
 """
 
 from pathlib import Path
+
 from click.testing import CliRunner
 
 from cyb0x_s.cli import cli
@@ -14,7 +15,6 @@ from cyb0x_s.extractor import (
     extract_candidates,
     stage_and_commit_candidate,
 )
-
 
 SAMPLE_TERMINAL_LOG = """
 Starting Nmap 7.94 ( https://nmap.org ) at 2026-09-06 10:00 UTC

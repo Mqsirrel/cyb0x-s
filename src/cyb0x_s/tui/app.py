@@ -73,14 +73,14 @@ from cyb0x_s.tui.widgets import (
     MachineStatusStrip,
     PlaybookBrowserWidget,
     ReferenceModal,
+    ScanImportModal,
     SearchModal,
     TargetTreeWidget,
     TemplateSelectionModal,
     ThemePickerModal,
     WorksheetHeader,
+    WorkspaceModal,
     clear_badge_caches,
-    get_protocol_badge,
-    get_service_status_icon,
     substitute_command_placeholders,
 )
 
@@ -132,6 +132,8 @@ class CyboxSafeApp(App):
         Binding("w", "cycle_panel", "Cycle Panel", show=False),
         Binding("h", "focus_left", "Left Column", show=False),
         Binding("l", "focus_right", "Right Column", show=False),
+        Binding("I", "import_scan", "Import Scan", show=False),
+        Binding("W", "manage_workspaces", "Workspaces", show=False),
     ]
 
     CSS = APP_CSS
@@ -237,6 +239,14 @@ class CyboxSafeApp(App):
             pass
         self.refresh_targets()
         self.refresh_all()
+        # Auto-detect local VPN IP (tun0 / wg0) if unset
+        if hasattr(self.store, "get_lhost") and not self.store.get_lhost():
+            from cyb0x_s.db.store import detect_local_vpn_ip
+
+            detected_ip = detect_local_vpn_ip()
+            if detected_ip:
+                self.store.set_lhost(detected_ip)
+
         self._apply_responsive_layout()
         self._sync_station_tab("tab-worksheet")
 
@@ -1049,10 +1059,13 @@ class CyboxSafeApp(App):
                 active = self.store.get_active_target()
                 target_ip = active.ip if active else ""
 
+                lhost = self.store.get_lhost() if hasattr(self.store, "get_lhost") else ""
+                lport = self.store.get_lport() if hasattr(self.store, "get_lport") else "4444"
+
                 if isinstance(obj, ChecklistItem):
                     guidance = get_template_guidance_for_title(obj.title)
                     if guidance and guidance.get("command"):
-                        cmd = substitute_command_placeholders(guidance["command"], target_ip)
+                        cmd = substitute_command_placeholders(guidance["command"], target_ip, lhost=lhost, lport=lport)
                         copy_to_clipboard(cmd)
                         self.notify(f"Copied command: {cmd}")
                         return
@@ -1066,7 +1079,7 @@ class CyboxSafeApp(App):
                     if derive_guidance_enabled():
                         svc_guidance = get_guidance_for_service(obj.service, obj.port)
                         if svc_guidance and svc_guidance.get("command"):
-                            cmd = substitute_command_placeholders(svc_guidance["command"], target_ip)
+                            cmd = substitute_command_placeholders(svc_guidance["command"], target_ip, lhost=lhost, lport=lport)
                             copy_to_clipboard(cmd)
                             self.notify(f"Copied Service Command: {cmd}")
                             return
@@ -1578,4 +1591,35 @@ class CyboxSafeApp(App):
         from cyb0x_s.tui.commands import execute_command
 
         execute_command(self, val)
+
+    def action_import_scan(self, initial_file: str = "") -> None:
+        """Launch the offline scan ingestion & review modal."""
+        def on_scan_imported(result: Optional[dict]) -> None:
+            if result:
+                self.invalidate_target_cache()
+                self.refresh_targets()
+                self.refresh_all()
+                self.notify(
+                    f"Imported scan: {result['targets_count']} targets, {result['services_count']} services"
+                )
+
+        self.push_screen(ScanImportModal(self.store, initial_file=initial_file), callback=on_scan_imported)
+
+    def action_manage_workspaces(self) -> None:
+        """Launch the assessment workspace manager modal."""
+        def on_ws_selected(result: Optional[dict]) -> None:
+            if result:
+                ws = result.get("workspace")
+                ws_name = ws.name if ws else "active"
+                self.invalidate_target_cache()
+                try:
+                    hdr = self.query_one(WorksheetHeader)
+                    hdr.update_status(workspace_name=ws_name)
+                except Exception:
+                    pass
+                self.refresh_targets()
+                self.refresh_all()
+                self.notify(f"Active workspace: {ws_name}")
+
+        self.push_screen(WorkspaceModal(self.store), callback=on_ws_selected)
 

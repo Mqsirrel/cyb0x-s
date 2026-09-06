@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     description TEXT DEFAULT '',
+    root_path TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -174,6 +175,19 @@ CREATE TABLE IF NOT EXISTS exam_proofs (
     FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS scan_imports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL,
+    target_id INTEGER,
+    file_path TEXT NOT NULL,
+    file_hash TEXT NOT NULL,
+    scan_type TEXT DEFAULT 'nmap',
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+    FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE SET NULL,
+    UNIQUE(workspace_id, file_hash)
+);
+
 -- Indices for rapid search, foreign key cascade verification, and status retrieval
 CREATE INDEX IF NOT EXISTS idx_targets_ws ON targets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_services_target ON services(target_id);
@@ -190,6 +204,8 @@ CREATE INDEX IF NOT EXISTS idx_cred_validations ON cred_validations(credential_i
 CREATE INDEX IF NOT EXISTS idx_cred_validations_service ON cred_validations(service_id);
 CREATE INDEX IF NOT EXISTS idx_exam_proofs_q ON exam_proofs(question_num);
 CREATE INDEX IF NOT EXISTS idx_exam_proofs_target ON exam_proofs(target_id);
+CREATE INDEX IF NOT EXISTS idx_scan_imports_ws ON scan_imports(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_scan_imports_target ON scan_imports(target_id);
 
 -- FTS5 Full-Text Search Virtual Table and Automatic Synchronization Triggers
 CREATE VIRTUAL TABLE IF NOT EXISTS notebook_fts USING fts5(

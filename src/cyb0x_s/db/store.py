@@ -23,19 +23,67 @@ from cyb0x_s.models import (
     Finding,
     Lead,
     Note,
+    ScanImport,
     Service,
     ServiceStatus,
     Target,
     Workspace,
 )
 
-
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 def _iso_now() -> str:
     """Return current UTC timestamp in ISO 8601 string format."""
     return datetime.now(timezone.utc).isoformat()
+
+
+def detect_local_vpn_ip() -> Optional[str]:
+    """Detect local operator/VPN IP (prioritizing tun*, wg*, tap* interfaces)."""
+    try:
+        import subprocess
+
+        res = subprocess.run(
+            ["ip", "-4", "-o", "addr", "show"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if res.returncode == 0:
+            lines = res.stdout.strip().splitlines()
+            # 1. First priority: VPN / tunnel interfaces
+            for line in lines:
+                parts = line.split()
+                if len(parts) >= 4:
+                    iface = parts[1]
+                    ip = parts[3].split("/")[0]
+                    if any(iface.startswith(p) for p in ("tun", "wg", "tap")):
+                        return ip
+            # 2. Second priority: any non-loopback global interface
+            for line in lines:
+                parts = line.split()
+                if len(parts) >= 4:
+                    iface = parts[1]
+                    ip = parts[3].split("/")[0]
+                    if iface != "lo" and not ip.startswith("127."):
+                        return ip
+    except Exception:
+        pass
+
+    # Fallback to UDP socket trick
+    try:
+        import socket
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+
+    return None
 
 
 def get_default_db_path() -> Path:
@@ -117,6 +165,7 @@ class NotebookStore:
         elif current_version < CURRENT_SCHEMA_VERSION:
             # Upgrade existing pre-versioned database
             migration_cols = [
+                ("workspaces", "root_path", "TEXT DEFAULT ''"),
                 ("targets", "initial_access_vuln", "TEXT DEFAULT ''"),
                 ("targets", "foothold_cmd", "TEXT DEFAULT ''"),
                 ("targets", "foothold_context", "TEXT DEFAULT ''"),
@@ -139,6 +188,27 @@ class NotebookStore:
                         self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {ctype};")
                 except Exception:
                     pass
+
+            try:
+                with self.conn:
+                    self.conn.execute("""
+                        CREATE TABLE IF NOT EXISTS scan_imports (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            workspace_id INTEGER NOT NULL,
+                            target_id INTEGER,
+                            file_path TEXT NOT NULL,
+                            file_hash TEXT NOT NULL,
+                            scan_type TEXT DEFAULT 'nmap',
+                            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                            FOREIGN KEY(target_id) REFERENCES targets(id) ON DELETE SET NULL,
+                            UNIQUE(workspace_id, file_hash)
+                        );
+                    """)
+                    self.conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_imports_ws ON scan_imports(workspace_id);")
+                    self.conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_imports_target ON scan_imports(target_id);")
+            except Exception:
+                pass
 
             with self.conn:
                 self.conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION};")
@@ -246,20 +316,164 @@ class NotebookStore:
     # Workspaces & Settings
     # -------------------------------------------------------------------------
 
-    def get_or_create_workspace(self, name: str = "default", description: str = "") -> Workspace:
+    def get_or_create_workspace(
+        self, name: str = "default", description: str = "", root_path: str = ""
+    ) -> Workspace:
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM workspaces WHERE name = ?", (name,))
         row = cur.fetchone()
         if row:
-            return Workspace(**dict(row))
+            ws = Workspace(**dict(row))
+            if root_path and ws.root_path != root_path:
+                self.update_workspace(ws.id, root_path=root_path)
+                return self.get_workspace(ws.id)  # type: ignore
+            return ws
         now = _iso_now()
         with self.conn:
             cur.execute(
-                "INSERT INTO workspaces (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                (name, description, now, now),
+                "INSERT INTO workspaces (name, description, root_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (name, description, root_path, now, now),
             )
             ws_id = cur.lastrowid
         return self.get_workspace(ws_id)  # type: ignore
+
+    def update_workspace(
+        self,
+        workspace_id: int,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        root_path: Optional[str] = None,
+    ) -> Optional[Workspace]:
+        ws = self.get_workspace(workspace_id)
+        if not ws:
+            return None
+        new_name = name.strip() if name is not None else ws.name
+        new_desc = description.strip() if description is not None else ws.description
+        new_root = str(root_path).strip() if root_path is not None else ws.root_path
+        now = _iso_now()
+        with self.conn:
+            self.conn.execute(
+                "UPDATE workspaces SET name = ?, description = ?, root_path = ?, updated_at = ? WHERE id = ?",
+                (new_name, new_desc, new_root, now, workspace_id),
+            )
+        return self.get_workspace(workspace_id)
+
+    def init_workspace_directory(
+        self,
+        name: str,
+        target_dir: Union[str, Path],
+        description: str = "",
+        create_local_db: bool = False,
+    ) -> tuple[Workspace, Path]:
+        """Initialize a dedicated assessment workspace directory with standard folder scaffolding."""
+        base_path = Path(target_dir).expanduser().resolve()
+        base_path.mkdir(parents=True, exist_ok=True)
+
+        subdirs = ["scans", "enum", "screenshots", "notes", "loot"]
+        for sub in subdirs:
+            (base_path / sub).mkdir(parents=True, exist_ok=True)
+
+        findings_file = base_path / "findings.md"
+        if not findings_file.exists():
+            date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            template_text = (
+                f"# Assessment Findings Report: {name}\n\n"
+                f"**Workspace**: {name}  \n"
+                f"**Date**: {date_str}  \n"
+                f"**Status**: In Progress  \n\n"
+                f"## Executive Summary\n"
+                f"Brief summary of engagement objectives, scope, and key risks identified.\n\n"
+                f"## Scope & Target Overview\n"
+                f"| Target IP | Hostname | OS | Foothold | User Flag | Root Flag |\n"
+                f"|-----------|----------|----|----------|-----------|-----------|\n\n"
+                f"## High-Risk Findings & Vulnerabilities\n"
+                f"<!-- Document key findings, vulnerabilities, and exploitation paths below -->\n\n"
+                f"## Proof & Evidence Index\n"
+                f"- Scans: `scans/`\n"
+                f"- Enumeration: `enum/`\n"
+                f"- Screenshots: `screenshots/`\n"
+                f"- Loot & Artifacts: `loot/`\n"
+            )
+            findings_file.write_text(template_text, encoding="utf-8")
+
+        if create_local_db:
+            local_cybox_dir = base_path / ".cyb0x-s"
+            local_cybox_dir.mkdir(parents=True, exist_ok=True)
+
+        ws = self.get_or_create_workspace(name=name, description=description, root_path=str(base_path))
+        self.set_active_workspace(ws.id)
+        return ws, base_path
+
+    def resolve_evidence_path(
+        self,
+        evidence: Union[Evidence, str],
+        workspace: Optional[Workspace] = None,
+    ) -> Path:
+        """Resolve an evidence path relative to workspace root or current directory."""
+        raw_path_str = evidence.path_or_ref if isinstance(evidence, Evidence) else str(evidence)
+        raw_path = Path(raw_path_str)
+        if raw_path.is_absolute():
+            return raw_path
+
+        ws = workspace or self.get_active_workspace()
+        if ws and ws.root_path:
+            root = Path(ws.root_path)
+            return root / raw_path
+
+        return Path.cwd() / raw_path
+
+    def record_scan_import(
+        self,
+        workspace_id: int,
+        file_path: str,
+        file_hash: str,
+        target_id: Optional[int] = None,
+        scan_type: str = "nmap",
+    ) -> ScanImport:
+        """Record an imported scan file to avoid duplicate re-processing."""
+        now = _iso_now()
+        cur = self.conn.cursor()
+        with self.conn:
+            cur.execute(
+                """INSERT OR REPLACE INTO scan_imports (workspace_id, target_id, file_path, file_hash, scan_type, imported_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (workspace_id, target_id, file_path, file_hash, scan_type, now),
+            )
+            import_id = cur.lastrowid
+        return ScanImport(
+            id=import_id,
+            workspace_id=workspace_id,
+            target_id=target_id,
+            file_path=file_path,
+            file_hash=file_hash,
+            scan_type=scan_type,
+        )
+
+    def get_scan_import(self, workspace_id: int, file_hash: str) -> Optional[ScanImport]:
+        """Check if a scan file has already been imported into this workspace."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT * FROM scan_imports WHERE workspace_id = ? AND file_hash = ?",
+            (workspace_id, file_hash),
+        )
+        row = cur.fetchone()
+        return ScanImport(**dict(row)) if row else None
+
+    def list_scan_imports(
+        self, workspace_id: Optional[int] = None, target_id: Optional[int] = None
+    ) -> List[ScanImport]:
+        cur = self.conn.cursor()
+        query = "SELECT * FROM scan_imports WHERE 1=1"
+        params: list[Any] = []
+        if workspace_id is not None:
+            query += " AND workspace_id = ?"
+            params.append(workspace_id)
+        if target_id is not None:
+            query += " AND target_id = ?"
+            params.append(target_id)
+        query += " ORDER BY id DESC"
+        cur.execute(query, tuple(params))
+        return [ScanImport(**dict(r)) for r in cur.fetchall()]
 
     def get_workspace(self, workspace_id: int) -> Optional[Workspace]:
         cur = self.conn.cursor()
@@ -341,6 +555,22 @@ class NotebookStore:
                 "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
                 (key, str(value)),
             )
+
+    def get_lhost(self) -> str:
+        """Get operator LHOST from settings, or empty string if unset."""
+        return self.get_setting("lhost", "") or ""
+
+    def set_lhost(self, ip: str) -> None:
+        """Store operator LHOST in settings."""
+        self.set_setting("lhost", ip.strip())
+
+    def get_lport(self) -> str:
+        """Get operator LPORT from settings, default '4444'."""
+        return self.get_setting("lport", "4444") or "4444"
+
+    def set_lport(self, port: Union[int, str]) -> None:
+        """Store operator LPORT in settings."""
+        self.set_setting("lport", str(port).strip())
 
     # -------------------------------------------------------------------------
     # Targets
@@ -536,6 +766,7 @@ class NotebookStore:
         next_action: str = "",
         status: Union[str, ServiceStatus] = ServiceStatus.CHECKED,
         notes: str = "",
+        preserve_status: bool = False,
     ) -> Service:
         proto_clean = protocol.strip().lower()
         stat_clean = (
@@ -554,15 +785,16 @@ class NotebookStore:
             new_version = version if version else row["version"]
             # Blank means "not rated": keep any existing rating unless the caller
             # explicitly supplies a new (non-empty) one.
-            new_pot = access_potential or (row.get("access_potential") or "")
+            new_pot = access_potential or (row["access_potential"] if "access_potential" in row.keys() else "")
             new_act = next_action if next_action else (row["next_action"] if "next_action" in row.keys() else "")
             new_notes = notes if notes else row["notes"]
+            final_status = row["status"] if preserve_status else stat_clean
             with self.conn:
                 self.conn.execute(
                     """UPDATE services
                        SET service = ?, version = ?, access_potential = ?, next_action = ?, status = ?, notes = ?, updated_at = ?
                        WHERE id = ?""",
-                    (new_service, new_version, new_pot, new_act, stat_clean, new_notes, now, svc_id),
+                    (new_service, new_version, new_pot, new_act, final_status, new_notes, now, svc_id),
                 )
         else:
             with self.conn:
@@ -624,6 +856,20 @@ class NotebookStore:
             self.conn.execute(
                 "UPDATE services SET status = ?, updated_at = ? WHERE id = ?",
                 (next_stat.value, now, service_id),
+            )
+        return self.get_service(service_id)
+
+    def update_service_status(
+        self, service_id: int, status: Union[str, ServiceStatus]
+    ) -> Optional[Service]:
+        stat_clean = (
+            status.value if isinstance(status, ServiceStatus) else ServiceStatus.from_str(status).value
+        )
+        now = _iso_now()
+        with self.conn:
+            self.conn.execute(
+                "UPDATE services SET status = ?, updated_at = ? WHERE id = ?",
+                (stat_clean, now, service_id),
             )
         return self.get_service(service_id)
 
@@ -736,6 +982,66 @@ class NotebookStore:
         with self.conn:
             res = self.conn.execute("DELETE FROM credentials WHERE id = ?", (cred_id,))
             return res.rowcount > 0
+
+    def update_credential(
+        self,
+        cred_id: int,
+        secret: Optional[str] = None,
+        status: Optional[str] = None,
+        notes: Optional[str] = None,
+        username: Optional[str] = None,
+    ) -> Optional[Credential]:
+        """Update an existing credential record in-place (e.g. hash cracked to plaintext)."""
+        existing = self.get_credential(cred_id)
+        if not existing:
+            return None
+        now = _iso_now()
+        new_secret = secret.strip() if secret is not None else existing.secret
+        new_status = status.strip() if status is not None else existing.status
+        new_notes = notes.strip() if notes is not None else existing.notes
+        new_username = username.strip() if username is not None else existing.username
+
+        with self.conn:
+            self.conn.execute(
+                """UPDATE credentials
+                   SET username = ?, secret = ?, status = ?, notes = ?, updated_at = ?
+                   WHERE id = ?""",
+                (new_username, new_secret, new_status, new_notes, now, cred_id),
+            )
+        return self.get_credential(cred_id)
+
+    def export_wordlists_to_loot(
+        self, workspace_id: Optional[int] = None
+    ) -> tuple[Path, Path]:
+        """Export all unique discovered usernames and secrets to workspace loot files.
+
+        Writes:
+          <workspace_root>/loot/users.txt
+          <workspace_root>/loot/passwords.txt
+        """
+        ws = self.get_workspace(workspace_id) if workspace_id else self.get_active_workspace()
+        if not ws:
+            ws = self.get_or_create_workspace("default")
+
+        ws_root = Path(ws.root_path).resolve() if ws.root_path else Path.cwd()
+        loot_dir = ws_root / "loot"
+        loot_dir.mkdir(parents=True, exist_ok=True)
+
+        users_file = loot_dir / "users.txt"
+        passwords_file = loot_dir / "passwords.txt"
+
+        creds = self.list_credentials()
+        if ws.id:
+            targets = {t.id for t in self.list_targets(workspace_id=ws.id)}
+            creds = [c for c in creds if c.target_id is None or c.target_id in targets]
+
+        users = sorted({c.username.strip() for c in creds if c.username.strip()})
+        passwords = sorted({c.secret.strip() for c in creds if c.secret.strip()})
+
+        users_file.write_text("\n".join(users) + ("\n" if users else ""), encoding="utf-8")
+        passwords_file.write_text("\n".join(passwords) + ("\n" if passwords else ""), encoding="utf-8")
+
+        return users_file, passwords_file
 
     # -------------------------------------------------------------------------
     # Leads

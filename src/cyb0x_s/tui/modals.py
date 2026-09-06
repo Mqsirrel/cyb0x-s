@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -11,6 +12,14 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView, Select, Static
 
 from cyb0x_s.clipboard import copy_to_clipboard
+from cyb0x_s.db.store import NotebookStore
+from cyb0x_s.parsers import detect_file_scan_type, parse_web_enum_file
+from cyb0x_s.scan_import import (
+    check_scan_already_imported,
+    commit_scan_results,
+    commit_web_enum_results,
+    inspect_scan_file,
+)
 from cyb0x_s.search import SearchMatch, search_notebook
 from cyb0x_s.settings import derive_guidance_enabled
 from cyb0x_s.tui.theme import PALETTES, S, current_palette, get_default_theme, save_default_theme
@@ -1039,17 +1048,22 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
   [{P.accent}]t[/]  add target modal         [{P.accent}]s[/]  add service modal    [{P.accent}]f[/]  add finding modal
   [{P.accent}]c[/]  add credential modal     [{P.accent}]n[/]  add note modal       [{P.accent}]K[/]  (shift+k) checklist item
   [{P.accent}]m[/]  methodology templates    [{P.accent}]g[/]  record flags         [{P.accent}]r[/]  cheat sheet
-  [{P.accent}]T[/]  (shift+t) theme picker   [{P.accent}]o[/]  toggle scope         [{P.accent}]/[/] or [{P.accent}]Ctrl+F[/] search
-  [{P.accent}]?[/]  this help modal          [{P.accent}]q[/]  quit app
+  [{P.accent}]I[/]  (shift+i) import scan    [{P.accent}]W[/]  (shift+w) workspaces [{P.accent}]T[/]  (shift+t) theme picker
+  [{P.accent}]o[/]  toggle scope             [{P.accent}]/[/] or [{P.accent}]Ctrl+F[/] search  [{P.accent}]?[/]  this help modal
+  [{P.accent}]q[/]  quit app
 
 [bold]Fast capture commands (bottom bar):[/bold]
   :t 10.10.10.20          add a target
   :s 445/tcp smb          add a service
   :c admin:password123    add a credential
-  :n found backup.zip     add a note
-  :f smb null session     add a finding
-  :uflag / :rflag <hash>  record user / root flag
-  :foothold / :privesc    record foothold & privilege escalation vector
+  :import <scan_file>     import & review Nmap scan
+  :ws <name>              switch or scaffold workspace
+  :n quick note           record a field note
+  :f SQL Injection in id  record a finding
+  :foothold Samba CVE...  record foothold
+  :privesc SUID /opt/bin  record privesc vector
+  :uflag <hash>           record user flag
+  :rflag <hash>           record root flag
   :stuck <why> / :clue    log a rabbit hole or the breakthrough clue
   :ref <term>             offline cheat sheet       :1 :2 :3 :4  stations
 
@@ -1345,6 +1359,545 @@ class AddExamProofModal(ModalScreen[Optional[dict]]):
             self.dismiss(None)
 
 
+class ScanImportModal(ModalScreen[Optional[dict]]):
+    """Offline scan import modal with preview, service toggling, and evidence archive."""
+
+    DEFAULT_CSS = """
+    ScanImportModal {
+        align: center middle;
+    }
+    #scan-import-box {
+        width: 85%;
+        height: 85%;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+        color: $foreground;
+    }
+    #scan-file-row {
+        height: 3;
+        layout: horizontal;
+        margin-bottom: 1;
+    }
+    #scan-file-input {
+        width: 1fr;
+        margin-right: 1;
+    }
+    #scan-status-label {
+        height: auto;
+        margin-bottom: 1;
+        color: $accent;
+    }
+    #scan-items-list {
+        height: 1fr;
+        border: solid $secondary 40%;
+        margin-bottom: 1;
+    }
+    #scan-btn-bar {
+        height: 3;
+        layout: horizontal;
+    }
+    """
+
+    def __init__(self, store: NotebookStore, initial_file: str = "") -> None:
+        super().__init__()
+        self.store = store
+        self.initial_file = initial_file
+        self.parsed_data: List[dict] = []
+        self.flat_items: List[Any] = []
+        self.selection_map: Dict[int, bool] = {}
+        self.scan_mode: str = "nmap"
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="scan-import-box"):
+            P = current_palette()
+            yield Label(
+                f"[bold {P.accent}]▸ IMPORT SCAN OR ENUM OUTPUT[/bold {P.accent}] "
+                f"[{P.muted}](Nmap, NetExec, FFUF, Feroxbuster, Gobuster)[/]"
+            )
+            yield Label(
+                f"[{P.muted}]Enter path to scan or web enum file (-oX XML, -oN text, -of json, --json):[/]"
+            )
+            with Horizontal(id="scan-file-row"):
+                yield Input(
+                    value=self.initial_file,
+                    placeholder="e.g. scans/initial.xml or enum/ffuf.json",
+                    id="scan-file-input",
+                )
+                yield Button("Inspect / Preview", variant="primary", id="btn-inspect")
+
+            yield Label("", id="scan-status-label")
+            yield ListView(id="scan-items-list")
+
+            with Horizontal(id="scan-btn-bar"):
+                yield Button("Commit Selected (Enter)", variant="success", id="btn-commit")
+                yield Button("Toggle All (a)", variant="default", id="btn-toggle-all")
+                yield Button("Cancel (Esc)", variant="default", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        inp = self.query_one("#scan-file-input", Input)
+        inp.focus()
+        if self.initial_file:
+            self._inspect_file(self.initial_file)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "scan-file-input":
+            self._inspect_file(event.value.strip())
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-inspect":
+            val = self.query_one("#scan-file-input", Input).value.strip()
+            self._inspect_file(val)
+        elif event.button.id == "btn-commit":
+            self._commit_selection()
+        elif event.button.id == "btn-toggle-all":
+            self._toggle_all()
+        elif event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        self._toggle_current()
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "space":
+            self._toggle_current()
+            event.stop()
+        elif event.key in ("a", "A") and not isinstance(self.focused, Input):
+            self._toggle_all()
+            event.stop()
+        elif event.key == "enter" and isinstance(self.focused, ListView):
+            self._commit_selection()
+            event.stop()
+
+    def _inspect_file(self, file_path_str: str) -> None:
+        status_lbl = self.query_one("#scan-status-label", Label)
+        items_list = self.query_one("#scan-items-list", ListView)
+        items_list.clear()
+        self.flat_items = []
+        self.selection_map = {}
+
+        if not file_path_str:
+            status_lbl.update("[yellow]Please specify a scan or enum file path.[/yellow]")
+            return
+
+        try:
+            from pathlib import Path
+
+            p = Path(file_path_str).expanduser().resolve()
+            if not p.is_file():
+                status_lbl.update(f"[red]File not found: {file_path_str}[/red]")
+                return
+
+            existing = check_scan_already_imported(self.store, p)
+            warn_msg = ""
+            if existing:
+                warn_msg = f" [yellow](⚠️ Previously imported on {existing.imported_at})[/yellow]"
+
+            scan_type = detect_file_scan_type(p)
+            self.scan_mode = scan_type
+
+            if scan_type == "web_enum":
+                endpoints = parse_web_enum_file(p)
+                self.parsed_data = endpoints
+                if not endpoints:
+                    status_lbl.update(f"[yellow]No endpoints discovered in {p.name}.{warn_msg}[/yellow]")
+                    return
+                for idx, ep in enumerate(endpoints):
+                    self.flat_items.append((ep, {}, idx))
+                    status_code = ep.get("status", 200)
+                    self.selection_map[idx] = (status_code != 404)
+                    txt = Text()
+                    txt.append("[✔] " if self.selection_map[idx] else "[ ] ", style=S("success", bold=True) if self.selection_map[idx] else S("muted"))
+                    txt.append(f"[{ep.get('tool', 'web')}] ", style=S("warn"))
+                    txt.append(f"[{status_code}] ", style=S("ok") if status_code < 400 else S("danger"))
+                    txt.append(f"{ep.get('path', '/')} ", style=S("accent"))
+                    txt.append(f"(Size: {ep.get('size', 0)})", style=S("muted", bold=False))
+                    items_list.append(DataListItem(data_obj=idx, display_text=txt))
+
+                status_lbl.update(
+                    f"[green]Parsed {p.name} ({scan_type}): {len(endpoints)} endpoint(s). "
+                    f"Press Space to toggle, Enter to commit.{warn_msg}[/green]"
+                )
+                items_list.focus()
+                return
+
+            # Nmap scan inspection
+            targets = inspect_scan_file(p)
+            self.parsed_data = targets
+            if not targets:
+                status_lbl.update(f"[yellow]No open ports or targets found in {p.name}.{warn_msg}[/yellow]")
+                return
+
+            item_idx = 0
+            for t in targets:
+                ip = t["ip"]
+                host = f" ({t['hostname']})" if t.get("hostname") else ""
+                os_name = f" [{t['os']}]" if t.get("os") and t["os"] != "Unknown" else ""
+                svcs = t.get("services", [])
+                if not svcs:
+                    self.flat_items.append((t, {}, item_idx))
+                    self.selection_map[item_idx] = True
+                    txt = Text()
+                    txt.append("[✔] ", style=S("success", bold=True))
+                    txt.append(f"{ip}{host}{os_name}", style=S("accent"))
+                    txt.append(" - Host Discovered (no open ports)", style=S("muted"))
+                    items_list.append(DataListItem(data_obj=item_idx, display_text=txt))
+                    item_idx += 1
+                else:
+                    for s in svcs:
+                        self.flat_items.append((t, s, item_idx))
+                        self.selection_map[item_idx] = True
+                        txt = Text()
+                        txt.append("[✔] ", style=S("success", bold=True))
+                        txt.append(f"{ip}{host} ", style=S("accent"))
+                        port_proto = f"{s['port']}/{s.get('protocol', 'tcp')}"
+                        txt.append(f"{port_proto:<10} ", style=S("warn"))
+                        txt.append(f"{s.get('service', 'unknown'):<12} ", style=S("success"))
+                        txt.append(f"{s.get('version', '')}", style=S("muted", bold=False))
+                        items_list.append(DataListItem(data_obj=item_idx, display_text=txt))
+                        item_idx += 1
+
+            total_svcs = sum(len(t.get("services", [])) for t in targets)
+            status_lbl.update(
+                f"[green]Parsed {p.name}: {len(targets)} target(s), {total_svcs} service(s). "
+                f"Press Space to toggle item, Enter to commit.{warn_msg}[/green]"
+            )
+            items_list.focus()
+
+        except Exception as e:
+            status_lbl.update(f"[red]Error reading scan: {e}[/red]")
+
+    def _toggle_current(self) -> None:
+        items_list = self.query_one("#scan-items-list", ListView)
+        if items_list.highlighted_child and isinstance(items_list.highlighted_child, DataListItem):
+            idx = items_list.highlighted_child.data_obj
+            self.selection_map[idx] = not self.selection_map.get(idx, True)
+            self._update_item_render(items_list.highlighted_child, idx)
+
+    def _update_item_render(self, item_widget: DataListItem, idx: int) -> None:
+        if getattr(self, "scan_mode", "nmap") == "web_enum":
+            ep, _, _ = self.flat_items[idx]
+            is_sel = self.selection_map.get(idx, True)
+            status_code = ep.get("status", 200)
+            txt = Text()
+            txt.append("[✔] " if is_sel else "[ ] ", style=S("success", bold=True) if is_sel else S("muted"))
+            txt.append(f"[{ep.get('tool', 'web')}] ", style=S("warn") if is_sel else S("muted"))
+            txt.append(f"[{status_code}] ", style=S("ok") if is_sel and status_code < 400 else S("muted"))
+            txt.append(f"{ep.get('path', '/')} ", style=S("accent") if is_sel else S("muted"))
+            txt.append(f"(Size: {ep.get('size', 0)})", style=S("muted", bold=False))
+            item_widget.display_text = txt
+            item_widget.refresh()
+            return
+
+        t, s, _ = self.flat_items[idx]
+        is_sel = self.selection_map.get(idx, True)
+        ip = t["ip"]
+        host = f" ({t['hostname']})" if t.get("hostname") else ""
+
+        txt = Text()
+        if is_sel:
+            txt.append("[✔] ", style=S("success", bold=True))
+        else:
+            txt.append("[ ] ", style=S("muted"))
+
+        txt.append(f"{ip}{host} ", style=S("accent") if is_sel else S("muted"))
+        if s:
+            port_proto = f"{s['port']}/{s.get('protocol', 'tcp')}"
+            txt.append(f"{port_proto:<10} ", style=S("warn") if is_sel else S("muted"))
+            txt.append(f"{s.get('service', 'unknown'):<12} ", style=S("success") if is_sel else S("muted"))
+            txt.append(f"{s.get('version', '')}", style=S("muted", bold=False))
+        else:
+            txt.append("- Host Discovered", style=S("muted"))
+
+        item_widget.display_text = txt
+        item_widget.refresh()
+
+    def _toggle_all(self) -> None:
+        all_selected = all(self.selection_map.values())
+        new_state = not all_selected
+        items_list = self.query_one("#scan-items-list", ListView)
+        for idx in self.selection_map:
+            self.selection_map[idx] = new_state
+        for child in items_list.children:
+            if isinstance(child, DataListItem):
+                self._update_item_render(child, child.data_obj)
+
+    def _commit_selection(self) -> None:
+        file_val = self.query_one("#scan-file-input", Input).value.strip()
+        if not file_val or not self.parsed_data:
+            return
+
+        if getattr(self, "scan_mode", "nmap") == "web_enum":
+            selected_eps = [
+                self.flat_items[idx][0]
+                for idx in self.selection_map
+                if self.selection_map[idx]
+            ]
+            if not selected_eps:
+                self.query_one("#scan-status-label", Label).update("[yellow]No endpoints selected to import.[/yellow]")
+                return
+            try:
+                summary = commit_web_enum_results(
+                    store=self.store,
+                    file_path=file_val,
+                    endpoints=selected_eps,
+                )
+                self.dismiss(summary)
+            except Exception as e:
+                self.query_one("#scan-status-label", Label).update(f"[red]Commit failed: {e}[/red]")
+            return
+
+        target_map: Dict[str, dict] = {}
+        for t, s, idx in self.flat_items:
+            if not self.selection_map.get(idx, False):
+                continue
+            ip = t["ip"]
+            if ip not in target_map:
+                target_map[ip] = {
+                    "ip": ip,
+                    "hostname": t.get("hostname", ""),
+                    "os": t.get("os", "Unknown"),
+                    "services": [],
+                }
+            if s:
+                target_map[ip]["services"].append(s)
+
+        selected_targets = list(target_map.values())
+        if not selected_targets:
+            self.query_one("#scan-status-label", Label).update("[yellow]No services or targets selected to import.[/yellow]")
+            return
+
+        try:
+            summary = commit_scan_results(
+                store=self.store,
+                file_path=file_val,
+                targets_data=selected_targets,
+            )
+            self.dismiss(summary)
+        except Exception as e:
+            self.query_one("#scan-status-label", Label).update(f"[red]Commit failed: {e}[/red]")
+
+
+class LootPreviewModal(ModalScreen[None]):
+    """Modal to view text loot files (hashes, configs, SSH keys, dumps)."""
+
+    DEFAULT_CSS = """
+    LootPreviewModal {
+        align: center middle;
+    }
+    #loot-preview-box {
+        width: 80%;
+        height: 80%;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+        color: $foreground;
+    }
+    #loot-preview-content {
+        height: 1fr;
+        border: solid $border;
+        background: $surface;
+        padding: 0 1;
+        overflow-y: auto;
+    }
+    #loot-preview-btn-bar {
+        height: 3;
+        layout: horizontal;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, file_path: Union[str, Path]) -> None:
+        super().__init__()
+        from pathlib import Path
+        self.file_path = Path(file_path).expanduser().resolve()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="loot-preview-box"):
+            yield Label(f"▸ LOOT PREVIEW: {self.file_path.name}", classes="modal-header")
+            yield Label(f"Path: {self.file_path}", classes="panel-subtitle")
+            yield Static(id="loot-preview-content")
+            with Horizontal(id="loot-preview-btn-bar"):
+                yield Button("Copy Path (p)", id="btn-copy-path")
+                yield Button("Copy Content (c)", variant="primary", id="btn-copy-content")
+                yield Button("Close (Esc)", id="btn-close")
+
+    def on_mount(self) -> None:
+        try:
+            content = self.file_path.read_text(encoding="utf-8", errors="replace")
+            lines = content.splitlines()
+            if len(lines) > 200:
+                preview = "\n".join(lines[:200]) + f"\n... [truncated, {len(lines)} lines total]"
+            else:
+                preview = content
+            self.query_one("#loot-preview-content", Static).update(preview)
+        except Exception as e:
+            self.query_one("#loot-preview-content", Static).update(f"Error reading file: {e}")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-copy-path":
+            copy_to_clipboard(str(self.file_path))
+            if hasattr(self.app, "notify"):
+                self.app.notify(f"Copied path: {self.file_path}")
+        elif event.button.id == "btn-copy-content":
+            try:
+                content = self.file_path.read_text(encoding="utf-8", errors="replace")
+                copy_to_clipboard(content)
+                if hasattr(self.app, "notify"):
+                    self.app.notify(f"Copied {len(content)} bytes of loot content")
+            except Exception:
+                pass
+        elif event.button.id == "btn-close":
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key in ("p", "P"):
+            copy_to_clipboard(str(self.file_path))
+            if hasattr(self.app, "notify"):
+                self.app.notify(f"Copied path: {self.file_path}")
+            event.stop()
+        elif event.key in ("c", "C"):
+            try:
+                content = self.file_path.read_text(encoding="utf-8", errors="replace")
+                copy_to_clipboard(content)
+                if hasattr(self.app, "notify"):
+                    self.app.notify(f"Copied {len(content)} bytes of loot content")
+            except Exception:
+                pass
+            event.stop()
+
+
+
+class WorkspaceModal(ModalScreen[Optional[dict]]):
+    """Interactive workspace manager: list, switch, or scaffold new assessment workspaces."""
+
+    DEFAULT_CSS = """
+    WorkspaceModal {
+        align: center middle;
+    }
+    #ws-manager-box {
+        width: 80%;
+        height: 80%;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+        color: $foreground;
+    }
+    #ws-list {
+        height: 1fr;
+        border: solid $secondary 40%;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    #ws-new-section {
+        height: auto;
+        border: round $border;
+        padding: 1;
+        margin-bottom: 1;
+    }
+    #ws-new-row {
+        height: 3;
+        layout: horizontal;
+        margin-top: 1;
+    }
+    #new-ws-name {
+        width: 1fr;
+        margin-right: 1;
+    }
+    #new-ws-path {
+        width: 1fr;
+        margin-right: 1;
+    }
+    #ws-btn-bar {
+        height: 3;
+        layout: horizontal;
+    }
+    """
+
+    def __init__(self, store: NotebookStore) -> None:
+        super().__init__()
+        self.store = store
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="ws-manager-box"):
+            P = current_palette()
+            yield Label(
+                f"[bold {P.accent}]▸ ASSESSMENT WORKSPACES[/bold {P.accent}] "
+                f"[{P.muted}](Lab Environments & Tool Artifacts)[/]"
+            )
+            yield Label(f"[{P.muted}]Select workspace: [bold {P.accent}]Enter[/] to switch • [bold {P.accent}]Esc[/] to close[/]")
+            yield ListView(id="ws-list")
+
+            with Vertical(id="ws-new-section"):
+                yield Label(f"[bold {P.accent}]Scaffold & Create New Lab Workspace:[/]")
+                with Horizontal(id="ws-new-row"):
+                    yield Input(placeholder="Workspace name (e.g. lab01)", id="new-ws-name")
+                    yield Input(placeholder="Directory (optional, e.g. ~/labs/lab01)", id="new-ws-path")
+                    yield Button("Scaffold", variant="success", id="btn-ws-scaffold")
+
+            with Horizontal(id="ws-btn-bar"):
+                yield Button("Switch Workspace (Enter)", variant="primary", id="btn-ws-switch")
+                yield Button("Cancel (Esc)", variant="default", id="btn-ws-cancel")
+
+    def on_mount(self) -> None:
+        self._refresh_workspaces()
+
+    def _refresh_workspaces(self) -> None:
+        ws_list = self.query_one("#ws-list", ListView)
+        ws_list.clear()
+        active = self.store.get_active_workspace()
+        workspaces = self.store.list_workspaces()
+
+        for ws in workspaces:
+            is_active = ws.id == active.id
+            targets = self.store.list_targets(workspace_id=ws.id)
+            txt = Text()
+            if is_active:
+                txt.append("[ACTIVE] ", style=S("success", bold=True))
+            else:
+                txt.append("[      ] ", style=S("muted"))
+            txt.append(f"{ws.name:<20} ", style=S("accent", bold=is_active))
+            txt.append(f"({len(targets)} targets)  ", style=S("warn"))
+            root_txt = ws.root_path or "[no folder attached]"
+            txt.append(f"{root_txt}", style=S("muted", bold=False))
+            ws_list.append(DataListItem(data_obj=ws, display_text=txt))
+
+        ws_list.focus()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if isinstance(event.item, DataListItem):
+            ws = event.item.data_obj
+            self.store.set_active_workspace(ws.id)
+            self.dismiss({"action": "switched", "workspace": ws})
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-ws-switch":
+            ws_list = self.query_one("#ws-list", ListView)
+            if ws_list.highlighted_child and isinstance(ws_list.highlighted_child, DataListItem):
+                ws = ws_list.highlighted_child.data_obj
+                self.store.set_active_workspace(ws.id)
+                self.dismiss({"action": "switched", "workspace": ws})
+        elif event.button.id == "btn-ws-scaffold":
+            name = self.query_one("#new-ws-name", Input).value.strip()
+            path_val = self.query_one("#new-ws-path", Input).value.strip()
+            if not name:
+                return
+            from pathlib import Path
+            dest = Path(path_val).expanduser().resolve() if path_val else Path.cwd() / name
+            ws, resolved = self.store.init_workspace_directory(name=name, target_dir=dest)
+            self.dismiss({"action": "scaffolded", "workspace": ws, "path": resolved})
+        elif event.button.id == "btn-ws-cancel":
+            self.dismiss(None)
+
+    def on_key(self, event: Any) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
+
 __all__ = [
     "ConfirmModal",
     "ThemeSwatch",
@@ -1360,4 +1913,6 @@ __all__ = [
     "HelpModal",
     "TemplateSelectionModal",
     "ReferenceModal",
+    "ScanImportModal",
+    "WorkspaceModal",
 ]

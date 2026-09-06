@@ -27,8 +27,6 @@ from cyb0x_s.tui.widgets import (
 )
 
 
-
-
 @pytest.mark.asyncio
 async def test_active_tab_label_is_visible(seeded_store: NotebookStore) -> None:
     """The active station must render its label (it used to collapse to 0px)."""
@@ -296,7 +294,7 @@ async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
     """Guard against stylesheet typos in screens the smoke test never opens."""
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
-        for key in ("?", "/", "r", "m", "g", "t", "s", "f", "c", "n", "K"):
+        for key in ("?", "/", "r", "m", "g", "t", "s", "f", "c", "n", "K", "I", "W"):
             await pilot.press(key)
             assert len(app.screen_stack) > 1, f"{key!r} did not open a modal"
             await pilot.press("escape")
