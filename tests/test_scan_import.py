@@ -172,7 +172,8 @@ def test_commit_scan_results_workflow(tmp_path: Path) -> None:
 
 def test_service_status_preserved_on_rescan(tmp_path: Path) -> None:
     store = NotebookStore(":memory:")
-    ws = store.get_or_create_workspace("test_preserve")
+    lab_dir = tmp_path / "lab_preserve"
+    ws, _ = store.init_workspace_directory("test_preserve", target_dir=lab_dir)
 
     # Initial scan
     scan1 = tmp_path / "scan1.xml"
@@ -200,7 +201,8 @@ def test_service_status_preserved_on_rescan(tmp_path: Path) -> None:
     assert updated_s80.status == ServiceStatus.DEFERRED
 
 
-def test_cli_import_apply(tmp_path: Path) -> None:
+def test_cli_import_apply(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     db_file = tmp_path / "test.db"
     scan_file = tmp_path / "quick.nmap"
@@ -213,7 +215,8 @@ def test_cli_import_apply(tmp_path: Path) -> None:
     assert "Services committed: 2" in res.output
 
 
-def test_cli_import_interactive_abort(tmp_path: Path) -> None:
+def test_cli_import_interactive_abort(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     db_file = tmp_path / "test.db"
     scan_file = tmp_path / "quick.nmap"
