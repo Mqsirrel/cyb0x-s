@@ -2,9 +2,47 @@
 
 **A local, keyboard-driven field worksheet for cybersecurity labs and practical assessments.**
 
-CYB0X-S helps you keep track of targets, services, findings, credentials, notes, checklists, and evidence while you work in a terminal.
+<p align="center">
+  <img src="docs/assets/cyb0x-s-terminal.svg" alt="CYB0X-S terminal preview" width="900">
+</p>
+
+<p align="center"><strong>Run the tools. Capture what you found. Keep the investigation organized.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/Mqsirrel/cyb0x-s/actions"><img src="https://github.com/Mqsirrel/cyb0x-s/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Mqsirrel/cyb0x-s" alt="License"></a>
+  <a href="https://github.com/Mqsirrel/cyb0x-s"><img src="https://img.shields.io/github/stars/Mqsirrel/cyb0x-s?style=flat" alt="GitHub stars"></a>
+</p>
+
+CYB0X-S helps you keep track of **targets, services, findings, credentials, notes, checklists, and evidence** while you work in a terminal.
 
 It is deliberately an **operator-controlled notebook**: you run the tools and make the decisions; CYB0X-S records and organizes the results.
+
+> **Think field notebook, not autonomous pentesting agent.**
+
+## Why it exists
+
+Long lab sessions create a surprisingly simple problem: useful information ends up scattered across terminal history, text files, screenshots, and memory.
+
+CYB0X-S keeps that working context in one local notebook without getting between you and the tools you are actually using.
+
+```text
+┌─ Terminal ───────────────────────┐
+│ nmap ...                         │
+│ gobuster ...                     │
+│ smbclient ...                    │
+└───────────────┬──────────────────┘
+                │
+                │  you decide what matters
+                ▼
+┌─ CYB0X-S ───────────────────────┐
+│ Target                           │
+│  ├─ Services                     │
+│  ├─ Findings                     │
+│  ├─ Notes                        │
+│  └─ Evidence                     │
+└──────────────────────────────────┘
+```
 
 ## What it does
 
@@ -12,6 +50,7 @@ It is deliberately an **operator-controlled notebook**: you run the tools and ma
 - Findings, notes, credentials, and evidence
 - Offline methodology checklists and command references
 - Fast CLI capture for information you already discovered
+- Local parsing of saved scan output
 - Search across the local notebook
 - Markdown, JSON, and text export
 - SQLite storage with local-first operation
@@ -22,20 +61,33 @@ CYB0X-S does **not** run scanners, exploit targets, make network connections, or
 ## Workflow
 
 ```text
-Run your tools
-     ↓
-Discover something
-     ↓
-Record it in CYB0X-S
-     ↓
-Review / update your notes
-     ↓
-Continue working
-     ↓
-Export when finished
+       YOUR TOOLS
+           │
+           ▼
+    ┌──────────────┐
+    │   Discover   │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │   Capture    │──── notes / services / findings / evidence
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │    Review    │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │   Continue   │
+    └──────┬───────┘
+           │
+           ▼
+         EXPORT
 ```
 
-The project is intentionally closer to a terminal notebook than an autonomous security tool.
+The project is intentionally closer to a **terminal notebook** than an autonomous security tool.
 
 ## Install
 
@@ -76,7 +128,7 @@ cyb0x-s finding "SMB anonymous access" --severity HIGH
 cyb0x-s search "backup"
 ```
 
-Short aliases are available for the common capture commands; see `cyb0x-s --help`.
+Short aliases are available for common capture commands; see `cyb0x-s --help`.
 
 ## Reference material
 
