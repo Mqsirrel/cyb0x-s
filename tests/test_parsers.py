@@ -1,54 +1,17 @@
 """Tests for offline scan parsers in CYB0X-S."""
 
 from cyb0x_s.parsers import (
-    derive_potential_and_next,
     detect_file_scan_type,
     parse_netexec_output,
     parse_nmap_gnmap,
+    parse_nmap_text,
     parse_nmap_xml,
     parse_web_enum_file,
 )
-from cyb0x_s.settings import set_derive_guidance
 
 
-def test_derive_potential_and_next_gated_off_by_default() -> None:
-    """Nothing is derived unless the user opts in (default: exam-safe)."""
-    assert derive_potential_and_next("smb", 445, "10.10.10.20") == ("", "")
-    assert derive_potential_and_next("http", 80, "10.10.10.20") == ("", "")
-
-
-def test_derive_potential_and_next_when_enabled() -> None:
-    set_derive_guidance(True)
-    try:
-        pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20")
-        assert pot == "HIGH"
-        assert "10.10.10.20" in nxt
-
-        pot_http, nxt_http = derive_potential_and_next("http", 80, "10.10.10.20")
-        assert pot_http == "HIGH"
-        assert "feroxbuster" in nxt_http
-    finally:
-        set_derive_guidance(None)
-
-
-def test_derive_potential_and_next_enabled_parameter() -> None:
-    """The per-call ``enabled`` flag overrides the global switch."""
-    set_derive_guidance(False)
-    # Explicit opt-in restores ratings even when the global switch is off.
-    pot, nxt = derive_potential_and_next("smb", 445, "10.10.10.20", enabled=True)
-    assert pot == "HIGH"
-    assert "10.10.10.20" in nxt
-
-    # Explicit opt-out suppresses even when the global switch is on.
-    set_derive_guidance(True)
-    pot_off, nxt_off = derive_potential_and_next("http", 80, "10.10.10.20", enabled=False)
-    assert pot_off == ""
-    assert nxt_off == ""
-    set_derive_guidance(None)
-
-
-def test_parse_functions_accept_derive_guidance_flag() -> None:
-    """Parsers thread the opt-in flag through to derivation."""
+def test_parsers_emit_pure_facts_without_heuristic_derivation() -> None:
+    """Parsers strictly emit raw scanner facts; access_potential and next_action remain empty."""
     xml_data = (
         '<?xml version="1.0"?><nmaprun><host><status state="up"/>'
         '<address addr="10.10.11.50" addrtype="ipv4"/>'
@@ -56,13 +19,40 @@ def test_parse_functions_accept_derive_guidance_flag() -> None:
         '<service name="smb" product="Samba" version="4.3"/></port></ports>'
         "</host></nmaprun>"
     )
-    off = parse_nmap_xml(xml_data, derive_guidance=False)
-    assert off[0]["services"][0]["access_potential"] == ""
-    assert off[0]["services"][0]["next_action"] == ""
+    res_xml = parse_nmap_xml(xml_data)
+    svc_xml = res_xml[0]["services"][0]
+    assert svc_xml["port"] == 445
+    assert svc_xml["service"] == "smb"
+    assert svc_xml["access_potential"] == ""
+    assert svc_xml["next_action"] == ""
 
-    on = parse_nmap_xml(xml_data, derive_guidance=True)
-    assert on[0]["services"][0]["access_potential"] == "HIGH"
-    assert on[0]["services"][0]["next_action"]
+    # NetExec
+    nxc_data = "SMB 10.10.11.50 445 DC01 [*] Windows\n"
+    res_nxc = parse_netexec_output(nxc_data)
+    svc_nxc = res_nxc[0]["services"][0]
+    assert svc_nxc["access_potential"] == ""
+    assert svc_nxc["next_action"] == ""
+
+    # Gnmap
+    gnmap_data = (
+        "Host: 10.10.11.50 (dc01)\tStatus: Up\n"
+        "Host: 10.10.11.50 (dc01)\tPorts: 445/open/tcp//microsoft-ds///\n"
+    )
+    res_gnmap = parse_nmap_gnmap(gnmap_data)
+    svc_gnmap = res_gnmap[0]["services"][0]
+    assert svc_gnmap["access_potential"] == ""
+    assert svc_gnmap["next_action"] == ""
+
+    # Normal text
+    text_data = (
+        "Nmap scan report for 10.10.11.50\n"
+        "PORT    STATE SERVICE      VERSION\n"
+        "445/tcp open  microsoft-ds Windows 10\n"
+    )
+    res_text = parse_nmap_text(text_data)
+    svc_text = res_text[0]["services"][0]
+    assert svc_text["access_potential"] == ""
+    assert svc_text["next_action"] == ""
 
 
 def test_parse_nmap_xml_string() -> None:

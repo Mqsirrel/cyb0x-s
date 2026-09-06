@@ -11,51 +11,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from cyb0x_s.settings import derive_guidance_enabled
-
-
-def derive_potential_and_next(
-    service_name: str,
-    port: int,
-    target_ip: str = "",
-    enabled: Optional[bool] = None,
-) -> tuple[str, str]:
-    """Derive initial access potential (HIGH/MED/LOW) and tactical next action.
-
-    Derivation is **gated behind the settings switch**, which is off by default
-    (see :mod:`cyb0x_s.settings`). ``enabled`` overrides the global switch for a
-    single call/parse; when effectively disabled this returns ``("", "")`` so
-    CYB0X-S never classifies a recorded service or proposes a next step on its
-    own.
-    """
-    if not (derive_guidance_enabled() if enabled is None else enabled):
-        return "", ""
-
-    s = service_name.lower().strip()
-    ip_str = target_ip or "<TARGET_IP>"
-
-    if s in ("smb", "microsoft-ds", "netbios-ssn") or port in (139, 445):
-        return "HIGH", f"smbmap -u guest -p '' -d . -H {ip_str}"
-    elif s in ("http", "https", "http-proxy", "web", "apache", "nginx", "iis") or port in (80, 443, 8080, 8000, 8081, 8888, 5000):
-        proto = "https" if port == 443 or "https" in s else "http"
-        port_suffix = f":{port}" if port not in (80, 443) else ""
-        return "HIGH", f"feroxbuster -u {proto}://{ip_str}{port_suffix}/ -w /usr/share/wordlists/dirb/common.txt"
-    elif s in ("winrm", "wsman") or port in (5985, 5986):
-        return "HIGH", f"evil-winrm -i {ip_str} -u <USER> -p '<PW>'"
-    elif s in ("mssql", "ms-sql-s") or port == 1433:
-        return "HIGH", f"nmap -p 1433 --script ms-sql-info,ms-sql-empty-password {ip_str}"
-    elif s in ("mysql",) or port == 3306:
-        return "MED", f"mysql -h {ip_str} -u root -p"
-    elif s in ("ftp",) or port == 21:
-        return "HIGH", f"ftp {ip_str} (test anonymous)"
-    elif s in ("ssh",) or port == 22:
-        return "MED", f"hydra -l <USER> -P /usr/share/wordlists/rockyou.txt ssh://{ip_str}"
-    elif s in ("rdp", "ms-wbt-server") or port == 3389:
-        return "MED", f"xfreerdp /u:<USER> /p:'<PW>' /v:{ip_str} /smart-sizing"
-    elif s in ("snmp",) or port == 161:
-        return "HIGH", f"onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp.txt {ip_str}"
-    return "LOW", ""
-
 
 def parse_nmap_xml(
     content_or_path: Union[str, Path], derive_guidance: Optional[bool] = None
@@ -124,9 +79,6 @@ def parse_nmap_xml(
                     version = service_elem.get("version", "")
 
                 banner = f"{product} {version}".strip()
-                potential, next_act = derive_potential_and_next(
-                    svc_name, port_id, target_ip=ip, enabled=derive_guidance
-                )
 
                 services.append({
                     "port": port_id,
@@ -134,8 +86,8 @@ def parse_nmap_xml(
                     "service": svc_name,
                     "name": svc_name,
                     "version": banner,
-                    "access_potential": potential,
-                    "next_action": next_act,
+                    "access_potential": "",
+                    "next_action": "",
                 })
 
         results.append({
@@ -191,17 +143,14 @@ def parse_nmap_text(
                 svc_name = m.group(3)
                 ver_info = (m.group(4) or "").strip()
 
-                potential, next_act = derive_potential_and_next(
-                    svc_name, port, target_ip=ip, enabled=derive_guidance
-                )
                 services.append({
                     "port": port,
                     "protocol": proto,
                     "service": svc_name,
                     "name": svc_name,
                     "version": ver_info,
-                    "access_potential": potential,
-                    "next_action": next_act,
+                    "access_potential": "",
+                    "next_action": "",
                 })
 
         if ip:
@@ -261,17 +210,14 @@ def parse_nmap_gnmap(
                     proto = parts[2] if len(parts) > 2 and parts[2] else "tcp"
                     svc_name = parts[4] if len(parts) > 4 and parts[4] else "unknown"
                     version = parts[6] if len(parts) > 6 else ""
-                    pot, nxt = derive_potential_and_next(
-                        svc_name, port, target_ip=ip, enabled=derive_guidance
-                    )
                     host_entry["services"].append({
                         "port": port,
                         "protocol": proto,
                         "service": svc_name,
                         "name": svc_name,
                         "version": version,
-                        "access_potential": pot,
-                        "next_action": nxt,
+                        "access_potential": "",
+                        "next_action": "",
                     })
 
     return list(results_map.values())
@@ -307,17 +253,14 @@ def parse_netexec_output(
             if hostname and hostname != "-" and not entry["hostname"]:
                 entry["hostname"] = hostname
 
-            pot, nxt = derive_potential_and_next(
-                proto_svc, port, target_ip=ip, enabled=derive_guidance
-            )
             entry["services"].append({
                 "port": port,
                 "protocol": "tcp",
                 "service": proto_svc,
                 "name": proto_svc,
                 "version": "",
-                "access_potential": pot,
-                "next_action": nxt,
+                "access_potential": "",
+                "next_action": "",
             })
 
     return list(results_map.values())
