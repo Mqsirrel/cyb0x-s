@@ -10,12 +10,12 @@ and prevents losing work or evidence prior to lab target resets.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ServiceStatus, Target
+from cyb0x_s.models import ServiceStatus
 
 
 class AuditStatus(str, Enum):

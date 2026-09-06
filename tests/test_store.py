@@ -285,8 +285,9 @@ def test_exam_proofs_crud_and_export(store: NotebookStore) -> None:
 
 def test_pragma_user_version_migration(temp_db_path) -> None:
     """Verify that user_version is stamped to CURRENT_SCHEMA_VERSION and legacy DB is migrated."""
-    from cyb0x_s.db.store import CURRENT_SCHEMA_VERSION
     import sqlite3
+
+    from cyb0x_s.db.store import CURRENT_SCHEMA_VERSION
 
     # 1. New store should have PRAGMA user_version = CURRENT_SCHEMA_VERSION
     store = NotebookStore(db_path=temp_db_path)
@@ -307,4 +308,87 @@ def test_pragma_user_version_migration(temp_db_path) -> None:
     cur2.execute("PRAGMA user_version")
     assert cur2.fetchone()[0] == CURRENT_SCHEMA_VERSION
     store2.close()
+
+
+def test_lhost_lport_settings(store: NotebookStore) -> None:
+    # Defaults
+    assert store.get_lhost() == ""
+    assert store.get_lport() == "4444"
+
+    # Set custom
+    store.set_lhost("10.10.14.47")
+    store.set_lport(9001)
+
+    assert store.get_lhost() == "10.10.14.47"
+    assert store.get_lport() == "9001"
+
+
+def test_detect_local_vpn_ip() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from cyb0x_s.db.store import detect_local_vpn_ip
+
+    # 1. Test VPN interface priority (tun0)
+    mock_ip_out = (
+        "1: lo    inet 127.0.0.1/8 scope host lo\\ valid_lft forever\n"
+        "2: wlan0    inet 192.168.1.50/24 brd 192.168.1.255 scope global dynamic wlan0\n"
+        "3: tun0    inet 10.10.14.47/23 scope global tun0\n"
+    )
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout=mock_ip_out)
+        assert detect_local_vpn_ip() == "10.10.14.47"
+
+    # 2. Test non-loopback fallback if no VPN interface
+    mock_no_vpn = (
+        "1: lo    inet 127.0.0.1/8 scope host lo\n"
+        "2: eth0    inet 192.168.0.105/24 brd 192.168.0.255 scope global eth0\n"
+    )
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout=mock_no_vpn)
+        assert detect_local_vpn_ip() == "192.168.0.105"
+
+
+def test_update_credential_crack(store: NotebookStore) -> None:
+    t = store.add_target("10.10.10.30")
+    c = store.add_credential(
+        username="admin",
+        secret="aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0",
+        target_id=t.id,
+        status="captured",
+    )
+    assert c.id is not None
+    assert c.status == "captured"
+
+    # Operator cracks the hash
+    updated = store.update_credential(c.id, secret="Password123", status="cracked", notes="Hashcat NTLM rockyou")
+    assert updated is not None
+    assert updated.id == c.id
+    assert updated.secret == "Password123"
+    assert updated.status == "cracked"
+    assert updated.notes == "Hashcat NTLM rockyou"
+
+
+def test_export_wordlists_to_loot(tmp_path) -> None:
+    store = NotebookStore(":memory:")
+    lab_dir = tmp_path / "lab_export"
+    ws, _ = store.init_workspace_directory("lab_export", target_dir=lab_dir)
+    t = store.add_target("10.10.10.40", workspace_id=ws.id)
+
+    store.add_credential(username="admin", secret="Summer2023!", target_id=t.id)
+    store.add_credential(username="root", secret="toor", target_id=t.id)
+    store.add_credential(username="admin", secret="Summer2023!", target_id=t.id)  # duplicate to test dedup
+    store.add_credential(username="svc_backup", secret="Backup2022", target_id=t.id)
+
+    u_file, p_file = store.export_wordlists_to_loot(workspace_id=ws.id)
+    assert u_file.is_file()
+    assert p_file.is_file()
+    assert u_file == lab_dir / "loot" / "users.txt"
+    assert p_file == lab_dir / "loot" / "passwords.txt"
+
+    users = u_file.read_text(encoding="utf-8").strip().splitlines()
+    passwords = p_file.read_text(encoding="utf-8").strip().splitlines()
+
+    assert users == ["admin", "root", "svc_backup"]
+    assert sorted(passwords) == ["Backup2022", "Summer2023!", "toor"]
+
 

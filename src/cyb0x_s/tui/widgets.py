@@ -27,8 +27,13 @@ from cyb0x_s.tui.theme import (
 )
 
 
-def substitute_command_placeholders(command: str, target_ip: str = "") -> str:
-    """Fill the static command templates with the active target context.
+def substitute_command_placeholders(
+    command: str,
+    target_ip: str = "",
+    lhost: str = "",
+    lport: str = "",
+) -> str:
+    """Fill the static command templates with active target and operator context.
 
     Purely mechanical string substitution on human-curated reference text:
     no command is ever generated, inferred or suggested.
@@ -39,6 +44,10 @@ def substitute_command_placeholders(command: str, target_ip: str = "") -> str:
     if target_ip:
         subnet = f"{target_ip.rsplit('.', 1)[0]}.0/24" if "." in target_ip else ""
         res = res.replace("<TARGET_IP>", target_ip).replace("<TARGET_SUBNET>", subnet)
+    if lhost:
+        res = res.replace("<LHOST>", lhost).replace("<ATTACKER_IP>", lhost).replace("<LOCAL_IP>", lhost)
+    if lport:
+        res = res.replace("<LPORT>", str(lport)).replace("<LOCAL_PORT>", str(lport))
     res = res.replace("<WORDLIST>", "/usr/share/wordlists/dirb/common.txt")
     return res
 
@@ -368,6 +377,18 @@ class MachineStatusStrip(Static):
             else:
                 elapsed_s = int(time.monotonic() - self.session_start)
             row1.append(f"T+{timedelta(seconds=elapsed_s)} ", style=f"bold {P.muted}")
+
+            # LHOST Attacker IP indicator
+            lh = ""
+            lp = "4444"
+            if hasattr(self.app, "store"):
+                try:
+                    lh = getattr(self.app.store, "get_lhost", lambda: "")()
+                    lp = getattr(self.app.store, "get_lport", lambda: "4444")()
+                except Exception:
+                    pass
+            if lh:
+                row1.append(f"[LHOST: {lh}:{lp}] ", style=f"bold {P.accent}")
 
             # Clean Status Badges for User and Root Flags
             if self.target.user_flag:
@@ -769,8 +790,19 @@ class ConsoleBar(Container):
             pass
 
     # -- state ------------------------------------------------------------
+    def _get_lhost_lport(self) -> tuple[str, str]:
+        if hasattr(self.app, "store"):
+            try:
+                lh = getattr(self.app.store, "get_lhost", lambda: "")()
+                lp = getattr(self.app.store, "get_lport", lambda: "4444")()
+                return lh, lp
+            except Exception:
+                pass
+        return "", "4444"
+
     def show_command(self, command: str, tip: str, target_ip: str = "", heading: str = "CMD") -> None:
-        self.command = substitute_command_placeholders(command or "", target_ip)
+        lh, lp = self._get_lhost_lport()
+        self.command = substitute_command_placeholders(command or "", target_ip, lhost=lh, lport=lp)
         self.tip = tip or ""
         self.heading = heading
         self._paint()
@@ -782,7 +814,10 @@ class ConsoleBar(Container):
         self.tip = ""
         guidance = get_template_guidance_for_title(title)
         if guidance:
-            self.command = substitute_command_placeholders(guidance.get("command", ""), target_ip)
+            lh, lp = self._get_lhost_lport()
+            self.command = substitute_command_placeholders(
+                guidance.get("command", ""), target_ip, lhost=lh, lport=lp
+            )
             self.tip = guidance.get("tip", "")
         elif title:
             self.heading = "STEP"
@@ -977,10 +1012,12 @@ from cyb0x_s.tui.modals import (  # noqa: E402, F401
     FastInputModal,
     HelpModal,
     ReferenceModal,
+    ScanImportModal,
     SearchModal,
     TemplateSelectionModal,
     ThemePickerModal,
     ThemeSwatch,
+    WorkspaceModal,
 )
 
 
@@ -1117,7 +1154,16 @@ class PlaybookBrowserWidget(Static):
         cmd_list = self.query_one("#playbook-cmd-list", ListView)
         cmd_list.clear()
 
-        matches = search_reference(self.search_query, target_ip=self.target_ip)
+        lhost = ""
+        lport = "4444"
+        if hasattr(self.app, "store"):
+            try:
+                lhost = getattr(self.app.store, "get_lhost", lambda: "")()
+                lport = getattr(self.app.store, "get_lport", lambda: "4444")()
+            except Exception:
+                pass
+
+        matches = search_reference(self.search_query, target_ip=self.target_ip, lhost=lhost, lport=lport)
         if self.selected_category != "ALL":
             matches = [m for m in matches if m["category"].lower() == self.selected_category.lower()]
 
@@ -1219,8 +1265,12 @@ class LootAndFlagsWidget(Static):
         with Horizontal(id="loot-lower-container"):
             with Vertical(id="loot-evidence-box", classes="loot-lower-box"):
                 yield Label("📝 QUESTION & EVIDENCE PROOFS", classes="loot-title")
-                yield Label("Press 'a' or :q <num> <proof> • Enter=Copy • e=Export", classes="loot-sub")
+                yield Label("Press 'a' / :q <num> <proof> • Enter=Copy", classes="loot-sub")
                 yield ListView(id="loot-evidence-list")
+            with Vertical(id="loot-files-box", classes="loot-lower-box"):
+                yield Label("📁 DISK LOOT & EVIDENCE FILES", classes="loot-title")
+                yield Label("Enter=Copy Path • Space=Preview • v=Paste Screenshot", classes="loot-sub")
+                yield ListView(id="loot-files-list")
             with Vertical(id="loot-failure-box", classes="loot-lower-box"):
                 yield Label("🧠 RABBIT HOLES & BREAKTHROUGHS", classes="loot-title")
                 yield Label("Type :stuck <where> / :clue <breakthrough>", classes="loot-sub")
@@ -1294,9 +1344,44 @@ class LootAndFlagsWidget(Static):
             txt = Text("  • No question proofs recorded yet. Press 'a' or :q <num> <proof>", style="dim italic")
             p_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
-        # Failure Log List
-        f_list = self.query_one("#loot-failure-list", ListView)
+        # Disk Loot & Evidence Files List
+        f_list = self.query_one("#loot-files-list", ListView)
         f_list.clear()
+        disk_files = []
+        if hasattr(self.app, "store"):
+            from pathlib import Path
+            ws = self.app.store.get_active_workspace()
+            ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()
+            for sub in ("loot", "screenshots", "enum", "scans"):
+                d = ws_root / sub
+                if d.is_dir():
+                    try:
+                        for f in d.iterdir():
+                            if f.is_file():
+                                disk_files.append((sub, f))
+                    except (PermissionError, OSError):
+                        pass
+
+        if disk_files:
+            disk_files.sort(key=lambda x: x[1].stat().st_mtime, reverse=True)
+            for sub, fp in disk_files:
+                st = fp.stat()
+                size_str = f"{st.st_size} B" if st.st_size < 1024 else f"{st.st_size / 1024.0:.1f} KB"
+                rel = f"{sub}/{fp.name}"
+                txt = Text()
+                folder_style = S("accent") if sub == "loot" else (S("ok") if sub == "screenshots" else S("warn"))
+                txt.append(f"[{sub}] ", style=folder_style)
+                txt.append(f"{fp.name} ", style=f"bold {P.text}")
+                txt.append(f"({size_str})\n", style=f"{P.muted}")
+                txt.append("   ❯ Enter: Copy path • Space: Preview", style="dim italic")
+                f_list.append(DataListItem(data_obj=rel, display_text=txt))
+        else:
+            txt = Text("  • No files found in loot/ or screenshots/.\n  Type :export wordlists or :paste-ev", style="dim italic")
+            f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+
+        # Failure Log List
+        fail_list = self.query_one("#loot-failure-list", ListView)
+        fail_list.clear()
         if failures:
             for fl in failures:
                 txt = Text()
@@ -1306,10 +1391,10 @@ class LootAndFlagsWidget(Static):
                     txt.append(f"   🔑 Breakthrough Clue: {fl.breakthrough_clue}\n", style=S("ok"))
                 if fl.rule_for_next_time:
                     txt.append(f"   📌 Permanent Rule: {fl.rule_for_next_time}", style="dim italic")
-                f_list.append(DataListItem(data_obj=fl, display_text=txt))
+                fail_list.append(DataListItem(data_obj=fl, display_text=txt))
         else:
             txt = Text("  • No rabbit holes or failure logs recorded. Type :stuck <where> / :clue <breakthrough>", style="dim italic")
-            f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            fail_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "loot-evidence-list" and isinstance(event.item, DataListItem):
@@ -1317,6 +1402,11 @@ class LootAndFlagsWidget(Static):
                 copy_to_clipboard(str(event.item.data_obj))
                 if hasattr(self.app, "notify"):
                     self.app.notify(f"Copied proof: {event.item.data_obj}")
+        elif event.list_view.id == "loot-files-list" and isinstance(event.item, DataListItem):
+            if event.item.data_obj and not event.item.is_placeholder:
+                copy_to_clipboard(str(event.item.data_obj))
+                if hasattr(self.app, "notify"):
+                    self.app.notify(f"Copied file path: {event.item.data_obj}")
 
     def on_key(self, event: Any) -> None:
         if event.key == "a":
@@ -1325,6 +1415,24 @@ class LootAndFlagsWidget(Static):
         elif event.key == "e":
             self.action_export_proofs()
             event.stop()
+        elif event.key in ("v", "V"):
+            if hasattr(self.app, "execute_command"):
+                from cyb0x_s.tui.commands import execute_command
+                execute_command(self.app, ":paste-ev")
+            event.stop()
+        elif event.key == "space":
+            f_list = self.query_one("#loot-files-list", ListView)
+            if f_list.has_focus and f_list.highlighted_child and isinstance(f_list.highlighted_child, DataListItem):
+                item = f_list.highlighted_child
+                if item.data_obj and not item.is_placeholder:
+                    from pathlib import Path
+
+                    from cyb0x_s.tui.modals import LootPreviewModal
+                    ws = self.app.store.get_active_workspace()
+                    ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()
+                    full_p = ws_root / str(item.data_obj)
+                    self.app.push_screen(LootPreviewModal(full_p))
+                    event.stop()
 
     def action_add_proof(self) -> None:
         from cyb0x_s.tui.modals import AddExamProofModal

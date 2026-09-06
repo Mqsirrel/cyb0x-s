@@ -340,3 +340,142 @@ def parse_scan_file(
         return parse_nmap_gnmap(p, derive_guidance=derive_guidance)
     return parse_nmap_text(p, derive_guidance=derive_guidance)
 
+
+def parse_web_enum_file(file_path: Union[str, Path]) -> List[Dict[str, Any]]:
+    """Parse output from web enumeration tools (FFUF JSON, Feroxbuster JSON, Gobuster text).
+
+    Returns list of discovered endpoint records:
+      {"path": str, "url": str, "status": int, "size": int, "words": int, "redirect": str, "tool": str}
+    """
+    p = Path(file_path).expanduser().resolve()
+    if not p.is_file():
+        raise FileNotFoundError(f"Web enum file not found: {file_path}")
+
+    raw = p.read_text(encoding="utf-8", errors="replace").strip()
+    if not raw:
+        return []
+
+    import json
+
+    results: List[Dict[str, Any]] = []
+
+    # 1. Try FFUF JSON
+    if raw.startswith("{") and '"results"' in raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict) and "results" in data:
+                for item in data["results"]:
+                    url = item.get("url", "")
+                    fuzz_val = item.get("input", {}).get("FUZZ", "")
+                    path = "/" + fuzz_val.lstrip("/") if fuzz_val else ""
+                    if not path and url:
+                        stripped = url.split("://", 1)[-1]
+                        path = "/" + stripped.split("/", 1)[-1] if "/" in stripped else "/"
+                    results.append({
+                        "path": path or "/",
+                        "url": url,
+                        "status": int(item.get("status", 200)),
+                        "size": int(item.get("length", 0)),
+                        "words": int(item.get("words", 0)),
+                        "redirect": item.get("redirectlocation", ""),
+                        "tool": "ffuf",
+                    })
+                if results:
+                    return results
+        except Exception:
+            pass
+
+    # 2. Try Feroxbuster JSON / JSON Lines
+    if '{"type":' in raw or '"content_length":' in raw:
+        try:
+            for line in raw.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if isinstance(obj, dict) and (obj.get("type") == "response" or "status" in obj):
+                        url = obj.get("url", "")
+                        path = obj.get("path")
+                        if not path and url:
+                            stripped = url.split("://", 1)[-1]
+                            path = "/" + stripped.split("/", 1)[-1] if "/" in stripped else "/"
+                        results.append({
+                            "path": path or "/",
+                            "url": url,
+                            "status": int(obj.get("status", 200)),
+                            "size": int(obj.get("content_length", 0)),
+                            "words": int(obj.get("word_count", 0)),
+                            "redirect": "",
+                            "tool": "feroxbuster",
+                        })
+                except json.JSONDecodeError:
+                    continue
+            if results:
+                return results
+        except Exception:
+            pass
+
+    # 3. Gobuster / Dirsearch normal text
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("===") or line.startswith("Progress:"):
+            continue
+
+        # Gobuster: /admin (Status: 200) [Size: 1243]
+        m = re.search(r"^(/[^\s]+)\s+\(Status:\s*(\d+)\)(?:\s+\[Size:\s*(\d+)\])?(?:\s+\[-->\s*([^\]]+)\])?", line)
+        if m:
+            path = m.group(1)
+            status = int(m.group(2))
+            size = int(m.group(3)) if m.group(3) else 0
+            redirect = m.group(4) or ""
+            results.append({
+                "path": path,
+                "url": path,
+                "status": status,
+                "size": size,
+                "words": 0,
+                "redirect": redirect,
+                "tool": "gobuster",
+            })
+            continue
+
+        # Dirsearch: [11:22:33] 200 - 1243B - /admin
+        m_dir = re.search(r"(\d{3})\s+-\s+(\d+)\w*\s+-\s+(/[^\s]+)", line)
+        if m_dir:
+            status = int(m_dir.group(1))
+            size = int(m_dir.group(2))
+            path = m_dir.group(3)
+            results.append({
+                "path": path,
+                "url": path,
+                "status": status,
+                "size": size,
+                "words": 0,
+                "redirect": "",
+                "tool": "dirsearch",
+            })
+
+    return results
+
+
+def detect_file_scan_type(file_path: Union[str, Path]) -> str:
+    """Determine whether a file is an Nmap scan ('nmap') or Web enum output ('web_enum')."""
+    p = Path(file_path).expanduser().resolve()
+    if not p.is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    with open(p, "r", encoding="utf-8", errors="replace") as f:
+        head = f.read(1000)
+
+    if "<nmaprun" in head or "<!DOCTYPE nmaprun" in head or "# Nmap" in head or "Nmap scan report" in head:
+        return "nmap"
+    if '"results"' in head and "ffuf" in head.lower():
+        return "web_enum"
+    if '{"type":"response"' in head or "feroxbuster" in head.lower():
+        return "web_enum"
+    if "(Status:" in head or "gobuster" in head.lower():
+        return "web_enum"
+    return "nmap"
+
+

@@ -16,13 +16,13 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from cyb0x_s.audit import AuditStatus, audit_target, audit_workspace
 from cyb0x_s.clipboard import copy_to_clipboard
 from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.export import export_json, export_markdown, export_txt, import_json
 from cyb0x_s.extractor import CandidateType, extract_candidates, stage_and_commit_candidate
 from cyb0x_s.models import ChecklistStatus
 from cyb0x_s.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
+from cyb0x_s.scan_import import check_scan_already_imported, commit_scan_results, inspect_scan_file
 from cyb0x_s.search import search_notebook
 from cyb0x_s.templates import apply_template_to_store
 
@@ -557,16 +557,44 @@ def export_cmd(ctx: click.Context, fmt: str, output: Optional[str], reveal_creds
             sys.stdout.write("\n")
 
 
-@cli.command("import")
+@cli.command("restore")
 @click.argument("file_path", type=click.Path(exists=True))
 @click.option("--name", default=None, help="Target workspace name")
 @click.pass_context
-def import_cmd(ctx: click.Context, file_path: str, name: Optional[str]) -> None:
-    """Import workspace data from a JSON backup file."""
+def restore_cmd(ctx: click.Context, file_path: str, name: Optional[str]) -> None:
+    """Restore workspace data from a JSON backup file."""
     store = _get_store(ctx)
     content = Path(file_path).read_text(encoding="utf-8")
     ws = import_json(store, content, workspace_name=name)
     console.print(f"[green]✓ Successfully imported workspace:[/green] [bold]{ws.name}[/bold]")
+
+
+# -----------------------------------------------------------------------------
+# Workspace Management
+# -----------------------------------------------------------------------------
+
+@cli.command("init")
+@click.argument("directory", default=".", type=click.Path())
+@click.option("--name", "-n", default=None, help="Workspace name (defaults to folder name)")
+@click.option("--desc", "-d", default="", help="Workspace description")
+@click.pass_context
+def init_cmd(ctx: click.Context, directory: str, name: Optional[str], desc: str) -> None:
+    """Initialize a dedicated assessment workspace directory with scaffolded folders."""
+    store = _get_store(ctx)
+    target_path = Path(directory).expanduser().resolve()
+    ws_name = name.strip() if name else target_path.name
+    if not ws_name or ws_name in (".", "/"):
+        ws_name = "assessment"
+
+    ws, resolved_path = store.init_workspace_directory(
+        name=ws_name,
+        target_dir=target_path,
+        description=desc,
+    )
+    console.print(f"[green]✓ Workspace initialized & selected:[/green] [bold]{ws.name}[/bold]")
+    console.print(f"  [dim]Location:[/dim] {resolved_path}")
+    console.print("  [dim]Folders created:[/dim] scans/ enum/ screenshots/ notes/ loot/")
+    console.print("  [dim]Scaffolded report:[/dim] findings.md")
 
 
 # -----------------------------------------------------------------------------
@@ -591,11 +619,13 @@ def ws_list(ctx: click.Context) -> None:
     table.add_column("ID", justify="right", style="dim")
     table.add_column("Active", justify="center")
     table.add_column("Name", style="bold cyan")
+    table.add_column("Root Path")
     table.add_column("Description")
 
     for ws in workspaces:
         is_active = "[green]✓[/green]" if ws.id == active.id else ""
-        table.add_row(str(ws.id), is_active, ws.name, ws.description)
+        root = ws.root_path or "[dim]--[/dim]"
+        table.add_row(str(ws.id), is_active, ws.name, root, ws.description)
 
     console.print(table)
 
@@ -613,13 +643,120 @@ def ws_switch(ctx: click.Context, name_or_id: str) -> None:
 @workspace_group.command("create")
 @click.argument("name")
 @click.option("--desc", default="", help="Workspace description")
+@click.option("--path", "root_path", default="", help="Filesystem root path for workspace artifacts")
 @click.pass_context
-def ws_create(ctx: click.Context, name: str, desc: str) -> None:
+def ws_create(ctx: click.Context, name: str, desc: str, root_path: str) -> None:
     """Create a new workspace."""
     store = _get_store(ctx)
-    ws = store.get_or_create_workspace(name=name, description=desc)
+    ws = store.get_or_create_workspace(name=name, description=desc, root_path=root_path)
     store.set_active_workspace(ws.id)
     console.print(f"[green]✓ Created and selected workspace:[/green] [bold]{ws.name}[/bold]")
+    if root_path:
+        console.print(f"  [dim]Root Path:[/dim] {root_path}")
+
+
+@workspace_group.command("init")
+@click.argument("name")
+@click.option("--path", "target_path", default=None, help="Directory path to scaffold (defaults to ./<name>)")
+@click.option("--desc", default="", help="Workspace description")
+@click.pass_context
+def ws_init(ctx: click.Context, name: str, target_path: Optional[str], desc: str) -> None:
+    """Initialize folder scaffolding for a new assessment workspace."""
+    store = _get_store(ctx)
+    dest = Path(target_path).expanduser().resolve() if target_path else Path.cwd() / name
+    ws, resolved = store.init_workspace_directory(name=name, target_dir=dest, description=desc)
+    console.print(f"[green]✓ Initialized workspace:[/green] [bold]{ws.name}[/bold]")
+    console.print(f"  [dim]Directory:[/dim] {resolved}")
+    console.print("  [dim]Scaffolding:[/dim] scans/ enum/ screenshots/ notes/ loot/ findings.md")
+
+
+# -----------------------------------------------------------------------------
+# Scan Ingestion & Evidence Attachment
+# -----------------------------------------------------------------------------
+
+@cli.command("import")
+@click.argument("scan_file", type=click.Path(exists=True))
+@click.option("--apply", is_flag=True, help="Skip interactive review and apply immediately.")
+@click.option("--no-copy", is_flag=True, help="Do not copy the file into workspace scans/ directory.")
+@click.option("--workspace", "-w", "workspace_name", default=None, help="Target workspace (defaults to active).")
+@click.pass_context
+def import_cmd(ctx: click.Context, scan_file: str, apply: bool, no_copy: bool, workspace_name: Optional[str]) -> None:
+    """Import and parse an offline Nmap/scan output file into the workspace.
+
+    Parses Nmap XML (-oX), normal text (-oN), greppable (-oG), or NetExec outputs.
+    Preserves raw scan file in scans/ as evidence and presents a human review step.
+    """
+    store = _get_store(ctx)
+    ws = store.get_active_workspace()
+    if workspace_name:
+        ws = store.get_or_create_workspace(name=workspace_name)
+
+    file_path = Path(scan_file).expanduser().resolve()
+
+    # Deduplication check
+    existing = check_scan_already_imported(store, file_path, workspace_id=ws.id)
+    if existing:
+        console.print(f"[yellow]⚠️ Warning: This file was already imported on {existing.imported_at}[/yellow]")
+        console.print(f"  [dim]Previous import ref:[/dim] {existing.file_path}")
+        if not apply:
+            if not click.confirm("Do you want to re-parse and update the targets?", default=False):
+                console.print("[dim]Import cancelled.[/dim]")
+                return
+
+    try:
+        targets_data = inspect_scan_file(file_path)
+    except Exception as e:
+        err_console.print(f"[red]Error parsing scan file: {e}[/red]")
+        sys.exit(1)
+
+    if not targets_data:
+        console.print("[yellow]No active targets or open ports found in scan file.[/yellow]")
+        return
+
+    # Present review table
+    table = Table(title=f"Scan Review: {file_path.name} (Workspace: {ws.name})")
+    table.add_column("Target IP", style="bold cyan")
+    table.add_column("Hostname", style="dim")
+    table.add_column("OS")
+    table.add_column("Port / Proto", justify="center")
+    table.add_column("Service", style="green")
+    table.add_column("Version", style="yellow")
+
+    total_services = 0
+    for t in targets_data:
+        svcs = t.get("services", [])
+        total_services += len(svcs)
+        if not svcs:
+            table.add_row(t["ip"], t.get("hostname", ""), t.get("os", "Unknown"), "--", "--", "--")
+        else:
+            for i, s in enumerate(svcs):
+                ip_col = t["ip"] if i == 0 else ""
+                hn_col = t.get("hostname", "") if i == 0 else ""
+                os_col = t.get("os", "Unknown") if i == 0 else ""
+                port_proto = f"{s['port']}/{s.get('protocol', 'tcp')}"
+                table.add_row(ip_col, hn_col, os_col, port_proto, s.get("service", "unknown"), s.get("version", ""))
+
+    console.print(table)
+    console.print(f"[dim]Found {len(targets_data)} target(s) and {total_services} open service(s).[/dim]\n")
+
+    if not apply:
+        if not click.confirm(f"Commit these targets and services into '{ws.name}' and save raw scan as Evidence?", default=True):
+            console.print("[yellow]Import aborted by operator.[/yellow]")
+            return
+
+    summary = commit_scan_results(
+        store=store,
+        file_path=file_path,
+        targets_data=targets_data,
+        workspace_id=ws.id,
+        copy_to_scans=not no_copy,
+    )
+
+    console.print(f"\n[bold green]✓ Scan imported successfully into '{ws.name}'![/bold green]")
+    console.print(f"  • Targets committed: [bold]{summary['targets_count']}[/bold]")
+    console.print(f"  • Services committed: [bold]{summary['services_count']}[/bold]")
+    console.print(f"  • Evidence preserved: [bold]{summary['evidence_path']}[/bold]")
+    console.print(f"  • SHA-256 Checksum: [dim]{summary['file_hash'][:16]}...[/dim]")
 
 
 # -----------------------------------------------------------------------------

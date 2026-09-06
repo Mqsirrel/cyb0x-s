@@ -17,8 +17,6 @@ from cyb0x_s.tui.widgets import (
 )
 
 
-
-
 @pytest.mark.asyncio
 async def test_T_opens_picker_with_all_palettes(seeded_store: NotebookStore) -> None:
     app = CyboxSafeApp(store=seeded_store)

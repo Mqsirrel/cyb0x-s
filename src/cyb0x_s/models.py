@@ -85,8 +85,20 @@ class Workspace(BaseModel):
     id: Optional[int] = None
     name: str
     description: str = ""
+    root_path: str = ""
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class ScanImport(BaseModel):
+    """Metadata record of an imported scan file."""
+    id: Optional[int] = None
+    workspace_id: int
+    target_id: Optional[int] = None
+    file_path: str
+    file_hash: str
+    scan_type: str = "nmap"
+    imported_at: datetime = Field(default_factory=_utcnow)
 
 
 class Target(BaseModel):

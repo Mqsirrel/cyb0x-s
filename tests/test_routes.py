@@ -1,6 +1,7 @@
 """Tests for Multi-Hop Pivot Route Graph and ProxyChains/Chisel Generator (P3)."""
 
 from pathlib import Path
+
 from click.testing import CliRunner
 
 from cyb0x_s.cli import cli

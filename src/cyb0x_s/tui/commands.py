@@ -66,6 +66,51 @@ def normalize_command(raw: str) -> str:
     elif val.startswith("proof ") or val.startswith("question "):
         raw_val = val.replace("proof ", "", 1).replace("question ", "", 1).strip()
         return f":q {raw_val}"
+    elif val.startswith(":import "):
+        return val
+    elif val.startswith("import "):
+        return f":import {val[7:].strip()}"
+    elif val in ("import", ":import"):
+        return ":import"
+    elif val.startswith(":ws "):
+        return val
+    elif val.startswith("workspace "):
+        return f":ws {val[10:].strip()}"
+    elif val.startswith("ws "):
+        return f":ws {val[3:].strip()}"
+    elif val in ("workspace", "ws", ":ws"):
+        return ":ws"
+    elif val.startswith("set lhost ") or val.startswith("lhost "):
+        raw_val = val.replace("set lhost ", "", 1).replace("lhost ", "", 1).strip()
+        return f":lhost {raw_val}"
+    elif val in ("set lhost", "lhost", ":lhost"):
+        return ":lhost"
+    elif val.startswith("set lport ") or val.startswith("lport "):
+        raw_val = val.replace("set lport ", "", 1).replace("lport ", "", 1).strip()
+        return f":lport {raw_val}"
+    elif val in ("set lport", "lport", ":lport"):
+        return ":lport"
+    elif val in ("export wordlists", ":export wordlists", "export creds", ":export creds"):
+        return ":export wordlists"
+    elif val.startswith(":crack "):
+        return f":c crack {val[7:].strip()}"
+    elif val.startswith("crack "):
+        return f":c crack {val[6:].strip()}"
+    elif val.startswith(("paste-ev", ":paste-ev", "paste-evidence", ":paste-evidence")):
+        arg = val.split(maxsplit=1)[1].strip() if " " in val else ""
+        return f":paste-ev {arg}".strip()
+    elif val.startswith(":ev latest"):
+        return f":ev latest {val[10:].strip()}".strip()
+    elif val.startswith("ev latest"):
+        return f":ev latest {val[9:].strip()}".strip()
+    elif val.startswith(":evidence latest"):
+        return f":ev latest {val[16:].strip()}".strip()
+    elif val.startswith("evidence latest"):
+        return f":ev latest {val[15:].strip()}".strip()
+    elif val.startswith(":evidence "):
+        return f":ev {val[10:].strip()}"
+    elif val.startswith("evidence "):
+        return f":ev {val[9:].strip()}"
     return val
 
 
@@ -102,6 +147,90 @@ def execute_command(app: Any, raw: str) -> None:
         return
     elif val == ":4":
         app.action_switch_tab("tab-loot")
+        return
+
+    # Import command (:import [file])
+    if val == ":import" or val.startswith(":import "):
+        path = val[8:].strip() if len(val) > 7 else ""
+        if hasattr(app, "action_import_scan"):
+            app.action_import_scan(initial_file=path)
+        return
+
+    # Workspace command (:ws [switch|init|name])
+    if val == ":ws" or val.startswith(":ws "):
+        args = val[4:].strip() if len(val) > 3 else ""
+        if not args:
+            if hasattr(app, "action_manage_workspaces"):
+                app.action_manage_workspaces()
+            return
+        parts = args.split(maxsplit=2)
+        cmd = parts[0].lower()
+        if cmd == "list":
+            if hasattr(app, "action_manage_workspaces"):
+                app.action_manage_workspaces()
+            return
+        elif cmd == "switch" and len(parts) > 1:
+            target_ws = parts[1]
+            ws = app.store.set_active_workspace(target_ws)
+            app.refresh_all()
+            app.notify(f"Switched to workspace: {ws.name}")
+            return
+        elif cmd == "init" and len(parts) > 1:
+            name = parts[1]
+            path_arg = parts[2] if len(parts) > 2 else name
+            from pathlib import Path
+            dest = Path(path_arg).expanduser().resolve()
+            ws, _ = app.store.init_workspace_directory(name=name, target_dir=dest)
+            app.refresh_all()
+            app.notify(f"Initialized & switched to workspace: {ws.name}")
+            return
+        else:
+            # Shorthand :ws <name>
+            ws = app.store.set_active_workspace(args)
+            app.refresh_all()
+            app.notify(f"Switched to workspace: {ws.name}")
+            return
+
+    if val == ":lhost" or val.startswith(":lhost "):
+        arg = val[6:].strip() if len(val) > 6 else ""
+        if not arg:
+            curr = app.store.get_lhost() if hasattr(app.store, "get_lhost") else ""
+            app.notify(f"Current LHOST: {curr or 'unset'} (use :lhost <ip> or :lhost auto)")
+            return
+        if arg.lower() == "auto":
+            from cyb0x_s.db.store import detect_local_vpn_ip
+
+            detected = detect_local_vpn_ip()
+            if detected:
+                app.store.set_lhost(detected)
+                app.notify(f"Auto-detected & set LHOST: {detected}")
+            else:
+                app.notify("Could not auto-detect VPN IP (tun0/wg0). Please specify manually.", severity="warning")
+        else:
+            app.store.set_lhost(arg)
+            app.notify(f"LHOST set to: {arg}")
+        app.refresh_all()
+        return
+
+    if val == ":lport" or val.startswith(":lport "):
+        arg = val[6:].strip() if len(val) > 6 else ""
+        if not arg:
+            curr = app.store.get_lport() if hasattr(app.store, "get_lport") else "4444"
+            app.notify(f"Current LPORT: {curr} (use :lport <port>)")
+            return
+        app.store.set_lport(arg)
+        app.notify(f"LPORT set to: {arg}")
+        app.refresh_all()
+        return
+
+    if val == ":export wordlists":
+        try:
+            u_file, p_file = app.store.export_wordlists_to_loot()
+            app.notify(f"Exported: {u_file.name} and {p_file.name} to loot/")
+            if hasattr(app, "refresh_loot_widget"):
+                app.refresh_loot_widget()
+        except Exception as e:
+            app.notify(f"Export failed: {e}", severity="error")
         return
 
     active = app.store.get_active_target()
@@ -204,6 +333,22 @@ def execute_command(app: Any, raw: str) -> None:
         finding_text = val[3:].strip()
         app.store.add_finding(title=finding_text, target_id=target_id)
         app.notify(f"Finding added: {finding_text}")
+    elif val.startswith((":c crack ", ":c update ")):
+        parts = val.split(maxsplit=3)
+        if len(parts) >= 4:
+            try:
+                c_id = int(parts[2])
+                new_sec = parts[3].strip()
+                updated = app.store.update_credential(c_id, secret=new_sec, status="cracked")
+                if updated:
+                    app.notify(f"Updated cred #{c_id} ({updated.username}) -> {new_sec}")
+                    app.refresh_all()
+                else:
+                    app.notify(f"Credential #{c_id} not found", severity="error")
+            except ValueError:
+                app.notify("Usage: :c crack <id> <plaintext>", severity="error")
+        else:
+            app.notify("Usage: :c crack <id> <plaintext>", severity="error")
     elif val.startswith(":c "):
         cred_str = val[3:].strip()
         if ":" in cred_str:
@@ -237,6 +382,70 @@ def execute_command(app: Any, raw: str) -> None:
                 app.notify(f"Service added: {port_str}/{proto} {svc_name}")
             except ValueError:
                 app.notify("Invalid port", severity="error")
+    elif val == ":paste-ev" or val.startswith(":paste-ev "):
+        desc = val[9:].strip() if len(val) > 9 else "Clipboard screenshot"
+        import time
+        from pathlib import Path
+
+        from cyb0x_s.clipboard import save_clipboard_image
+
+        ws = app.store.get_active_workspace()
+        ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()
+        sc_dir = ws_root / "screenshots"
+        sc_dir.mkdir(parents=True, exist_ok=True)
+
+        tgt_ip = active.ip if active else "global"
+        ts = int(time.time())
+        dest_file = sc_dir / f"proof_{tgt_ip}_{ts}.png"
+
+        saved = save_clipboard_image(dest_file)
+        if saved:
+            rel_path = f"screenshots/{dest_file.name}"
+            app.store.add_evidence(
+                path_or_ref=rel_path,
+                target_id=target_id,
+                evidence_type="screenshot",
+                description=desc,
+            )
+            app.notify(f"Saved & attached screenshot: {rel_path}")
+            if hasattr(app, "refresh_loot_widget"):
+                app.refresh_loot_widget()
+            app.refresh_all()
+        else:
+            app.notify("No image found in clipboard. (Copy an image or use :ev latest)", severity="warning")
+    elif val.startswith(":ev latest"):
+        desc = val[10:].strip() if len(val) > 10 else "Latest screenshot"
+        import shutil
+        from pathlib import Path
+
+        from cyb0x_s.clipboard import find_latest_screenshot
+
+        ws = app.store.get_active_workspace()
+        ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()
+        sc_dir = ws_root / "screenshots"
+        sc_dir.mkdir(parents=True, exist_ok=True)
+
+        latest = find_latest_screenshot([Path.home() / "Pictures" / "Screenshots", Path.home() / "Pictures", sc_dir])
+        if latest:
+            if latest.parent.resolve() != sc_dir.resolve():
+                dest_file = sc_dir / latest.name
+                shutil.copy2(latest, dest_file)
+                rel_path = f"screenshots/{dest_file.name}"
+            else:
+                rel_path = f"screenshots/{latest.name}"
+
+            app.store.add_evidence(
+                path_or_ref=rel_path,
+                target_id=target_id,
+                evidence_type="screenshot",
+                description=desc,
+            )
+            app.notify(f"Attached recent screenshot: {rel_path}")
+            if hasattr(app, "refresh_loot_widget"):
+                app.refresh_loot_widget()
+            app.refresh_all()
+        else:
+            app.notify("No recent screenshot found in ~/Pictures or screenshots/", severity="warning")
     elif val.startswith(":ev "):
         ev_path = val[4:].strip()
         app.store.add_evidence(path_or_ref=ev_path, target_id=target_id)

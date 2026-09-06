@@ -11,7 +11,8 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, List, Optional, Union
 
 from cyb0x_s.models import (
     ChecklistItem,
@@ -139,3 +140,96 @@ def extract_copy_value(entity: Any, target_ip: Optional[str] = None) -> str:
     elif isinstance(entity, str):
         return entity
     return str(entity)
+
+
+def save_clipboard_image(dest_path: Union[str, Path]) -> bool:
+    """Read image data from OS clipboard and save to destination file.
+
+    Supports Wayland (wl-paste), X11 (xclip), and PIL ImageGrab.
+    """
+    dest = Path(dest_path).expanduser().resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # 1. Wayland wl-paste
+    if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-paste"):
+        try:
+            res = subprocess.run(
+                ["wl-paste", "-t", "image/png"],
+                capture_output=True,
+                timeout=3,
+            )
+            if res.returncode == 0 and res.stdout and len(res.stdout) > 100:
+                dest.write_bytes(res.stdout)
+                return True
+        except Exception:
+            pass
+
+    # 2. X11 xclip
+    if os.environ.get("DISPLAY") and shutil.which("xclip"):
+        try:
+            res = subprocess.run(
+                ["xclip", "-selection", "clipboard", "-t", "image/png", "-out"],
+                capture_output=True,
+                timeout=3,
+            )
+            if res.returncode == 0 and res.stdout and len(res.stdout) > 100:
+                dest.write_bytes(res.stdout)
+                return True
+        except Exception:
+            pass
+
+    # 3. PIL ImageGrab (cross-platform fallback)
+    try:
+        from PIL import ImageGrab
+
+        img = ImageGrab.grabclipboard()
+        if img is not None and hasattr(img, "save"):
+            img.save(str(dest), "PNG")
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def find_latest_screenshot(
+    search_dirs: Optional[List[Union[str, Path]]] = None,
+    max_age_seconds: int = 14400,
+) -> Optional[Path]:
+    """Find the most recently modified screenshot/image file within max_age_seconds (default: 4 hours)."""
+    if search_dirs is None:
+        home = Path.home()
+        search_dirs = [
+            home / "Pictures" / "Screenshots",
+            home / "Pictures",
+            home / "Downloads",
+            Path.cwd() / "screenshots",
+        ]
+
+    candidate_files: List[Path] = []
+    valid_exts = {".png", ".jpg", ".jpeg"}
+
+    for d in search_dirs:
+        dir_path = Path(d).expanduser().resolve()
+        if not dir_path.is_dir():
+            continue
+        try:
+            for item in dir_path.iterdir():
+                if item.is_file() and item.suffix.lower() in valid_exts:
+                    candidate_files.append(item)
+        except (PermissionError, OSError):
+            continue
+
+    if not candidate_files:
+        return None
+
+    # Sort descending by mtime
+    candidate_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    newest = candidate_files[0]
+    import time
+
+    # Ensure it was touched within max_age_seconds
+    if time.time() - newest.stat().st_mtime <= max_age_seconds:
+        return newest
+    return None
+

@@ -59,8 +59,9 @@ def test_osc52_generation() -> None:
 
 
 def test_compile_spray_command_shell_quoting() -> None:
-    from cyb0x_s.tui.widgets import compile_spray_command
     import shlex
+
+    from cyb0x_s.tui.widgets import compile_spray_command
 
     # Credential with single quote and shell metacharacters
     cmd = compile_spray_command("admin", "p@ss'word$123", "ssh", "10.10.10.20", 22)
@@ -69,4 +70,54 @@ def test_compile_spray_command_shell_quoting() -> None:
     assert "sshpass" in tokens
     assert "p@ss'word$123" in tokens
     assert "admin@10.10.10.20" in tokens
+
+
+def test_substitute_command_placeholders_lhost_lport() -> None:
+    from cyb0x_s.tui.widgets import substitute_command_placeholders
+
+    raw_cmd = "nc -lvnp <LPORT> # listen on <LHOST> (<ATTACKER_IP>) against <TARGET_IP> (<TARGET_SUBNET>) with <WORDLIST>"
+    subbed = substitute_command_placeholders(
+        raw_cmd,
+        target_ip="10.10.10.50",
+        lhost="10.10.14.47",
+        lport="9001",
+    )
+    assert "nc -lvnp 9001" in subbed
+    assert "listen on 10.10.14.47 (10.10.14.47)" in subbed
+    assert "against 10.10.10.50 (10.10.10.0/24)" in subbed
+    assert "/usr/share/wordlists/dirb/common.txt" in subbed
+
+
+def test_find_latest_screenshot(tmp_path) -> None:
+    import time
+
+    from cyb0x_s.clipboard import find_latest_screenshot
+
+    sc_dir = tmp_path / "Screenshots"
+    sc_dir.mkdir(parents=True)
+
+    img1 = sc_dir / "old_shot.png"
+    img1.write_bytes(b"PNG fake data 1")
+
+    time.sleep(0.05)
+    img2 = sc_dir / "new_shot.png"
+    img2.write_bytes(b"PNG fake data 2")
+
+    latest = find_latest_screenshot([sc_dir])
+    assert latest is not None
+    assert latest.name == "new_shot.png"
+
+    # Test file older than max_age is ignored
+    time.sleep(0.02)
+    assert find_latest_screenshot([sc_dir], max_age_seconds=0.01) is None
+
+
+def test_save_clipboard_image_fallback(tmp_path) -> None:
+    from cyb0x_s.clipboard import save_clipboard_image
+
+    dest = tmp_path / "clipboard_test.png"
+    # When no clipboard tools or no image in clipboard, gracefully returns False
+    res = save_clipboard_image(dest)
+    assert isinstance(res, bool)
+
 

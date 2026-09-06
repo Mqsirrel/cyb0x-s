@@ -2,13 +2,13 @@
 
 import json
 from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
 
-from cyb0x_s.cli import ANSI_ESCAPE_RE, cli
+from cyb0x_s.cli import cli
 from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.export import export_json, export_markdown, import_json
-from cyb0x_s.models import ChecklistStatus, ServiceStatus
 
 
 @pytest.mark.fast

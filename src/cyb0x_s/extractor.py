@@ -16,9 +16,9 @@ from __future__ import annotations
 import ipaddress
 import re
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from cyb0x_s.db.store import NotebookStore
 
