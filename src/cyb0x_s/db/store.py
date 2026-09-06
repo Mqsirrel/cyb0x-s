@@ -143,6 +143,101 @@ class NotebookStore:
             with self.conn:
                 self.conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION};")
 
+        # Backfill FTS index if database had records but empty FTS index
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT count(*) FROM notebook_fts")
+            fts_count = cur.fetchone()[0]
+            if fts_count == 0:
+                cur.execute("SELECT (SELECT count(*) FROM targets) + (SELECT count(*) FROM notes)")
+                count_row = cur.fetchone()
+                if count_row and count_row[0] > 0:
+                    self.rebuild_fts()
+        except Exception:
+            pass
+
+    def rebuild_fts(self) -> None:
+        """Repopulate the FTS5 full-text search index across all notebook tables."""
+        with self.conn:
+            self.conn.execute("DELETE FROM notebook_fts;")
+            # Notes
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'note', id, target_id, 'Field Note', content, '' FROM notes;
+            """)
+            # Targets
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'target', id, id, 'Target: ' || ip || ' (' || coalesce(hostname, 'no host') || ')',
+                       'OS: ' || coalesce(os, '') || ' | Notes: ' || coalesce(notes, '') || ' | Vuln: ' || coalesce(initial_access_vuln, '') || ' | Foothold: ' || coalesce(foothold_cmd, '') || ' | PrivEsc: ' || coalesce(privesc_vector, '') || ' | Root: ' || coalesce(root_proof, '') || ' | Flags: ' || coalesce(user_flag, '') || ' ' || coalesce(root_flag, ''),
+                       coalesce(subnet, '')
+                FROM targets;
+            """)
+            # Services
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'service', id, target_id, 'Service: ' || port || '/' || protocol || ' ' || service,
+                       'Version: ' || coalesce(version, '') || ' [' || status || '] ' || coalesce(notes, '') || ' ' || coalesce(next_action, ''),
+                       coalesce(service, '')
+                FROM services;
+            """)
+            # Findings
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'finding', id, target_id, 'Finding' || case when target_id is null then ' (Global): ' else ': ' end || title,
+                       'Sev: ' || coalesce(severity, 'manual') || ' | ' || coalesce(description, '') || ' | ' || coalesce(notes, ''),
+                       coalesce(severity, 'manual')
+                FROM findings;
+            """)
+            # Credentials
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'credential', id, target_id, 'Credential: ' || username || ' : ********',
+                       'Scope: ' || coalesce(service_scope, '') || ' | Source: ' || coalesce(source, '') || ' [' || status || '] ' || coalesce(notes, ''),
+                       status
+                FROM credentials;
+            """)
+            # Checklist
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'checklist', id, target_id, 'Checklist [' || status || ']: ' || title,
+                       'Category: ' || category || ' | ' || coalesce(notes, ''),
+                       category
+                FROM checklist;
+            """)
+            # Evidence
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'evidence', id, target_id, 'Evidence (' || evidence_type || '): ' || path_or_ref,
+                       coalesce(description, ''),
+                       evidence_type
+                FROM evidence;
+            """)
+            # Commands
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'command', id, target_id, 'Command: ' || command,
+                       'Step: ' || coalesce(step, '') || ' | ' || coalesce(notes, ''),
+                       case when is_golden = 1 then 'golden' else 'cmd' end
+                FROM command_history;
+            """)
+            # Leads
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'lead', id, target_id, 'Lead: ' || title,
+                       'Status: ' || status || ' | ' || coalesce(notes, ''),
+                       status
+                FROM leads;
+            """)
+            # Exam / Objective Proofs
+            self.conn.execute("""
+                INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+                SELECT 'proof', id, target_id, 'Objective [' || question_num || ']: ' || category,
+                       'Proof: ' || answer_proof || ' | ' || coalesce(notes, ''),
+                       category
+                FROM exam_proofs;
+            """)
+
     def close(self) -> None:
         """Close SQLite database connection."""
         self.conn.close()
