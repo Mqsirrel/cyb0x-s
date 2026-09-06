@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 from cyb0x_s.models import ChecklistItem, ChecklistStatus
 
 STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
-    "ejpt": {
+    "network_assessment": {
         "category": "PRACTICAL PENTEST WORKFLOW",
         "description": "Multi-phase practical assessment workflow (Recon → Foothold → Pivoting → PrivEsc)",
         "items": [
@@ -644,6 +644,10 @@ STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
 }
 
 TEMPLATE_ALIASES: Dict[str, str] = {
+    "ejpt": "network_assessment",
+    "assessment": "network_assessment",
+    "network": "network_assessment",
+    "pentest": "network_assessment",
     "linux-privesc": "linux",
     "windows-privesc": "windows",
     "net": "discovery",
@@ -655,6 +659,9 @@ TEMPLATE_ALIASES: Dict[str, str] = {
     "crack": "cracking",
     "hashes": "cracking",
 }
+
+# Retain backward compatibility for direct dict lookups
+STATIC_TEMPLATES["ejpt"] = STATIC_TEMPLATES["network_assessment"]
 
 
 def get_available_templates() -> List[str]:

@@ -472,8 +472,8 @@ def import_json(
 
         for ep in t_item.get("exam_proofs", []):
             store.add_exam_proof(
-                question_num=ep["question_num"],
-                answer_proof=ep["answer_proof"],
+                question_num=ep.get("question_num") or ep.get("objective_id", ""),
+                answer_proof=ep.get("answer_proof") or ep.get("proof_value", ""),
                 category=ep.get("category", "FLAG"),
                 notes=ep.get("notes", ""),
                 target_id=target.id,
@@ -524,8 +524,8 @@ def import_json(
 
     for ep in payload.get("exam_proofs", []):
         store.add_exam_proof(
-            question_num=ep["question_num"],
-            answer_proof=ep["answer_proof"],
+            question_num=ep.get("question_num") or ep.get("objective_id", ""),
+            answer_proof=ep.get("answer_proof") or ep.get("proof_value", ""),
             category=ep.get("category", "FLAG"),
             notes=ep.get("notes", ""),
             target_id=None,
