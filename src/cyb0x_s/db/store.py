@@ -134,6 +134,11 @@ class NotebookStore:
         row = cur.fetchone()
         current_version = row[0] if row else 0
 
+        # Determine lab root path if database is located in a .cyb0x-s directory
+        lab_root = ""
+        if self.db_path != Path(":memory:") and self.db_path.parent.name == ".cyb0x-s":
+            lab_root = str(self.db_path.parent.parent.resolve())
+
         is_fresh_db = False
         with self.conn:
             self.conn.executescript(SCHEMA_SQL)
@@ -144,18 +149,35 @@ class NotebookStore:
                 is_fresh_db = True
                 now = _iso_now()
                 cur.execute(
-                    "INSERT INTO workspaces (name, description, created_at, updated_at) VALUES ('default', 'Default assessment workspace', ?, ?)",
-                    (now, now),
+                    "INSERT INTO workspaces (name, description, root_path, created_at, updated_at) VALUES ('default', 'Default assessment workspace', ?, ?, ?)",
+                    (lab_root, now, now),
                 )
                 ws_id = cur.lastrowid
             else:
                 ws_id = row["id"]
+                if lab_root:
+                    cur.execute("SELECT root_path FROM workspaces WHERE id = ?", (ws_id,))
+                    rp_row = cur.fetchone()
+                    if not rp_row or not rp_row["root_path"] or rp_row["root_path"] != lab_root:
+                        cur.execute("UPDATE workspaces SET root_path = ? WHERE id = ?", (lab_root, ws_id))
 
             cur.execute("SELECT value FROM settings WHERE key = 'active_workspace'")
             if not cur.fetchone():
                 cur.execute(
                     "INSERT INTO settings (key, value) VALUES ('active_workspace', ?)",
                     (str(ws_id),),
+                )
+
+            # Auto-normalize existing evidence & scan imports paths to relative if inside lab_root
+            if lab_root:
+                prefix = lab_root.rstrip("/") + "/"
+                cur.execute(
+                    "UPDATE evidence SET path_or_ref = substr(path_or_ref, ?) WHERE path_or_ref LIKE ?",
+                    (len(prefix) + 1, prefix + "%"),
+                )
+                cur.execute(
+                    "UPDATE scan_imports SET file_path = substr(file_path, ?) WHERE file_path LIKE ?",
+                    (len(prefix) + 1, prefix + "%"),
                 )
 
         if is_fresh_db:
@@ -358,12 +380,52 @@ class NotebookStore:
             )
         return self.get_workspace(workspace_id)
 
+    def get_workspace_root(self, workspace: Optional[Workspace] = None) -> Path:
+        """Return the filesystem root for the workspace, favoring local .cyb0x-s parent if active."""
+        if self.db_path != Path(":memory:") and self.db_path.parent.name == ".cyb0x-s":
+            return self.db_path.parent.parent.resolve()
+
+        ws = workspace or self.get_active_workspace()
+        if ws and ws.root_path:
+            p = Path(ws.root_path).expanduser().resolve()
+            if p.exists() or p.is_dir():
+                return p
+
+        if (Path.cwd() / ".cyb0x-s").is_dir():
+            return Path.cwd().resolve()
+
+        if ws and ws.root_path:
+            return Path(ws.root_path).expanduser().resolve()
+
+        return Path.cwd().resolve()
+
+    def relativize_path(
+        self,
+        path_str: str,
+        workspace: Optional[Workspace] = None,
+    ) -> str:
+        """Convert an absolute path to a workspace-relative path (e.g. scans/nmap.xml) if inside workspace root."""
+        cleaned = str(path_str).strip()
+        if not cleaned:
+            return cleaned
+
+        p = Path(cleaned)
+        if not p.is_absolute():
+            return cleaned
+
+        ws_root = self.get_workspace_root(workspace)
+        try:
+            rel = p.resolve().relative_to(ws_root.resolve())
+            return str(rel)
+        except (ValueError, OSError, RuntimeError):
+            return cleaned
+
     def init_workspace_directory(
         self,
         name: str,
         target_dir: Union[str, Path],
         description: str = "",
-        create_local_db: bool = False,
+        create_local_db: bool = True,
     ) -> tuple[Workspace, Path]:
         """Initialize a dedicated assessment workspace directory with standard folder scaffolding."""
         base_path = Path(target_dir).expanduser().resolve()
@@ -399,6 +461,17 @@ class NotebookStore:
         if create_local_db:
             local_cybox_dir = base_path / ".cyb0x-s"
             local_cybox_dir.mkdir(parents=True, exist_ok=True)
+            local_db_file = local_cybox_dir / "notebook.db"
+            if not local_db_file.exists():
+                local_store = NotebookStore(local_db_file)
+                ws_local = local_store.get_active_workspace()
+                local_store.update_workspace(
+                    ws_local.id,
+                    name=name,
+                    description=description,
+                    root_path=str(base_path),
+                )
+                local_store.close()
 
         ws = self.get_or_create_workspace(name=name, description=description, root_path=str(base_path))
         self.set_active_workspace(ws.id)
@@ -415,12 +488,8 @@ class NotebookStore:
         if raw_path.is_absolute():
             return raw_path
 
-        ws = workspace or self.get_active_workspace()
-        if ws and ws.root_path:
-            root = Path(ws.root_path)
-            return root / raw_path
-
-        return Path.cwd() / raw_path
+        ws_root = self.get_workspace_root(workspace)
+        return ws_root / raw_path
 
     def record_scan_import(
         self,
@@ -1023,7 +1092,7 @@ class NotebookStore:
         if not ws:
             ws = self.get_or_create_workspace("default")
 
-        ws_root = Path(ws.root_path).resolve() if ws.root_path else Path.cwd()
+        ws_root = self.get_workspace_root(ws)
         loot_dir = ws_root / "loot"
         loot_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1097,8 +1166,15 @@ class NotebookStore:
         target_id: Optional[int] = None,
         evidence_type: str = "screenshot",
         description: str = "",
+        workspace_id: Optional[int] = None,
     ) -> Evidence:
         now = _iso_now()
+        ws = self.get_workspace(workspace_id) if workspace_id else None
+        if not ws and target_id:
+            tgt = self.get_target(target_id)
+            if tgt:
+                ws = self.get_workspace(tgt.workspace_id)
+        rel_path = self.relativize_path(path_or_ref, workspace=ws)
         cur = self.conn.cursor()
         with self.conn:
             cur.execute(
@@ -1107,7 +1183,7 @@ class NotebookStore:
                 (
                     target_id,
                     evidence_type.strip().lower(),
-                    path_or_ref.strip(),
+                    rel_path,
                     description.strip(),
                     now,
                     now,

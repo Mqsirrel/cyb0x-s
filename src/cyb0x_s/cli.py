@@ -593,6 +593,7 @@ def init_cmd(ctx: click.Context, directory: str, name: Optional[str], desc: str)
     )
     console.print(f"[green]✓ Workspace initialized & selected:[/green] [bold]{ws.name}[/bold]")
     console.print(f"  [dim]Location:[/dim] {resolved_path}")
+    console.print("  [dim]Local Database:[/dim] .cyb0x-s/notebook.db (portable)")
     console.print("  [dim]Folders created:[/dim] scans/ enum/ screenshots/ notes/ loot/")
     console.print("  [dim]Scaffolded report:[/dim] findings.md")
 
@@ -667,6 +668,7 @@ def ws_init(ctx: click.Context, name: str, target_path: Optional[str], desc: str
     ws, resolved = store.init_workspace_directory(name=name, target_dir=dest, description=desc)
     console.print(f"[green]✓ Initialized workspace:[/green] [bold]{ws.name}[/bold]")
     console.print(f"  [dim]Directory:[/dim] {resolved}")
+    console.print("  [dim]Local Database:[/dim] .cyb0x-s/notebook.db (portable)")
     console.print("  [dim]Scaffolding:[/dim] scans/ enum/ screenshots/ notes/ loot/ findings.md")
 
 
