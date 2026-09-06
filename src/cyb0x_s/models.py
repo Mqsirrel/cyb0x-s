@@ -224,17 +224,38 @@ class CommandRecord(BaseModel):
     created_at: datetime = Field(default_factory=_utcnow)
 
 
-class ExamProof(BaseModel):
-    """Generic assessment question proof recorded during assessment.
+class ObjectiveProof(BaseModel):
+    """Operator proof artifact recorded for an assessment objective or flag.
 
-    100% compliant with certification policies: stores user-entered findings,
-    hashes, flags, or versions with zero bundled proprietary content.
+    100% passive: stores operator-entered findings, hashes, flags,
+    or versions with zero bundled proprietary content.
     """
     id: Optional[int] = None
     target_id: Optional[int] = None
-    question_num: str  # e.g. '1', 'Q1', 'Proof-1'
+    objective_id: str = Field(default="", alias="question_num")  # e.g. 'FLAG-1', 'Proof-1', 'Q1'
     category: str = "FLAG"  # FLAG, HASH, CREDENTIAL, VERSION, SECRET, DIRECTORY, OTHER
-    answer_proof: str  # The actual extracted proof string / hash
+    proof_value: str = Field(default="", alias="answer_proof")  # The actual extracted proof string / hash
     notes: str = ""
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+
+    model_config = {"populate_by_name": True}
+
+    @property
+    def question_num(self) -> str:
+        return self.objective_id
+
+    @question_num.setter
+    def question_num(self, val: str) -> None:
+        self.objective_id = val
+
+    @property
+    def answer_proof(self) -> str:
+        return self.proof_value
+
+    @answer_proof.setter
+    def answer_proof(self, val: str) -> None:
+        self.proof_value = val
+
+
+ExamProof = ObjectiveProof
