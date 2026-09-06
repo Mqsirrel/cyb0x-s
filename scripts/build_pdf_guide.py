@@ -297,8 +297,8 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         ],
         [
             Paragraph("<b>Station 4</b>", body_bold),
-            Paragraph("<b>Exam Proofs & Loot</b>", body_style),
-            Paragraph("Track assessment question answers (via <code>:q</code> or <code>[a]</code>), user/root flags, and <b>Failure Logs</b>. Run <code>:export exam</code> for offline Markdown submission dossier.", body_style),
+            Paragraph("<b>Exam Proofs, Loot & Evidence</b>", body_style),
+            Paragraph("Track assessment question answers (via <code>:q</code>), user/root flags, disk-backed loot browser (with <code>[Space]</code> preview), clipboard screenshot proofing (<code>:paste-ev</code> / <code>[v]</code>), and <b>Failure Logs</b>.", body_style),
             Paragraph("<b>[4]</b>", badge_style),
         ],
     ]
@@ -345,7 +345,9 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph("Category", th_style),
             Paragraph("Action & Operational Behavior", th_style),
         ],
-        [Paragraph("<b>1, 2, 3, 4</b>", badge_style), Paragraph("Station", body_style), Paragraph("Switch immediately to Station 1 (Cockpit), 2 (Playbooks), 3 (Creds Matrix), or 4 (Loot).", body_style)],
+        [Paragraph("<b>1, 2, 3, 4</b>", badge_style), Paragraph("Station", body_style), Paragraph("Switch immediately to Station 1 (Cockpit), 2 (Playbooks), 3 (Creds Matrix), or 4 (Loot & Flags).", body_style)],
+        [Paragraph("<b>I</b>", badge_style), Paragraph("Ingestion", body_style), Paragraph("<b>Import Scan & Enum:</b> Interactive review modal for Nmap (-oX, -oN, -oG) and Web Enum (FFUF, Ferox, Gobuster). Toggle items before committing; archives evidence to <code>scans/</code> or <code>enum/</code>.", body_style)],
+        [Paragraph("<b>W</b>", badge_style), Paragraph("Workspace", body_style), Paragraph("<b>Workspace Manager:</b> Switch between lab workspaces or scaffold a new per-lab directory with standard folders (<code>scans/</code>, <code>enum/</code>, <code>screenshots/</code>, <code>loot/</code>).", body_style)],
         [Paragraph("<b>w</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Cycle Panels:</b> Sequentially rotate focus across all panels in Cockpit without Tab.", body_style)],
         [Paragraph("<b>h / l</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Column Jump:</b> Press <b>h</b> for Sidebar (left); press <b>l</b> for Workbench (right).", body_style)],
         [Paragraph("<b>j / k</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Vim Navigation:</b> Move highlight down (j) or up (k) in the active list or tree.", body_style)],
@@ -353,9 +355,10 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         [Paragraph("<b>b</b>", badge_style), Paragraph("Display", body_style), Paragraph("<b>Sidebar Toggle:</b> Collapse sidebar to give 100% width to Workbench (press b again to restore).", body_style)],
         [Paragraph("<b>:</b> (colon)", badge_style), Paragraph("Console", body_style), Paragraph("<b>Focus Command Bar:</b> Instantly activates the bottom console input ready to type.", body_style)],
         [Paragraph("<b>Esc</b>", badge_style), Paragraph("Console", body_style), Paragraph("<b>Dismiss / Blur:</b> Clears command input and returns focus directly to the active workbench.", body_style)],
-        [Paragraph("<b>Space</b>", badge_style), Paragraph("Triage / Reveal", body_style), Paragraph("• <b>On Service:</b> Cycle triage status: <code>UNTESTED</code> → <code>[CHECKED]</code> → <code>[DEAD-END]</code> → <code>[DEFERRED]</code>.<br/>• <b>On Credential:</b> Reveal/mask secret password.<br/>• <b>In Station 3 Matrix:</b> Cycle test state: <code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>.", body_style)],
+        [Paragraph("<b>Space</b>", badge_style), Paragraph("Triage / Preview", body_style), Paragraph("• <b>On Service:</b> Cycle triage status: <code>UNTESTED</code> → <code>[CHECKED]</code> → <code>[DEAD-END]</code> → <code>[DEFERRED]</code>.<br/>• <b>In Station 3 Matrix:</b> Cycle test state: <code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>.<br/>• <b>In Station 4 Loot:</b> Open <b>Loot Preview Modal</b> to inspect hashes, configs, or keys.", body_style)],
         [Paragraph("<b>, / .</b>", badge_style), Paragraph("Recipe Carousel", body_style), Paragraph("<b>Tool Carousel:</b> When a service is highlighted, press <b>.</b> (next) or <b>,</b> (prev) to cycle alternative tool recipes in the console (e.g. feroxbuster → gobuster → nikto → curl).", body_style)],
-        [Paragraph("<b>Enter</b>", badge_style), Paragraph("Execute / Copy", body_style), Paragraph("• <b>On Guidance / Service:</b> Copies the previewed tool command to system clipboard.<br/>• <b>In Station 3 Matrix:</b> Compiles & copies ready-to-run spray command for credential & port.", body_style)],
+        [Paragraph("<b>Enter</b>", badge_style), Paragraph("Execute / Copy", body_style), Paragraph("• <b>On Guidance / Service:</b> Copies the previewed tool command to clipboard.<br/>• <b>In Station 3 Matrix:</b> Compiles & copies ready-to-run spray command for credential & port.<br/>• <b>In Station 4 Loot:</b> Copies relative file path to clipboard (e.g. <code>loot/users.txt</code>).", body_style)],
+        [Paragraph("<b>v</b>", badge_style), Paragraph("Evidence", body_style), Paragraph("<b>Paste Screenshot:</b> In Station 4, saves clipboard image directly to <code>screenshots/</code> and links as Evidence.", body_style)],
         [Paragraph("<b>y</b>", badge_style), Paragraph("Quick Copy", body_style), Paragraph("Copies selected entity's primary value (IP address, port, password, or checklist command).", body_style)],
         [Paragraph("<b>z</b>", badge_style), Paragraph("Layout", body_style), Paragraph("<b>Zoom:</b> Maximize the focused panel to full-screen; press <b>z</b> again to restore normal layout.", body_style)],
         [Paragraph("<b>T</b>", badge_style), Paragraph("Theme", body_style), Paragraph("<b>Theme Picker:</b> Open visual theme modal with 10 vibrant palettes (press <b>d</b> to set default).", body_style)],
@@ -434,14 +437,24 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph("<code>:w rockyou</code> &nbsp; <code>:w common</code> &nbsp; <code>:w medium</code><br/><code>:w raft-d</code> &nbsp; <code>:w raft-f</code> &nbsp; <code>:w users</code>", code_style),
         ],
         [
+            Paragraph("<b>:import &lt;path&gt;</b>", code_bold),
+            Paragraph("<b>Scan & Enum Ingestion:</b> Interactive review modal for Nmap XML/text or Web Enum (FFUF, Ferox, Gobuster). Saves raw output to <code>scans/</code> or <code>enum/</code>.", table_body_style),
+            Paragraph("<code>:import scans/nmap.xml</code><br/><code>:import enum/ffuf.json</code>", code_style),
+        ],
+        [
+            Paragraph("<b>:ws [name|init]</b>", code_bold),
+            Paragraph("<b>Workspace Manager:</b> Switch active lab or scaffold standard folder layout.", table_body_style),
+            Paragraph("<code>:ws lab01</code> &nbsp; <code>:ws init lab02</code>", code_style),
+        ],
+        [
+            Paragraph("<b>:lhost / :lport</b>", code_bold),
+            Paragraph("<b>Attacker IP & Port:</b> Auto-detects VPN IP (<code>tun0</code>) and substitutes into all playbooks.", table_body_style),
+            Paragraph("<code>:lhost auto</code> &nbsp; <code>:lport 4444</code>", code_style),
+        ],
+        [
             Paragraph("<b>:t &lt;ip&gt; [opts]</b>", code_bold),
             Paragraph("Add target with optional host, OS, subnet, and pivot flag.", table_body_style),
             Paragraph("<code>:t 10.10.10.5 host linux 10.10.10.0/24 pivot</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:pivot / :subnet</b>", code_bold),
-            Paragraph("Tag pivot machine / assign subnet CIDR for Station 1 tree grouping.", table_body_style),
-            Paragraph("<code>:pivot 10.10.10.5 172.16.1.0/24</code><br/><code>:subnet 10.10.10.5 10.10.10.0/24</code>", code_style),
         ],
         [
             Paragraph("<b>:s &lt;port&gt; &lt;svc&gt;</b>", code_bold),
@@ -449,9 +462,24 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph("<code>:s 445/tcp smb</code> &nbsp; <code>:s 8080 http</code>", code_style),
         ],
         [
-            Paragraph("<b>:c &lt;user:pass&gt; [scope]</b>", code_bold),
+            Paragraph("<b>:c &lt;user:pass&gt;</b>", code_bold),
             Paragraph("Record discovered credential with optional service scope.", table_body_style),
             Paragraph("<code>:c admin:Secret123! SMB</code> &nbsp; <code>:c root:toor SSH</code>", code_style),
+        ],
+        [
+            Paragraph("<b>:c crack &lt;id&gt; &lt;plain&gt;</b>", code_bold),
+            Paragraph("<b>In-Place Cracking:</b> Upgrades captured hash to plaintext secret without duplicating records.", table_body_style),
+            Paragraph("<code>:c crack 1 Password123</code>", code_style),
+        ],
+        [
+            Paragraph("<b>:export wordlists</b>", code_bold),
+            Paragraph("<b>Spray Wordlist Export:</b> Generates deduplicated <code>loot/users.txt</code> and <code>passwords.txt</code>.", table_body_style),
+            Paragraph("<code>:export wordlists</code> &nbsp; <code>:export creds</code>", code_style),
+        ],
+        [
+            Paragraph("<b>:paste-ev / :ev latest</b>", code_bold),
+            Paragraph("<b>Screenshot Proofing:</b> Saves clipboard image to <code>screenshots/</code> or links newest OS capture.", table_body_style),
+            Paragraph("<code>:paste-ev Root proof</code><br/><code>:ev latest Question 14</code>", code_style),
         ],
         [
             Paragraph("<b>:q / :export</b>", code_bold),
@@ -714,6 +742,16 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph("Links evidence directly to an exam question number (e.g. <code>:q 14 /etc/passwd root hash</code>). Prevents having to re-exploit targets at exam end.", table_body_style),
         ],
         [
+            Paragraph("<b>Disk-Backed Loot Browser</b>", body_bold),
+            Paragraph("Press <b>[Space]</b> to preview<br/>Press <b>[Enter]</b> to copy path", code_style),
+            Paragraph("Scans <code>loot/</code>, <code>screenshots/</code>, <code>enum/</code>, and <code>scans/</code>. Preview text files, hashes, and dumps with instant copy.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Screenshot Proof Capture</b>", body_bold),
+            Paragraph("Press <b>[v]</b> or<br/><code>:paste-ev [desc]</code> / <code>:ev latest</code>", code_style),
+            Paragraph("Saves clipboard image directly to <code>screenshots/</code> via Wayland/X11 or auto-attaches most recent screenshot.", table_body_style),
+        ],
+        [
             Paragraph("<b>Loot & Flags Tracker</b>", body_bold),
             Paragraph("<code>:uflag &lt;hash&gt;</code> (user flag)<br/><code>:rflag &lt;hash&gt;</code> (root flag)", code_style),
             Paragraph("Captures proof hashes with timestamps and associated target IP. Safely stored in local SQLite database.", table_body_style),
@@ -726,7 +764,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         [
             Paragraph("<b>Markdown Submission Dossier</b>", body_bold),
             Paragraph("Type <code>:export exam</code> or<br/><code>:export report</code> in console", code_style),
-            Paragraph("Generates an instant offline Markdown report (<code>exam_proofs.md</code>) summarizing all answered questions, flags, and credentials.", table_body_style),
+            Paragraph("Generates an instant offline Markdown report summarizing all answered questions, flags, and credentials.", table_body_style),
         ],
     ]
     t_proof = Table(proof_table_data, colWidths=[120, 160, 260])
@@ -850,12 +888,19 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
 def main() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     screenshots_dir = repo_root / "docs" / "screenshots"
-    desktop_pdf = Path("/home/albraa/Desktop/CYB0X-S_Field_Guide.pdf")
-    repo_pdf = repo_root / "docs" / "CYB0X-S_Field_Guide.pdf"
 
-    build_pdf(desktop_pdf, screenshots_dir)
-    build_pdf(repo_pdf, screenshots_dir)
+    target_paths = [
+        Path("/home/albraa/Desktop/CYB0X-S_Field_Guide.pdf"),
+        Path("/home/albraa/Desktop/Documents_and_Media/CYB0X_Security_Docs/CYB0X-S_Operator_Guide.pdf"),
+        repo_root / "docs" / "CYB0X-S_Operator_Guide.pdf",
+        repo_root / "docs" / "CYB0X-S_Field_Guide.pdf",
+    ]
+
+    for p in target_paths:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        build_pdf(p, screenshots_dir)
 
 
 if __name__ == "__main__":
     main()
+
