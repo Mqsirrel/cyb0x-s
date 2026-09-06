@@ -190,4 +190,146 @@ CREATE INDEX IF NOT EXISTS idx_cred_validations ON cred_validations(credential_i
 CREATE INDEX IF NOT EXISTS idx_cred_validations_service ON cred_validations(service_id);
 CREATE INDEX IF NOT EXISTS idx_exam_proofs_q ON exam_proofs(question_num);
 CREATE INDEX IF NOT EXISTS idx_exam_proofs_target ON exam_proofs(target_id);
+
+-- FTS5 Full-Text Search Virtual Table and Automatic Synchronization Triggers
+CREATE VIRTUAL TABLE IF NOT EXISTS notebook_fts USING fts5(
+    entity_type,
+    entity_id UNINDEXED,
+    target_id UNINDEXED,
+    title,
+    content,
+    tags,
+    tokenize='unicode61 remove_diacritics 2'
+);
+
+-- Triggers for automatic FTS indexing
+CREATE TRIGGER IF NOT EXISTS trg_notes_ai AFTER INSERT ON notes BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('note', new.id, new.target_id, 'Field Note', new.content, 'note');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_notes_ad AFTER DELETE ON notes BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'note' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_notes_au AFTER UPDATE ON notes BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'note' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('note', new.id, new.target_id, 'Field Note', new.content, 'note');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_targets_ai AFTER INSERT ON targets BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('target', new.id, new.id, 'Target: ' || new.ip || ' (' || coalesce(new.hostname, 'no host') || ')', 'OS: ' || coalesce(new.os, '') || ' | Notes: ' || coalesce(new.notes, '') || ' | Vuln: ' || coalesce(new.initial_access_vuln, '') || ' | Foothold: ' || coalesce(new.foothold_cmd, '') || ' | PrivEsc: ' || coalesce(new.privesc_vector, '') || ' | Root: ' || coalesce(new.root_proof, '') || ' | Flags: ' || coalesce(new.user_flag, '') || ' ' || coalesce(new.root_flag, ''), coalesce(new.subnet, ''));
+END;
+CREATE TRIGGER IF NOT EXISTS trg_targets_ad AFTER DELETE ON targets BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'target' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_targets_au AFTER UPDATE ON targets BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'target' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('target', new.id, new.id, 'Target: ' || new.ip || ' (' || coalesce(new.hostname, 'no host') || ')', 'OS: ' || coalesce(new.os, '') || ' | Notes: ' || coalesce(new.notes, '') || ' | Vuln: ' || coalesce(new.initial_access_vuln, '') || ' | Foothold: ' || coalesce(new.foothold_cmd, '') || ' | PrivEsc: ' || coalesce(new.privesc_vector, '') || ' | Root: ' || coalesce(new.root_proof, '') || ' | Flags: ' || coalesce(new.user_flag, '') || ' ' || coalesce(new.root_flag, ''), coalesce(new.subnet, ''));
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_services_ai AFTER INSERT ON services BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('service', new.id, new.target_id, 'Service: ' || new.port || '/' || new.protocol || ' ' || new.service, 'Version: ' || coalesce(new.version, '') || ' [' || new.status || '] ' || coalesce(new.notes, '') || ' ' || coalesce(new.next_action, ''), coalesce(new.service, ''));
+END;
+CREATE TRIGGER IF NOT EXISTS trg_services_ad AFTER DELETE ON services BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'service' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_services_au AFTER UPDATE ON services BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'service' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('service', new.id, new.target_id, 'Service: ' || new.port || '/' || new.protocol || ' ' || new.service, 'Version: ' || coalesce(new.version, '') || ' [' || new.status || '] ' || coalesce(new.notes, '') || ' ' || coalesce(new.next_action, ''), coalesce(new.service, ''));
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_findings_ai AFTER INSERT ON findings BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('finding', new.id, new.target_id, 'Finding: ' || new.title, coalesce(new.description, '') || ' ' || coalesce(new.notes, ''), coalesce(new.severity, 'info'));
+END;
+CREATE TRIGGER IF NOT EXISTS trg_findings_ad AFTER DELETE ON findings BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'finding' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_findings_au AFTER UPDATE ON findings BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'finding' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('finding', new.id, new.target_id, 'Finding: ' || new.title, coalesce(new.description, '') || ' ' || coalesce(new.notes, ''), coalesce(new.severity, 'info'));
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_credentials_ai AFTER INSERT ON credentials BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('credential', new.id, new.target_id, 'Credential: ' || new.username || ' : ********', 'Scope: ' || coalesce(new.service_scope, 'GLOBAL') || ' | Source: ' || coalesce(new.source, '') || ' [' || new.status || '] ' || coalesce(new.notes, ''), coalesce(new.service_scope, ''));
+END;
+CREATE TRIGGER IF NOT EXISTS trg_credentials_ad AFTER DELETE ON credentials BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'credential' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_credentials_au AFTER UPDATE ON credentials BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'credential' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('credential', new.id, new.target_id, 'Credential: ' || new.username || ' : ********', 'Scope: ' || coalesce(new.service_scope, 'GLOBAL') || ' | Source: ' || coalesce(new.source, '') || ' [' || new.status || '] ' || coalesce(new.notes, ''), coalesce(new.service_scope, ''));
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_checklist_ai AFTER INSERT ON checklist BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('checklist', new.id, new.target_id, 'Checklist [' || new.status || ']: ' || new.title, 'Category: ' || new.category || ' ' || coalesce(new.notes, ''), new.status);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_checklist_ad AFTER DELETE ON checklist BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'checklist' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_checklist_au AFTER UPDATE ON checklist BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'checklist' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('checklist', new.id, new.target_id, 'Checklist [' || new.status || ']: ' || new.title, 'Category: ' || new.category || ' ' || coalesce(new.notes, ''), new.status);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_evidence_ai AFTER INSERT ON evidence BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('evidence', new.id, new.target_id, 'Evidence (' || new.evidence_type || '): ' || new.path_or_ref, coalesce(new.description, ''), new.evidence_type);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_evidence_ad AFTER DELETE ON evidence BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'evidence' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_evidence_au AFTER UPDATE ON evidence BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'evidence' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('evidence', new.id, new.target_id, 'Evidence (' || new.evidence_type || '): ' || new.path_or_ref, coalesce(new.description, ''), new.evidence_type);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_commands_ai AFTER INSERT ON command_history BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('command', new.id, new.target_id, 'Command: ' || new.command, 'Step: ' || coalesce(new.step, '') || ' | ' || coalesce(new.notes, ''), case when new.is_golden = 1 then 'golden' else 'cmd' end);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_commands_ad AFTER DELETE ON command_history BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'command' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_commands_au AFTER UPDATE ON command_history BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'command' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('command', new.id, new.target_id, 'Command: ' || new.command, 'Step: ' || coalesce(new.step, '') || ' | ' || coalesce(new.notes, ''), case when new.is_golden = 1 then 'golden' else 'cmd' end);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_leads_ai AFTER INSERT ON leads BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('lead', new.id, new.target_id, 'Lead: ' || new.title, 'Status: ' || new.status || ' | ' || coalesce(new.notes, ''), new.status);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_leads_ad AFTER DELETE ON leads BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'lead' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_leads_au AFTER UPDATE ON leads BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'lead' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('lead', new.id, new.target_id, 'Lead: ' || new.title, 'Status: ' || new.status || ' | ' || coalesce(new.notes, ''), new.status);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_proofs_ai AFTER INSERT ON exam_proofs BEGIN
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('proof', new.id, new.target_id, 'Objective [' || new.question_num || ']: ' || new.category, 'Proof: ' || new.answer_proof || ' | ' || coalesce(new.notes, ''), new.category);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_proofs_ad AFTER DELETE ON exam_proofs BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'proof' AND entity_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_proofs_au AFTER UPDATE ON exam_proofs BEGIN
+    DELETE FROM notebook_fts WHERE entity_type = 'proof' AND entity_id = old.id;
+    INSERT INTO notebook_fts (entity_type, entity_id, target_id, title, content, tags)
+    VALUES ('proof', new.id, new.target_id, 'Objective [' || new.question_num || ']: ' || new.category, 'Proof: ' || new.answer_proof || ' | ' || coalesce(new.notes, ''), new.category);
+END;
 """
