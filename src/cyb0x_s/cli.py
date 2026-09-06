@@ -16,10 +16,13 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from cyb0x_s.audit import AuditStatus, audit_target, audit_workspace
 from cyb0x_s.clipboard import copy_to_clipboard
 from cyb0x_s.db.store import NotebookStore
 from cyb0x_s.export import export_json, export_markdown, export_txt, import_json
+from cyb0x_s.extractor import CandidateType, extract_candidates, stage_and_commit_candidate
 from cyb0x_s.models import ChecklistStatus
+from cyb0x_s.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
 from cyb0x_s.search import search_notebook
 from cyb0x_s.templates import apply_template_to_store
 
@@ -629,7 +632,7 @@ def ws_create(ctx: click.Context, name: str, desc: str) -> None:
 @click.option("--target", "-t", default=None, help="Target IP or ID")
 @click.pass_context
 def flag_cmd(ctx: click.Context, flag_type: str, value: str, target: Optional[str]) -> None:
-    """Record a captured user or root flag (e.g. cyb0x-s flag user eJPT{hash})."""
+    """Record a captured user or root flag (e.g. cyb0x-s flag user <flag_value>)."""
     store = _get_store(ctx)
     t = store.resolve_target(target)
     if not t:
@@ -717,7 +720,7 @@ def failure_cmd_cli(
 @click.option("--copy", "-c", is_flag=True, help="Copy first matching command to clipboard")
 @click.pass_context
 def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
-    """Search offline eJPTv2 cheat sheet and command references (e.g. cyb0x-s ref winrm)."""
+    """Search offline assessment cheat sheet and command references (e.g. cyb0x-s ref winrm)."""
     from cyb0x_s.reference import search_reference
 
     store = _get_store(ctx)
@@ -729,7 +732,7 @@ def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -
         console.print(f"[yellow]No reference commands found matching '{query}'. Try 'smb', 'winrm', 'sql', 'privesc'...[/yellow]")
         return
 
-    console.print(f"[bold cyan]─── eJPTv2 Reference Playbook: '{query}' ───[/bold cyan]\n" if query else "[bold cyan]─── eJPTv2 Reference Playbook ───[/bold cyan]\n")
+    console.print(f"[bold cyan]─── Assessment Reference Playbook: '{query}' ───[/bold cyan]\n" if query else "[bold cyan]─── Assessment Reference Playbook ───[/bold cyan]\n")
 
     for item in results:
         console.print(f"[bold magenta][{item['category']}][/bold magenta] [bold white]{item['title']}[/bold white]")
@@ -812,6 +815,203 @@ def audit_cmd(ctx: click.Context, target: Optional[str], audit_all: bool) -> Non
             console.print(f"[bold green]✓ {res['verdict']} ({score_str})[/bold green]\n")
         else:
             console.print(f"[bold red]⚠️  {res['verdict']} ({score_str})[/bold red]\n")
+
+
+@cli.command("route")
+@click.argument("destination", required=False, default=None)
+@click.option("--proxychains", is_flag=True, help="Output proxychains4.conf configuration block")
+@click.option("--mermaid", is_flag=True, help="Output Mermaid diagram syntax")
+@click.pass_context
+def route_cmd(ctx: click.Context, destination: Optional[str], proxychains: bool, mermaid: bool) -> None:
+    """Passive multi-hop pivot routing and network topology graph.
+
+    Calculates multi-hop routing paths, ProxyChains SOCKS configs,
+    Chisel commands, and SSH jump tunnels based on operator-documented pivots.
+    """
+    store = _get_store(ctx)
+    topo = build_network_topology(store)
+
+    if proxychains:
+        conf = generate_proxychains_config(topo)
+        console.print(conf)
+        return
+
+    if mermaid:
+        console.print(topo.mermaid_diagram)
+        return
+
+    if destination:
+        target_obj = store.resolve_target(destination)
+        dest_ip = target_obj.ip if target_obj else destination
+        route = resolve_pivot_route(store, dest_ip)
+
+        console.print(f"\n[bold cyan]Pivot Route to Destination:[/bold cyan] [bold white]{route.destination}[/bold white] (Subnet: {route.destination_subnet})")
+        console.print(f"Hop Count: [bold]{route.hop_count}[/bold] ({'Direct Access' if route.is_direct else 'Multi-Hop Pivot Chain'})\n")
+
+        console.print("[bold yellow]Visual Route Path:[/bold yellow]")
+        console.print(f"  {route.ascii_diagram}\n")
+
+        if route.hops:
+            table = Table(title=f"Multi-Hop SOCKS Chain ({route.destination})")
+            table.add_column("Hop #", style="cyan", width=8)
+            table.add_column("Pivot Gateway", style="bold white", width=18)
+            table.add_column("SOCKS Proxy", style="yellow", width=20)
+            table.add_column("Destination Subnet", style="dim", width=20)
+            table.add_column("Routing Notes", style="green")
+
+            for h in route.hops:
+                table.add_row(
+                    str(h.hop_num),
+                    f"{h.pivot_ip} ({h.pivot_hostname or 'host'})",
+                    f"{h.proxy_type} {h.proxy_host}:{h.proxy_port}",
+                    h.dest_subnet,
+                    h.notes,
+                )
+            console.print(table)
+
+            console.print("\n[bold cyan]Operator Helper Commands:[/bold cyan]")
+            console.print(f"  [bold]ProxyChains:[/bold] [yellow]proxychains -q nmap -sT -Pn -p- {route.destination}[/yellow]")
+            if route.ssh_jump_cmd:
+                console.print(f"  [bold]SSH ProxyJump:[/bold] [yellow]{route.ssh_jump_cmd}[/yellow]")
+            if route.chisel_client_cmd:
+                console.print(f"  [bold]Chisel Client:[/bold] [yellow]{route.chisel_client_cmd}[/yellow]")
+                console.print(f"  [bold]Chisel Server:[/bold] [yellow]{route.chisel_server_cmd}[/yellow]")
+            console.print("")
+        else:
+            console.print("[green]Target is directly reachable on current network segment. No SOCKS proxy required.[/green]\n")
+    else:
+        # Show full topology
+        console.print(f"\n[bold cyan]Network Topology Map:[/bold cyan] [bold]{topo.workspace_name}[/bold]")
+        console.print(topo.ascii_map)
+
+        if topo.pivots:
+            p_table = Table(title="Documented Pivot Gateways")
+            p_table.add_column("Pivot Host", style="bold white", width=18)
+            p_table.add_column("Subnet", style="cyan", width=18)
+            p_table.add_column("Assigned SOCKS Port", style="yellow", width=20)
+            p_table.add_column("Pivot Route", style="dim")
+
+            for p in topo.pivots:
+                p_table.add_row(
+                    f"{p['ip']} ({p.get('hostname') or 'host'})",
+                    p["subnet"],
+                    f"127.0.0.1:{p.get('port', 1080)}",
+                    p["pivot_route"] or "Dual-homed gateway",
+                )
+            console.print(p_table)
+            console.print("[dim yellow]Run 'cyb0x-s route <IP>' to calculate route hops to any host.[/dim yellow]\n")
+            console.print("[dim]Use '--proxychains' to generate proxychains4.conf or '--mermaid' for diagrams.[/dim]\n")
+        else:
+            console.print("\n[dim]No pivot gateways documented yet. Document a pivot on a target with: :pivot <route> (e.g. :pivot 192.168.1.0/24 via socks5:1080)[/dim]\n")
+
+
+@cli.command("extract")
+@click.argument("file_path", required=False, default=None)
+@click.option("--target", "-t", default=None, help="Default target IP to associate extracted artifacts with")
+@click.option("--apply", "-a", is_flag=True, help="Confirm and commit all staged candidates into notebook")
+@click.option("--interactive", "-i", is_flag=True, help="Interactively confirm or reject each staged candidate")
+@click.pass_context
+def extract_cmd(
+    ctx: click.Context,
+    file_path: Optional[str],
+    target: Optional[str],
+    apply: bool,
+    interactive: bool,
+) -> None:
+    """Constrained log extractor (stages candidate targets, ports, creds, hashes, and flags).
+
+    Scans terminal logs, tool outputs, or scan dumps.
+    Never auto-populates directly: stages candidates for operator review.
+    """
+    store = _get_store(ctx)
+
+    if file_path == "-" or (not file_path and not sys.stdin.isatty()):
+        raw_text = sys.stdin.read()
+    elif file_path:
+        p = Path(file_path)
+        if not p.exists():
+            console.print(f"[bold red]Error:[/bold red] File not found: {file_path}")
+            return
+        raw_text = p.read_text(encoding="utf-8", errors="replace")
+    else:
+        console.print("[yellow]Usage: cyb0x-s extract <log_file> (or pipe command output via 'cat log.txt | cyb0x-s extract -')[/yellow]")
+        return
+
+    candidates = extract_candidates(raw_text, default_target_ip=target)
+    if not candidates:
+        console.print("[dim]No candidate targets, services, credentials, hashes, or flags detected in log.[/dim]")
+        return
+
+    console.print(f"\n[bold cyan]Detected Candidates ({len(candidates)} staged for review):[/bold cyan]")
+    table = Table(title="Staged Artifact Candidates (Pending Operator Confirmation)")
+    table.add_column("ID", style="cyan", width=5)
+    table.add_column("Type", style="bold", width=12)
+    table.add_column("Summary", style="bold white", width=36)
+    table.add_column("Associated Target", style="magenta", width=18)
+    table.add_column("Raw Match Context", style="dim")
+
+    for c in candidates:
+        type_style = {
+            CandidateType.TARGET: "blue",
+            CandidateType.SERVICE: "cyan",
+            CandidateType.CREDENTIAL: "green",
+            CandidateType.HASH: "yellow",
+            CandidateType.FLAG: "bold magenta",
+        }.get(c.candidate_type, "white")
+
+        table.add_row(
+            str(c.candidate_id),
+            f"[{type_style}]{c.candidate_type.value}[/{type_style}]",
+            c.summary,
+            c.target_ip or "[dim]Global / None[/dim]",
+            c.context_line[:50],
+        )
+
+    console.print(table)
+
+    if apply:
+        console.print("\n[bold green]Committing all candidates into workspace database...[/bold green]")
+        committed = 0
+        for c in candidates:
+            success, msg = stage_and_commit_candidate(c, store)
+            if success:
+                committed += 1
+                console.print(f"  [green]✓ {msg}[/green]")
+            else:
+                console.print(f"  [dim]• Skipped: {msg}[/dim]")
+        console.print(f"\n[bold green]Done! {committed}/{len(candidates)} candidates committed to notebook.[/bold green]\n")
+
+    elif interactive:
+        console.print("\n[bold yellow]Interactive Candidate Confirmation Mode:[/bold yellow]")
+        committed = 0
+        accept_all = False
+        for c in candidates:
+            if not accept_all:
+                resp = click.prompt(
+                    f"Add candidate [{c.candidate_id}] {c.candidate_type.value} ({c.summary})? [y/N/all/q]",
+                    default="n",
+                ).strip().lower()
+
+                if resp == "q":
+                    console.print("[yellow]Aborted candidate import.[/yellow]")
+                    break
+                elif resp == "all":
+                    accept_all = True
+                elif resp not in ("y", "yes"):
+                    console.print(f"[dim]Skipped candidate {c.candidate_id}.[/dim]")
+                    continue
+
+            success, msg = stage_and_commit_candidate(c, store)
+            if success:
+                committed += 1
+                console.print(f"  [green]✓ {msg}[/green]")
+            else:
+                console.print(f"  [dim]• Skipped: {msg}[/dim]")
+        console.print(f"\n[bold green]Done! {committed}/{len(candidates)} candidates committed to notebook.[/bold green]\n")
+
+    else:
+        console.print("\n[dim yellow]Candidates are staged in memory. No changes written to database.[/dim yellow]")
+        console.print("[dim]Run with [bold]--apply[/bold] to commit all, or [bold]--interactive[/bold] to review one-by-one.[/dim]\n")
 
 
 @cli.command("proof-cmd")
