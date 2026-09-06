@@ -392,3 +392,86 @@ def test_export_wordlists_to_loot(tmp_path) -> None:
     assert sorted(passwords) == ["Backup2022", "Summer2023!", "toor"]
 
 
+def test_workspace_scaffolding_and_root_path(tmp_path) -> None:
+    store = NotebookStore(":memory:")
+    lab_dir = tmp_path / "lab01"
+    ws, base = store.init_workspace_directory("lab01", target_dir=lab_dir, description="Test Lab")
+
+    assert ws.name == "lab01"
+    assert ws.root_path == str(lab_dir.resolve())
+    assert (lab_dir / ".cyb0x-s" / "notebook.db").is_file()
+    assert (lab_dir / "scans").is_dir()
+    assert (lab_dir / "enum").is_dir()
+    assert (lab_dir / "screenshots").is_dir()
+    assert (lab_dir / "notes").is_dir()
+    assert (lab_dir / "loot").is_dir()
+    assert (lab_dir / "findings.md").is_file()
+
+
+def test_evidence_stores_strictly_relative_paths(tmp_path) -> None:
+    lab_dir = tmp_path / "lab02"
+    local_db = lab_dir / ".cyb0x-s" / "notebook.db"
+    store = NotebookStore(local_db)
+    ws = store.get_active_workspace()
+    assert ws.root_path == str(lab_dir.resolve())
+
+    # Create dummy scan and screenshot inside the lab
+    scan_file = lab_dir / "scans" / "nmap-full.xml"
+    scan_file.parent.mkdir(parents=True, exist_ok=True)
+    scan_file.write_text("<nmaprun></nmaprun>", encoding="utf-8")
+
+    # Add evidence using absolute path
+    ev_scan = store.add_evidence(
+        path_or_ref=str(scan_file.resolve()),
+        evidence_type="scan",
+        description="Full TCP Scan",
+    )
+
+    # Must be stored as relative path in database!
+    assert ev_scan.path_or_ref == "scans/nmap-full.xml"
+
+    # Resolving evidence path yields full absolute path in current workspace
+    resolved = store.resolve_evidence_path(ev_scan)
+    assert resolved == scan_file.resolve()
+
+
+def test_portable_lab_directory_relocation(tmp_path) -> None:
+    # 1. Initialize lab in dir A
+    dir_a = tmp_path / "original_lab"
+    local_db_a = dir_a / ".cyb0x-s" / "notebook.db"
+    store_a = NotebookStore(local_db_a)
+
+    proof_file = dir_a / "screenshots" / "proof.png"
+    proof_file.parent.mkdir(parents=True, exist_ok=True)
+    proof_file.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    ev = store_a.add_evidence(str(proof_file.resolve()), evidence_type="screenshot")
+    assert ev.path_or_ref == "screenshots/proof.png"
+    store_a.close()
+
+    # 2. Move lab directory to dir B (simulating USB / machine transfer)
+    import shutil
+    dir_b = tmp_path / "moved_lab"
+    shutil.move(dir_a, dir_b)
+
+    # 3. Open database in new location
+    local_db_b = dir_b / ".cyb0x-s" / "notebook.db"
+    store_b = NotebookStore(local_db_b)
+    ws_b = store_b.get_active_workspace()
+
+    # Workspace root path dynamically detected and updated
+    assert ws_b.root_path == str(dir_b.resolve())
+
+    # Evidence path still stored as relative
+    ev_b = store_b.get_evidence(ev.id)
+    assert ev_b is not None
+    assert ev_b.path_or_ref == "screenshots/proof.png"
+
+    # Resolves to the new location without any broken path!
+    resolved_b = store_b.resolve_evidence_path(ev_b)
+    assert resolved_b == (dir_b / "screenshots" / "proof.png").resolve()
+    assert resolved_b.is_file()
+    store_b.close()
+
+
+

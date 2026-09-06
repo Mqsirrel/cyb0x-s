@@ -156,37 +156,28 @@ def commit_scan_results(
         ws = store.get_or_create_workspace("default")
 
     # Determine destination evidence path
-    evidence_rel_path = src_file.name
-    ws_root = Path(ws.root_path).resolve() if ws.root_path else None
+    ws_root = store.get_workspace_root(ws)
+    scans_dir = ws_root / "scans"
+    scans_dir.mkdir(parents=True, exist_ok=True)
 
-    if ws_root and ws_root.is_dir():
-        scans_dir = ws_root / "scans"
-        scans_dir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # Check if source file is already inside workspace root
-            rel = src_file.relative_to(ws_root)
-            evidence_rel_path = str(rel)
-        except ValueError:
-            # Source file is outside the workspace
-            if copy_to_scans:
-                dest_file = scans_dir / src_file.name
-                if dest_file.exists() and dest_file.resolve() != src_file.resolve():
-                    # If destination exists and has different content, preserve unique filename
-                    dest_hash = compute_file_hash(dest_file)
-                    if dest_hash != file_hash:
-                        dest_file = scans_dir / f"{src_file.stem}_{file_hash[:8]}{src_file.suffix}"
-                if not dest_file.exists() or dest_file.resolve() != src_file.resolve():
-                    shutil.copy2(src_file, dest_file)
-                evidence_rel_path = f"scans/{dest_file.name}"
-            else:
-                evidence_rel_path = str(src_file)
-    else:
-        # No root_path set on workspace: use relative path if in cwd, else absolute
-        try:
-            evidence_rel_path = str(src_file.relative_to(Path.cwd()))
-        except ValueError:
-            evidence_rel_path = str(src_file)
+    try:
+        # Check if source file is already inside workspace root
+        rel = src_file.resolve().relative_to(ws_root.resolve())
+        evidence_rel_path = str(rel)
+    except ValueError:
+        # Source file is outside the workspace
+        if copy_to_scans:
+            dest_file = scans_dir / src_file.name
+            if dest_file.exists() and dest_file.resolve() != src_file.resolve():
+                # If destination exists and has different content, preserve unique filename
+                dest_hash = compute_file_hash(dest_file)
+                if dest_hash != file_hash:
+                    dest_file = scans_dir / f"{src_file.stem}_{file_hash[:8]}{src_file.suffix}"
+            if not dest_file.exists() or dest_file.resolve() != src_file.resolve():
+                shutil.copy2(src_file, dest_file)
+            evidence_rel_path = f"scans/{dest_file.name}"
+        else:
+            evidence_rel_path = store.relativize_path(str(src_file), workspace=ws)
 
     targets_saved: List[Target] = []
     total_services_saved = 0
@@ -294,32 +285,24 @@ def commit_web_enum_results(
                 target_id = targets[0].id
 
     # Determine destination evidence path in workspace/enum/
-    evidence_rel_path = src_file.name
-    ws_root = Path(ws.root_path).resolve() if ws.root_path else None
-
-    if ws_root and ws_root.is_dir():
-        enum_dir = ws_root / "enum"
-        enum_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            rel = src_file.relative_to(ws_root)
-            evidence_rel_path = str(rel)
-        except ValueError:
-            if copy_to_enum:
-                dest_file = enum_dir / src_file.name
-                if dest_file.exists() and dest_file.resolve() != src_file.resolve():
-                    dest_hash = compute_file_hash(dest_file)
-                    if dest_hash != file_hash:
-                        dest_file = enum_dir / f"{src_file.stem}_{file_hash[:8]}{src_file.suffix}"
-                if not dest_file.exists() or dest_file.resolve() != src_file.resolve():
-                    shutil.copy2(src_file, dest_file)
-                evidence_rel_path = f"enum/{dest_file.name}"
-            else:
-                evidence_rel_path = str(src_file)
-    else:
-        try:
-            evidence_rel_path = str(src_file.relative_to(Path.cwd()))
-        except ValueError:
-            evidence_rel_path = str(src_file)
+    ws_root = store.get_workspace_root(ws)
+    enum_dir = ws_root / "enum"
+    enum_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        rel = src_file.resolve().relative_to(ws_root.resolve())
+        evidence_rel_path = str(rel)
+    except ValueError:
+        if copy_to_enum:
+            dest_file = enum_dir / src_file.name
+            if dest_file.exists() and dest_file.resolve() != src_file.resolve():
+                dest_hash = compute_file_hash(dest_file)
+                if dest_hash != file_hash:
+                    dest_file = enum_dir / f"{src_file.stem}_{file_hash[:8]}{src_file.suffix}"
+            if not dest_file.exists() or dest_file.resolve() != src_file.resolve():
+                shutil.copy2(src_file, dest_file)
+            evidence_rel_path = f"enum/{dest_file.name}"
+        else:
+            evidence_rel_path = store.relativize_path(str(src_file), workspace=ws)
 
     # Attach raw enum file as evidence
     store.add_evidence(
