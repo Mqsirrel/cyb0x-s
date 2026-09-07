@@ -303,7 +303,7 @@ def stage_and_commit_candidate(
 
     elif candidate.candidate_type == CandidateType.SERVICE:
         if resolved_tid is not None and candidate.port:
-            s = store.add_service(
+            store.add_service(
                 target_id=resolved_tid,
                 port=candidate.port,
                 protocol=candidate.protocol,
@@ -315,7 +315,7 @@ def stage_and_commit_candidate(
 
     elif candidate.candidate_type == CandidateType.CREDENTIAL:
         if candidate.username and candidate.secret:
-            c = store.add_credential(
+            store.add_credential(
                 username=candidate.username,
                 secret=candidate.secret,
                 source="log_extractor",
@@ -328,7 +328,7 @@ def stage_and_commit_candidate(
         if candidate.hash_value:
             # Record as finding or credential note
             u = candidate.username or "unknown"
-            c = store.add_credential(
+            store.add_credential(
                 username=f"{u} (hash)",
                 secret=candidate.hash_value,
                 source=f"log_extractor ({candidate.hash_type or 'hash'})",
@@ -343,7 +343,7 @@ def stage_and_commit_candidate(
                 store.update_target_details(resolved_tid, user_flag=candidate.flag_value)
                 return True, f"Flag {candidate.flag_value[:20]}... saved to target {candidate.target_ip or resolved_tid}"
             else:
-                p = store.add_exam_proof(
+                store.add_exam_proof(
                     question_num="FLAG-EXTRACTED",
                     answer_proof=candidate.flag_value,
                     category="FLAG",

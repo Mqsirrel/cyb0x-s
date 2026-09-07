@@ -182,7 +182,6 @@ def resolve_pivot_route(
     pivots = [t for t in store.list_targets(workspace_id=ws_id) if t.is_pivot]
 
     # Check if target is itself on initial entry subnet or directly reachable
-    is_pivot_host = target.is_pivot if target else False
     hops: List[RouteHop] = []
 
     # If target is on a different subnet than entry and pivots exist:

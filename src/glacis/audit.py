@@ -70,11 +70,9 @@ def audit_target(store: NotebookStore, target_id: int) -> Optional[TargetAudit]:
         return None
 
     services = store.list_services(target_id=target.id)
-    credentials = store.list_credentials(target_id=target.id)
     commands = store.list_commands(target_id=target.id)
     findings = store.list_findings(target_id=target.id)
     proofs = store.list_exam_proofs(target_id=target.id)
-    notes = store.list_notes(target_id=target.id)
 
     checks: List[AuditCheck] = []
 
