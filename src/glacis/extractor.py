@@ -8,7 +8,7 @@ Parses terminal, tool, and scan logs for:
 
 Strict Operational Guardrail:
 NEVER auto-populates flags or credentials directly into the notebook.
-Stages all detected artifacts as Candidates requiring explicit operator confirmation.
+Stages all detected artifacts as Candidates requiring explicit user confirmation.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ class CandidateType(str, Enum):
 
 
 class ExtractedCandidate(BaseModel):
-    """An unconfirmed artifact staged for operator review."""
+    """An unconfirmed artifact staged for user review."""
     candidate_id: int
     candidate_type: CandidateType
     summary: str
@@ -278,7 +278,7 @@ def stage_and_commit_candidate(
     store: NotebookStore,
     target_id: Optional[int] = None,
 ) -> Tuple[bool, str]:
-    """Explicitly commit a single operator-confirmed candidate into the SQLite database.
+    """Explicitly commit a single user-confirmed candidate into the SQLite database.
 
     Returns (success, message).
     """

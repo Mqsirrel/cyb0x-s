@@ -251,7 +251,7 @@ def export_txt(store: NotebookStore, workspace_id: Optional[int] = None) -> str:
         return "Empty Workspace\n"
 
     lines: List[str] = [
-        "GLACIS SAFE FIELD NOTEBOOK",
+        "GLACIS FIELD NOTEBOOK",
         f"Workspace: {ws.name}",
         f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
         "=" * 60,

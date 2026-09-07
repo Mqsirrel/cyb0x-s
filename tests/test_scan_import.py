@@ -226,7 +226,7 @@ def test_cli_import_interactive_abort(tmp_path: Path, monkeypatch) -> None:
     res = runner.invoke(cli, ["--db", str(db_file), "import", str(scan_file)], input="n\n")
     assert res.exit_code == 0
     assert "Scan Review:" in res.output
-    assert "Import aborted by operator." in res.output
+    assert "Import cancelled." in res.output
 
 
 def test_commit_web_enum_results_workflow(tmp_path: Path) -> None:

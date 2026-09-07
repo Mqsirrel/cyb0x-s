@@ -33,7 +33,7 @@ def substitute_command_placeholders(
     lhost: str = "",
     lport: str = "",
 ) -> str:
-    """Fill the static command templates with active target and operator context.
+    """Fill the static command templates with active target and user context.
 
     Purely mechanical string substitution on human-curated reference text:
     no command is ever generated, inferred or suggested.
@@ -549,7 +549,6 @@ class ConsoleBar(Container):
         ":th": ":theme ",
         ":theme": ":theme ",
         ":ref": ":ref ",
-        ":cheat": ":ref ",
         ":u": ":uflag ",
         ":uflag": ":uflag ",
         ":r": ":rflag ",
@@ -698,11 +697,11 @@ class ConsoleBar(Container):
             cmd_line.append(":rflag <hash_string>", style=f"bold {P.text}")
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Records captured root.txt / proof.txt flag hash", style=f"{P.muted}")
-        elif v.startswith(":ref") or v.startswith(":cheat"):
-            cmd_line.append("[CHEAT SHEET] ", style=f"bold {P.warn}")
+        elif v.startswith(":ref"):
+            cmd_line.append("[REFERENCE] ", style=f"bold {P.warn}")
             cmd_line.append(":ref <search term>", style=f"bold {P.text}")
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
-            tip_line.append("e.g. :ref winrm, :ref smb, :ref pivoting (opens reference modal)", style=f"{P.muted}")
+            tip_line.append("e.g. :ref winrm, :ref smb, :ref pivoting (opens reference manual)", style=f"{P.muted}")
         elif v.startswith(":foot"):
             cmd_line.append("[FOOTHOLD] ", style=f"bold {P.warn}")
             cmd_line.append(":foothold <initial access vulnerability>", style=f"bold {P.text}")
@@ -1022,7 +1021,7 @@ from glacis.tui.modals import (  # noqa: E402, F401
 
 
 class PlaybookBrowserWidget(Static):
-    """Interactive full-screen playbook and command cheat sheet browser."""
+    """Interactive full-screen playbook and command command reference browser."""
 
     DEFAULT_CSS = """
     PlaybookBrowserWidget {

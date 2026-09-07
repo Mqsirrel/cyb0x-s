@@ -39,7 +39,7 @@ def _iso_now() -> str:
 
 
 def detect_local_vpn_ip() -> Optional[str]:
-    """Detect local operator/VPN IP (prioritizing tun*, wg*, tap* interfaces)."""
+    """Detect local local VPN IP (prioritizing tun*, wg*, tap* interfaces)."""
     try:
         import subprocess
 
@@ -629,19 +629,19 @@ class NotebookStore:
             )
 
     def get_lhost(self) -> str:
-        """Get operator LHOST from settings, or empty string if unset."""
+        """Get local LHOST from settings, or empty string if unset."""
         return self.get_setting("lhost", "") or ""
 
     def set_lhost(self, ip: str) -> None:
-        """Store operator LHOST in settings."""
+        """Store local LHOST in settings."""
         self.set_setting("lhost", ip.strip())
 
     def get_lport(self) -> str:
-        """Get operator LPORT from settings, default '4444'."""
+        """Get local LPORT from settings, default '4444'."""
         return self.get_setting("lport", "4444") or "4444"
 
     def set_lport(self, port: Union[int, str]) -> None:
-        """Store operator LPORT in settings."""
+        """Store local LPORT in settings."""
         self.set_setting("lport", str(port).strip())
 
     # -------------------------------------------------------------------------
@@ -1534,7 +1534,7 @@ class NotebookStore:
         total_passed = sum(1 for c in checks if c["passed"])
 
         verdict = (
-            "SAFE TO REVERT: All required proof artifacts are recorded."
+            "READY TO RESET: All required proof artifacts are recorded."
             if ready_to_revert
             else f"DO NOT REVERT: Missing {len(critical_failed)} critical proof artifact(s)!"
         )
@@ -1657,7 +1657,7 @@ class NotebookStore:
         proofs = self.list_exam_proofs()
         lines = [
             "# Assessment Evidence & Submission Ledger",
-            f"Generated: {_iso_now()} (GLACIS Offline Safe Notebook)",
+            f"Generated: {_iso_now()} (GLACIS Field Notebook)",
             "",
             "| Question | Target | Category | Proof / Answer Value | Notes |",
             "|---|---|---|---|---|",

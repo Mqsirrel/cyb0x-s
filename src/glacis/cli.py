@@ -1,4 +1,4 @@
-"""Command Line Interface for GLACIS (Safe Field Notebook).
+"""Command Line Interface for GLACIS Field Notebook.
 
 Provides ultra-fast capture commands to record findings and discoveries in seconds.
 Strictly passive: stores verbatim inputs without classification, parsing, or autonomous actions.
@@ -743,7 +743,7 @@ def import_cmd(ctx: click.Context, scan_file: str, apply: bool, no_copy: bool, w
 
     if not apply:
         if not click.confirm(f"Commit these targets and services into '{ws.name}' and save raw scan as Evidence?", default=True):
-            console.print("[yellow]Import aborted by operator.[/yellow]")
+            console.print("[yellow]Import cancelled.[/yellow]")
             return
 
     summary = commit_scan_results(
@@ -850,7 +850,7 @@ def failure_cmd_cli(
 
 
 # -----------------------------------------------------------------------------
-# Offline Cheat Sheet & Playbook Lookup
+# Offline Command Reference & Playbook Lookup
 # -----------------------------------------------------------------------------
 
 @cli.command("ref")
@@ -859,7 +859,7 @@ def failure_cmd_cli(
 @click.option("--copy", "-c", is_flag=True, help="Copy first matching command to clipboard")
 @click.pass_context
 def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
-    """Search offline assessment cheat sheet and command references (e.g. glacis ref winrm)."""
+    """Search offline assessment command reference and command references (e.g. glacis ref winrm)."""
     from glacis.reference import search_reference
 
     store = _get_store(ctx)
@@ -883,14 +883,6 @@ def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -
         copy_to_clipboard(first_cmd)
         console.print(f"[dim]→ Copied top command to clipboard: {first_cmd}[/dim]")
 
-
-@cli.command("cheat", hidden=True)
-@click.argument("query", default="")
-@click.option("--target", "-t", default=None)
-@click.option("--copy", "-c", is_flag=True)
-@click.pass_context
-def cheat_alias(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
-    ctx.invoke(ref_cmd, query=query, target=target, copy=copy)
 
 
 # -----------------------------------------------------------------------------
@@ -965,7 +957,7 @@ def route_cmd(ctx: click.Context, destination: Optional[str], proxychains: bool,
     """Passive multi-hop pivot routing and network topology graph.
 
     Calculates multi-hop routing paths, ProxyChains SOCKS configs,
-    Chisel commands, and SSH jump tunnels based on operator-documented pivots.
+    Chisel commands, and SSH jump tunnels based on user-documented pivots.
     """
     store = _get_store(ctx)
     topo = build_network_topology(store)
@@ -1008,7 +1000,7 @@ def route_cmd(ctx: click.Context, destination: Optional[str], proxychains: bool,
                 )
             console.print(table)
 
-            console.print("\n[bold cyan]Operator Helper Commands:[/bold cyan]")
+            console.print("\n[bold cyan]Tunnel & Routing Reference Commands:[/bold cyan]")
             console.print(f"  [bold]ProxyChains:[/bold] [yellow]proxychains -q nmap -sT -Pn -p- {route.destination}[/yellow]")
             if route.ssh_jump_cmd:
                 console.print(f"  [bold]SSH ProxyJump:[/bold] [yellow]{route.ssh_jump_cmd}[/yellow]")
@@ -1060,7 +1052,7 @@ def extract_cmd(
     """Constrained log extractor (stages candidate targets, ports, creds, hashes, and flags).
 
     Scans terminal logs, tool outputs, or scan dumps.
-    Never auto-populates directly: stages candidates for operator review.
+    Never auto-populates directly: stages candidates for user review.
     """
     store = _get_store(ctx)
 
@@ -1082,7 +1074,7 @@ def extract_cmd(
         return
 
     console.print(f"\n[bold cyan]Detected Candidates ({len(candidates)} staged for review):[/bold cyan]")
-    table = Table(title="Staged Artifact Candidates (Pending Operator Confirmation)")
+    table = Table(title="Staged Artifact Candidates (Pending Confirmation)")
     table.add_column("ID", style="cyan", width=5)
     table.add_column("Type", style="bold", width=12)
     table.add_column("Summary", style="bold white", width=36)

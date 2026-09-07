@@ -1,10 +1,10 @@
-# GLACIS — SAFE FIELD WORKSHEET
+# GLACIS — FIELD WORKSHEET
 
-**Local, human-controlled field worksheet and offline methodology companion.**
+**Local, human-controlled terminal field worksheet and offline methodology companion.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ GLACIS WORKSHEET                    MODE: SAFE             │
+│ GLACIS WORKSHEET                    MODE: MANUAL           │
 │ Local field notebook                 Human-controlled       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -18,22 +18,22 @@ GLACIS provides a fast, keyboard-driven terminal field worksheet for recording, 
 > **The human decides and performs all security-testing actions.**  
 > **GLACIS records, organizes, and searches them.**
 
-GLACIS is **NOT** an AI pentesting assistant, solver, attack planner, or automated scanner. It contains zero autonomous scripts, zero external AI API integrations, and zero background network scanners.
+GLACIS is a local, human-controlled field notebook and methodology worksheet. It operates strictly on local SQLite storage, with zero network connections, zero external web APIs, and zero background scanners.
 
 ---
 
 ## 2. Operational Posture & Transparency
 
-To maintain total transparency and avoid overclaiming:
+To maintain total transparency:
 * **Default Mode: Strict Passive Recording**: Out of the box, GLACIS is a pure manual notebook. It stores only what you type, tracks your manual checklist progress, and searches your local records.
-* **Offline Cognitive Playbooks**: Provides pre-compiled, static command syntax reference sheets (like a built-in `man` page or cheatsheet notebook) so you never need to leave the terminal to look up common utility flags.
-* **Optional Static Guidance (`derive_guidance`)**: GLACIS includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`GLACIS_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the user, it acts as a deterministic local dictionary lookup—never an AI, never a live scanner, and never an autonomous decision-maker.
+* **Offline Cognitive Playbooks**: Provides pre-compiled, static command syntax reference sheets (like a built-in `man` page or reference manual) so you never need to leave the terminal to look up common utility flags.
+* **Optional Static Guidance (`derive_guidance`)**: GLACIS includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`GLACIS_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the user, it acts as a deterministic local dictionary lookup—never a live scanner, and never an autonomous decision-maker.
 
 ### What It Does
 * **Organizes by Target**: Records target IPs, hostnames, OS info, and user observations.
 * **Records Services**: Stores ports, protocols, service banners, and software versions manually observed.
 * **Records Findings**: Stores security findings discovered during assessment, with optional human-assigned severities.
-* **Manages Credentials Safely**: Simple local vault with masked password display (`********`), explicit toggle reveal, and direct clipboard copying.
+* **Manages Credentials**: Simple local vault with masked password display (`********`), explicit toggle reveal, and direct clipboard copying.
 * **Tracks Methodology Checklist**: Manually toggled status (`TODO`, `CHECKED`, `DEFERRED`, `DEAD-END`) with static open-source methodology templates.
 * **Captures Evidence**: Logs references and paths to screenshots, flag hashes, and command outputs without automatic collection.
 * **Fast CLI Capture**: Record discoveries in sub-second CLI commands (e.g. `glacis note "..."`, `glacis cred admin:pass`).
@@ -42,12 +42,12 @@ To maintain total transparency and avoid overclaiming:
 * **Clipboard Integration**: Instant copying of IPs, `IP:port`, credentials, or checklist items directly to your terminal clipboard (`y` key).
 
 ### What It Does NOT Do
-* **NO AI or LLM Calls**: No OpenAI, Anthropic, Ollama, or AI SDK dependencies whatsoever.
+* **NO External Network Calls**: Zero external cloud APIs, zero telemetry, and zero outbound web traffic.
 * **NO Autonomous Exploitation**: Never executes exploits, attacks, or payloads against target networks.
 * **NO Automatic Network Scanning**: Does not execute nmap, masscan, gobuster, or any background network probes.
-* **NO Real-Time Collaboration**: Strictly a single-user local SQLite notebook; no multi-user sharing or external sync.
+* **NO Multi-User Sync**: Strictly a private, single-user local SQLite database.
 * **NO Automatic Vulnerability Classification**: Does not parse live banners to infer CVEs or probe targets.
-* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `GLACIS_DERIVE_GUIDANCE=1` or press **`G`** in the TUI.
+* **NO Heuristic Attack Derivation**: Access-potential ratings and command recommendations are not derived by parsers. Strict scanner facts are emitted.
 
 ---
 
@@ -193,7 +193,7 @@ glacis checklist list
 
 *(In the TUI, press **`m`** to open the interactive template picker)*
 
-### Offline eJPTv2 Cheat Sheet & Command Reference
+### Offline Command Reference & Methodology Playbook
 Instant, offline playbook lookup with dynamic target IP substitution:
 
 ```bash
@@ -209,7 +209,7 @@ glacis ref mssql
 glacis ref mimikatz
 ```
 
-*(In the TUI, press **`r`** or type `:ref <keyword>` to open the interactive Cheat Sheet modal)*
+*(In the TUI, press **`r`** or type `:ref <keyword>` to open the interactive Command Reference modal)*
 
 ### Search Across Everything
 ```bash
@@ -315,7 +315,7 @@ python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png (needs Pi
 | `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or reveal a credential |
 | `z` | Zoom the focused panel to the whole cockpit (press again to restore) |
 | `g` | Record captured flags (`user.txt`, `root.txt`) |
-| `r` | Quick cheat-sheet modal |
+| `r` | Quick command reference modal |
 | `o` | Toggle the active target in-scope / out-of-scope |
 | `/` or `Ctrl+F` | Global search (type, `Enter` copies the top hit) |
 | `t` / `s` / `f` / `c` / `n` | Add target / service / finding / credential / note |
@@ -344,7 +344,7 @@ press `?` for the complete reference.
 * `:stuck <why>` — log a rabbit hole dead end
 * `:clue <breakthrough>` — log the breakthrough clue that unlocked progress
 * `:ev <path>` — log evidence
-* `:ref <term>` — pop up the offline cheat sheet (e.g. `:ref winrm`)
+* `:ref <term>` — pop up the offline command reference (e.g. `:ref winrm`)
 * `:theme <name>` — switch palette (`slate`, `midnight`, `ember`, `moss`, `neon`, `mono`, `warm`); `:theme` alone cycles
 * `:q` — quit
 

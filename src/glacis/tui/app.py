@@ -1,6 +1,6 @@
 """Main Textual application for GLACIS Worksheet.
 
-High-efficiency, keyboard-driven terminal field worksheet and offensive cheatsheet station.
+High-efficiency, keyboard-driven terminal field worksheet and offensive playbook station.
 Strictly passive: stores human-discovered data, provides instant offline command references.
 """
 
@@ -102,7 +102,7 @@ class GlacisApp(App):
         Binding("enter", "activate_selected", "Action", show=False),
         Binding("z", "toggle_zoom", "Zoom", show=False),
         Binding("g", "record_flags", "Flags", show=False),
-        Binding("r", "show_reference", "CheatSheet", show=False),
+        Binding("r", "show_reference", "Reference", show=False),
         Binding("o", "toggle_scope", "Scope", show=False),
         Binding("1", "switch_tab('tab-worksheet')", "Worksheet", show=False),
         Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
@@ -213,7 +213,7 @@ class GlacisApp(App):
                                     yield Label("", id="cnt-notes", classes="panel-count")
                                 yield ListView(id="list-notes", classes="panel-list")
 
-            # Station 2: Cheatsheet & Ready-to-Paste Playbooks
+            # Station 2: Playbook & Ready-to-Paste Playbooks
             with TabPane("2 ▸ Playbooks", id="tab-playbooks"):
                 yield PlaybookBrowserWidget(id="playbook-browser")
 
@@ -1268,7 +1268,7 @@ class GlacisApp(App):
     def action_toggle_guidance(self) -> None:
         """Switch derived suggestions (access potential / next command) on or off.
 
-        Off is the default and the exam-safe posture: GLACIS then only records
+        Off is the default and the passive posture: GLACIS then only records
         what you tell it and looks up references when you ask.
         """
         set_derive_guidance(not derive_guidance_enabled())
@@ -1281,7 +1281,7 @@ class GlacisApp(App):
         self.refresh_all()
 
     def action_show_reference(self) -> None:
-        """Open searchable cheat sheet and command reference modal."""
+        """Open searchable command reference and playbook modal."""
         active = self.store.get_active_target()
         target_ip = active.ip if active else ""
 

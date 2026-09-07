@@ -7,7 +7,7 @@ industry standards and documentation:
   - OWASP Web Security Testing Guide (WSTG v4.2)
   - NIST SP 800-115 (Technical Guide to Information Security Testing and Assessment)
   - Standard UNIX/Linux man pages and Windows administration documentation
-  - Public open-source security cheatsheets (GTFOBins, LOLBAS, PayloadsAllTheThings)
+  - Public open-source security reference guides (GTFOBins, LOLBAS, PayloadsAllTheThings)
 
 Strictly non-proprietary:
 This module contains zero proprietary exam materials, zero question bank leaks,

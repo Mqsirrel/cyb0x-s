@@ -1,9 +1,9 @@
 """Passive Multi-Hop Pivot Route Graph and Network Topology Engine for GLACIS.
 
-Models operator-documented network segments, dual-homed jumpboxes,
+Models user-documented network segments, dual-homed jumpboxes,
 and multi-hop routing paths. Generates ProxyChains, Chisel, and SSH configs.
 
-100% passive: purely documents and calculates routes based on operator observations.
+100% passive: purely documents and calculates routes based on user observations.
 No automated network probing, no prescriptive attack planning.
 """
 
@@ -77,7 +77,7 @@ def _infer_subnet(ip: str) -> str:
 
 
 def build_network_topology(store: NotebookStore, workspace_id: Optional[int] = None) -> NetworkTopology:
-    """Analyze all operator-recorded targets, subnets, and pivot routes to construct topology."""
+    """Analyze all user-recorded targets, subnets, and pivot routes to construct topology."""
     ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
     ws_id = ws.id if ws and ws.id else 1
     ws_name = ws.name if ws else "default"
@@ -113,7 +113,7 @@ def build_network_topology(store: NotebookStore, workspace_id: Optional[int] = N
         "    classDef attacker fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#fff;",
         "    classDef pivot fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fff;",
         "    classDef host fill:#0f172a,stroke:#64748b,stroke-width:1px,color:#cbd5e1;",
-        "    Attacker[Operator / Attacker Host]:::attacker",
+        "    Attacker[Local / Assessment Host]:::attacker",
     ]
 
     # Render Subnets and Hosts

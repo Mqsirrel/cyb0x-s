@@ -51,7 +51,7 @@ def test_audit_target_store_logic(store: NotebookStore) -> None:
 
     res2 = store.audit_target(t.id)
     assert res2["ready_to_revert"] is True
-    assert "SAFE TO REVERT" in res2["verdict"]
+    assert "READY TO RESET" in res2["verdict"]
     assert res2["score"] == "7/7"
     assert res2["stats"]["golden_cmds_count"] == 1
 
@@ -78,7 +78,7 @@ def test_cli_audit_command(cli_runner: CliRunner, temp_db_path: Path) -> None:
     # Second audit should pass
     res_ready = cli_runner.invoke(cli, ["--db", str(temp_db_path), "audit", "10.10.10.25"])
     assert res_ready.exit_code == 0
-    assert "SAFE TO REVERT" in res_ready.output
+    assert "READY TO RESET" in res_ready.output
 
 
 @pytest.mark.fast

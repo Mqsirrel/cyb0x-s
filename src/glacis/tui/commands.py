@@ -315,7 +315,7 @@ def execute_command(app: Any, raw: str) -> None:
         clue_txt = val[6:].strip()
         app.store.add_failure_log(target_id=target_id, breakthrough_clue=clue_txt)
         app.notify(f"Breakthrough clue logged: {clue_txt}")
-    elif val.startswith(":ref ") or val.startswith(":cheat "):
+    elif val.startswith(":ref "):
         active_ip = active.ip if active else ""
 
         def on_cmd_selected(cmd: Optional[str]) -> None:
