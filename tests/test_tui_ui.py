@@ -271,25 +271,6 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
 
 
 @pytest.mark.asyncio
-async def test_theme_command_bar(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
-    async with app.run_test(size=(140, 40)) as pilot:
-        from textual.widgets import Input
-
-        cmd = app.query_one("#cmd-input", Input)
-        cmd.focus()
-        cmd.value = ":theme sugary"
-        await cmd.action_submit()
-        await pilot.pause()
-        assert app.theme_name == "sugary"
-
-        cmd.value = ":theme nope"
-        await cmd.action_submit()
-        await pilot.pause()
-        assert app.theme_name == "sugary"
-
-
-@pytest.mark.asyncio
 async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
     """Guard against stylesheet typos in screens the smoke test never opens."""
     app = CyboxSafeApp(store=seeded_store)

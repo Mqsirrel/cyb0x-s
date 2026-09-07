@@ -51,7 +51,6 @@ from glacis.templates import (
 from glacis.tui.theme import (
     APP_CSS,
     PALETTES,
-    S,
     current_palette,
     get_default_theme,
     resolve_palette_name,
@@ -803,66 +802,74 @@ class GlacisApp(App):
             pass
 
     def _format_service_row(self, s: Service) -> Text:
+        P = current_palette()
         txt = Text()
         status_val = s.status.value if hasattr(s.status, "value") else str(s.status)
         if status_val == "CHECKED":
-            txt.append("[CHECKED] ", style=S("ok"))
+            txt.append("● OPEN  ", style=f"bold {P.ok}")
+            txt.append("[CHECKED] ", style=f"bold {P.bg} on {P.ok}")
         elif status_val == "DEFERRED":
-            txt.append("[DEFER]   ", style=S("warn"))
+            txt.append("○ DEFER ", style=f"bold {P.warn}")
+            txt.append("[DEFER]   ", style=f"bold {P.bg} on {P.warn}")
         elif status_val == "DEAD-END":
-            txt.append("[DEAD-END]", style=S("danger"))
+            txt.append("✕ DROP  ", style=f"bold {P.danger}")
+            txt.append("[DEAD-END]", style=f"bold {P.bg} on {P.danger}")
         else:
-            txt.append("[TODO]    ", style=S("accent"))
+            txt.append("● OPEN  ", style=f"bold {P.ok}")
+            txt.append("[TODO]    ", style=f"bold {P.bg} on {P.accent}")
 
-        port_proto = f"{s.port}/{s.protocol}"
-        txt.append(f" {port_proto:<9} ", style=S("accent"))
+        port_proto = f"{s.port}/{s.protocol.lower()}"
+        txt.append(f" {port_proto:<8} ", style=f"bold {P.accent}")
 
-        txt.append(f"{s.service.upper():<9} ", style=S("text"))
-        txt.append("· ", style=S("muted", bold=False))
+        txt.append(f" {s.service.upper():<7} ", style=f"bold {P.text} on {P.raised}")
+        txt.append(" ")
 
         if s.version:
-            txt.append(f"{s.version} ", style=S("text_soft", bold=False))
+            txt.append(f"{s.version} ", style=f"{P.text_soft}")
 
         if s.access_potential in ("HIGH", "CRITICAL"):
-            txt.append(f"[⚡ {s.access_potential}] ", style=S("danger"))
+            txt.append(f" [⚡ {s.access_potential}] ", style=f"bold {P.bg} on {P.danger}")
         elif s.access_potential and s.access_potential != "LOW":
-            txt.append(f"[{s.access_potential}] ", style=S("warn"))
+            txt.append(f" [{s.access_potential}] ", style=f"bold {P.bg} on {P.warn}")
 
         if s.next_action:
-            txt.append(f"▸ `{s.next_action}` ", style=S("warn"))
+            txt.append(f"▸ `{s.next_action}` ", style=f"{P.warn}")
 
         if s.notes:
-            txt.append(f"({s.notes})", style="dim italic")
+            txt.append(f" [{s.notes}]", style=f"{P.muted} on {P.surface}")
 
         return txt
 
     def _format_credential_row(self, c: Credential) -> Text:
+        P = current_palette()
         txt = Text()
-        txt.append("🔑 ", style=S("ok"))
-        txt.append(f"{c.username}", style=S("text"))
-        txt.append(" : ", style=S("muted", bold=False))
-        secret = c.secret if c.id in self.revealed_creds else c.masked_secret
-        txt.append(f"{secret} ", style=S("accent"))
-        if c.service_scope:
-            txt.append(f"[{c.service_scope.upper()}] ", style=S("warn"))
+        scope = (c.service_scope or "GLOBAL").upper()
+        scope_color = P.accent if scope == "GLOBAL" else (P.warn if scope in ("SMB", "WINRM") else P.ok)
+        txt.append(f"[{scope}] ", style=f"bold {P.bg} on {scope_color}")
+        txt.append(f" {c.username} ", style=f"bold {P.text}")
+        txt.append(": ", style=f"{P.muted}")
+        secret = c.secret if c.id in self.revealed_creds else ("•" * min(max(len(c.secret or "password"), 8), 16))
+        secret_style = f"bold {P.warn}" if c.id in self.revealed_creds else f"{P.muted}"
+        txt.append(f"{secret} ", style=secret_style)
         if c.source:
-            txt.append(f"({c.source})", style=S("muted", bold=False))
+            txt.append(f"({c.source})", style=f"{P.muted}")
         return txt
 
     def _format_checklist_row(self, item: ChecklistItem) -> Text:
+        P = current_palette()
         txt = Text()
         if item.status == ChecklistStatus.CHECKED:
-            txt.append("[✓ DONE] ", style=S("ok"))
-            txt.append(item.title, style="dim strike")
+            txt.append("[✓ DONE] ", style=f"bold {P.bg} on {P.ok}")
+            txt.append(f" {item.title}", style="dim strike")
         elif item.status == ChecklistStatus.DEFERRED:
-            txt.append("[⏸ DEFER] ", style=S("warn"))
-            txt.append(item.title, style=S("warn"))
+            txt.append("[⏸ DEFER] ", style=f"bold {P.bg} on {P.warn}")
+            txt.append(f" {item.title}", style=f"bold {P.warn}")
         elif item.status == ChecklistStatus.DEAD_END:
-            txt.append("[✖ DROP] ", style=S("danger"))
-            txt.append(item.title, style=S("muted", bold=False))
+            txt.append("[✖ DROP] ", style=f"bold {P.bg} on {P.danger}")
+            txt.append(f" {item.title}", style=f"{P.muted}")
         else:
-            txt.append("[⏳ TODO] ", style=S("accent"))
-            txt.append(item.title, style=S("text"))
+            txt.append("[⏳ TODO] ", style=f"bold {P.bg} on {P.accent}")
+            txt.append(f" {item.title}", style=f"bold {P.text}")
         return txt
 
     def _update_checklist_progress(self) -> None:
@@ -974,33 +981,35 @@ class GlacisApp(App):
             total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
             self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
             if notes or findings or evidences or leads:
+                P = current_palette()
                 for f in findings:
                     txt = Text()
-                    txt.append("⚠️ [VULN] ", style=S("danger"))
-                    txt.append(f"{f.title} ", style=S("text"))
+                    txt.append("[VULN] ", style=f"bold {P.bg} on {P.danger}")
                     if f.severity:
-                        txt.append(f"[{f.severity}] ", style=S("warn"))
+                        sev_style = f"bold {P.bg} on {P.danger}" if f.severity.upper() in ("HIGH", "CRITICAL") else f"bold {P.bg} on {P.warn}"
+                        txt.append(f"[{f.severity}] ", style=sev_style)
+                    txt.append(f"{f.title} ", style=f"bold {P.text}")
                     if f.description:
-                        txt.append(f"— {f.description}", style=S("muted", bold=False))
+                        txt.append(f"— {f.description}", style=f"{P.muted}")
                     n_list.append(DataListItem(data_obj=f, display_text=txt))
                 for n in notes:
                     txt = Text()
-                    txt.append("📝 [NOTE] ", style=S("warn"))
-                    txt.append(n.content, style=S("text"))
+                    txt.append("[NOTE] ", style=f"bold {P.bg} on {P.warn}")
+                    txt.append(f"{n.content}", style=f"{P.text}")
                     n_list.append(DataListItem(data_obj=n, display_text=txt))
                 for ev in evidences:
                     txt = Text()
-                    txt.append("📷 [EVID] ", style=S("accent"))
-                    txt.append(f"{ev.path_or_ref} ", style=S("text"))
+                    txt.append("[EVID] ", style=f"bold {P.bg} on {P.accent}")
+                    txt.append(f"{ev.path_or_ref} ", style=f"bold {P.text}")
                     if ev.description:
-                        txt.append(f"— {ev.description}", style=S("muted", bold=False))
+                        txt.append(f"— {ev.description}", style=f"{P.muted}")
                     n_list.append(DataListItem(data_obj=ev, display_text=txt))
                 for ld in leads:
                     txt = Text()
-                    txt.append("⚡ [LEAD] ", style=S("warn"))
-                    txt.append(f"{ld.title} ", style=S("text"))
+                    txt.append("[LEAD] ", style=f"bold {P.bg} on {P.ok}")
+                    txt.append(f"{ld.title} ", style=f"bold {P.text}")
                     if ld.notes:
-                        txt.append(f"({ld.notes})", style=S("muted", bold=False))
+                        txt.append(f"({ld.notes})", style=f"{P.muted}")
                     n_list.append(DataListItem(data_obj=ld, display_text=txt))
             else:
                 txt = Text("  • No notes or findings · Press 'n' for note, 'f' for finding, or type :n <note>", style="dim italic")
@@ -1229,8 +1238,8 @@ class GlacisApp(App):
 
     def action_cycle_theme(self) -> None:
         """Switch to the next available palette."""
-        names = list(PALETTES)
-        current = names.index(self.theme_name) if self.theme_name in names else 0
+        names = ["slate", "midnight", "ember", "cyber", "sugary", "candy", "caramel"]
+        current = names.index(self.theme_name) if self.theme_name in names else -1
         self.apply_theme(names[(current + 1) % len(names)])
 
     def apply_theme(self, name: str, quiet: bool = False) -> None:

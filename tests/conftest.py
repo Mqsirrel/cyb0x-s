@@ -89,7 +89,7 @@ except ImportError:
 
 class DatabaseTemplateManager:
     """Pre-compiled B-Tree Template Cloning (PBTC) Manager.
-    
+
     Operates at raw B-tree page layer using sqlite3_backup to clone pre-compiled
     schema in ~50 microseconds, bypassing SQL tokenizing, Lemon parsing, and VDBE code generation.
     """

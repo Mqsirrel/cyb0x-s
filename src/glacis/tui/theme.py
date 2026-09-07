@@ -236,8 +236,26 @@ CARAMEL = Palette(
     dark=False,
 )
 
+CATPPUCCIN = Palette(
+    name="catppuccin",
+    label="Catppuccin · mocha / sapphire",
+    bg="#11111B",
+    surface="#181825",
+    raised="#1E1E2E",
+    border="#313244",
+    border_strong="#89B4FA",
+    text="#CDD6F4",
+    text_soft="#BAC2DE",
+    muted="#7F849C",
+    accent="#89B4FA",
+    ok="#A6E3A1",
+    warn="#FAB387",
+    danger="#F38BA8",
+    dark=True,
+)
+
 PALETTES: Dict[str, Palette] = {
-    p.name: p for p in (SLATE, MIDNIGHT, EMBER, CYBER, SUGARY, CANDY, CARAMEL)
+    p.name: p for p in (SLATE, MIDNIGHT, EMBER, CYBER, SUGARY, CANDY, CARAMEL, CATPPUCCIN)
 }
 DEFAULT_PALETTE = SLATE.name
 
@@ -257,14 +275,15 @@ def current_palette() -> Palette:
 
 
 def resolve_palette_name(query: Optional[str]) -> Optional[str]:
-    """Resolve a user-supplied theme string, digit (1-7), or prefix into a canonical palette name.
+    """Resolve a user-supplied theme string, digit (1-8), or prefix into a canonical palette name.
 
     Examples:
         '1' -> 'slate'
-        '5' -> 'sugary'
+        '4' -> 'cyber'
+        '5' -> 'catppuccin'
         'su' or 'sugary' -> 'sugary'
         'ca' or 'candy' -> 'candy'
-        'car' or 'caramel' -> 'caramel'
+        'cat' or 'catppuccin' -> 'catppuccin'
         'sl' or 'slate' -> 'slate'
         'mid' or 'midnight' -> 'midnight'
         'em' or 'ember' -> 'ember'
@@ -298,6 +317,10 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
         "cy": "cyber",
         "c": "cyber",
         "tokyo": "cyber",
+        "cat": "catppuccin",
+        "catp": "catppuccin",
+        "mocha": "catppuccin",
+        "catppuccin": "catppuccin",
         "su": "sugary",
         "sug": "sugary",
         "sugar": "sugary",
@@ -496,9 +519,9 @@ Underline > .underline--bar {
 }
 
 #sidebar {
-    width: 30;
-    min-width: 24;
-    max-width: 36;
+    width: 38;
+    min-width: 28;
+    max-width: 44;
     height: 100%;
     padding: 0 1;
 }
@@ -526,10 +549,10 @@ Underline > .underline--bar {
 }
 
 .panel-box:focus-within {
-    border: solid $accent;
+    border: double $accent;
     border-title-color: $accent;
     border-subtitle-color: $accent;
-    background: $surface-lighten-1;
+    background: $surface;
 }
 
 .panel-header-row {
@@ -577,13 +600,13 @@ Underline > .underline--bar {
 }
 
 #panel-checklist {
-    width: 38%;
+    width: 32%;
     height: 100%;
     margin-bottom: 0;
 }
 
 #panel-notes {
-    width: 62%;
+    width: 68%;
     height: 100%;
     margin-bottom: 0;
     margin-left: 1;
@@ -715,11 +738,29 @@ Footer {
     padding: 0 1;
 }
 
+/* Station 2: Playbooks */
+#playbook-top-bar {
+    height: 3;
+    layout: horizontal;
+    margin-bottom: 1;
+}
+
 #playbook-search-input {
+    width: 1fr;
     height: 3;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
     background: $surface;
-    margin-bottom: 1;
+    padding: 0 1;
+}
+
+#playbook-search-input:focus {
+    border: double $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
 }
 
 #playbook-body {
@@ -728,22 +769,26 @@ Footer {
 }
 
 #playbook-cat-panel {
-    width: 25%;
+    width: 26%;
     height: 1fr;
     border: solid $border;
     border-title-color: $text-soft;
     border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
     background: $surface;
     padding: 0;
     margin-right: 1;
 }
 
 #playbook-cat-panel:focus-within {
-    border: solid $accent;
+    border: double $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
 }
 
 #playbook-cmd-panel {
-    width: 75%;
+    width: 74%;
     height: 1fr;
     border: solid $border;
     border-title-color: $text-soft;
@@ -755,29 +800,57 @@ Footer {
 }
 
 #playbook-cmd-panel:focus-within {
-    border: solid $accent;
+    border: double $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
+}
+
+/* Station 3: Credentials Matrix */
+#cred-matrix-top-bar {
+    height: 1;
+    layout: horizontal;
+    margin-bottom: 1;
+    padding: 0 1;
+}
+
+#cred-matrix-hdr {
+    width: 1fr;
+    height: 1;
 }
 
 #cred-matrix-sub {
+    width: auto;
     height: 1;
     color: $text-muted;
-    padding: 0 1;
-    margin-bottom: 1;
+    text-align: right;
 }
 
 #cred-matrix-list, #cred-matrix-table {
     height: 1fr;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $accent;
+    border-subtitle-align: right;
     background: $surface;
+}
+
+#cred-matrix-table:focus {
+    border: double $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
 }
 
 #cred-matrix-empty {
     height: 1fr;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
     background: $surface;
     padding: 1 3;
 }
 
+/* Station 4: Loot & Flags */
 #loot-cards-container {
     height: 9;
     layout: horizontal;
@@ -788,22 +861,59 @@ Footer {
     width: 1fr;
     height: 9;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
     background: $surface;
     padding: 0 1;
     margin-right: 1;
 }
 
-#loot-failure-box {
+.loot-box:last-child {
+    margin-right: 0;
+}
+
+.loot-box:focus-within {
+    border: double $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
+}
+
+#loot-lower-container {
+    height: 1fr;
+    layout: horizontal;
+}
+
+.loot-lower-box {
+    width: 1fr;
     height: 1fr;
     border: solid $border;
+    border-title-color: $text-soft;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
     background: $surface;
-    padding: 0 1;
+    padding: 0;
+    margin-right: 1;
+}
+
+.loot-lower-box:last-child {
+    margin-right: 0;
+}
+
+.loot-lower-box:focus-within {
+    border: double $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $accent;
 }
 
 .loot-title {
-    text-style: bold;
-    color: $accent;
-    margin-bottom: 1;
+    display: none;
+}
+
+.loot-sub {
+    display: none;
 }
 
 /* --- modals ------------------------------------------------------------- */
@@ -812,8 +922,8 @@ ModalScreen {
     background: rgba(6, 9, 12, 0.78);
 }
 
-.synapse-modal-dialog {
-    width: 68;
+.glacis-modal-dialog, .synapse-modal-dialog {
+    width: 72;
     height: auto;
     max-height: 92%;
     border: round $accent;
@@ -924,8 +1034,9 @@ Button.danger-btn:hover {
 }
 
 #search-box {
-    width: 80%;
-    height: 80%;
+    width: 86;
+    height: 24;
+    max-height: 90%;
     border: round $accent;
     background: $surface;
     padding: 1 2;
@@ -934,7 +1045,7 @@ Button.danger-btn:hover {
 #search-results {
     height: 1fr;
     border: round $border;
-    background: $background;
+    background: $surface;
 }
 
 #search-status {
