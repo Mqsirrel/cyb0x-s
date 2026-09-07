@@ -4,9 +4,9 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cyb0x_s.cli import cli
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.routes import (
+from glacis.cli import cli
+from glacis.db.store import NotebookStore
+from glacis.routes import (
     build_network_topology,
     generate_proxychains_config,
     resolve_pivot_route,

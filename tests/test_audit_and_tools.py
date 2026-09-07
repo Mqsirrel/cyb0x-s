@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cyb0x_s.cli import cli
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.export import export_json, export_markdown, import_json
+from glacis.cli import cli
+from glacis.db.store import NotebookStore
+from glacis.export import export_json, export_markdown, import_json
 
 
 @pytest.mark.fast
@@ -58,7 +58,7 @@ def test_audit_target_store_logic(store: NotebookStore) -> None:
 
 @pytest.mark.fast
 def test_cli_audit_command(cli_runner: CliRunner, temp_db_path: Path) -> None:
-    """Test cyb0x-s audit CLI reporting."""
+    """Test glacis audit CLI reporting."""
     cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.25", "--os", "Linux"])
 
     # First audit should warn not ready

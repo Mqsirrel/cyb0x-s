@@ -1,4 +1,4 @@
-"""Fast capture and terminal command dispatching for CYB0X-S TUI."""
+"""Fast capture and terminal command dispatching for GLACIS TUI."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from typing import Any, Optional
 
 from textual.widgets import ListView
 
-from cyb0x_s.clipboard import copy_to_clipboard
-from cyb0x_s.templates import apply_template_to_store
-from cyb0x_s.tui.modals import ReferenceModal
+from glacis.clipboard import copy_to_clipboard
+from glacis.templates import apply_template_to_store
+from glacis.tui.modals import ReferenceModal
 
 WORDLIST_ALIASES: dict[str, str] = {
     "rockyou": "/usr/share/wordlists/rockyou.txt",
@@ -198,7 +198,7 @@ def execute_command(app: Any, raw: str) -> None:
             app.notify(f"Current LHOST: {curr or 'unset'} (use :lhost <ip> or :lhost auto)")
             return
         if arg.lower() == "auto":
-            from cyb0x_s.db.store import detect_local_vpn_ip
+            from glacis.db.store import detect_local_vpn_ip
 
             detected = detect_local_vpn_ip()
             if detected:
@@ -387,7 +387,7 @@ def execute_command(app: Any, raw: str) -> None:
         import time
         from pathlib import Path
 
-        from cyb0x_s.clipboard import save_clipboard_image
+        from glacis.clipboard import save_clipboard_image
 
         ws = app.store.get_active_workspace()
         ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()
@@ -418,7 +418,7 @@ def execute_command(app: Any, raw: str) -> None:
         import shutil
         from pathlib import Path
 
-        from cyb0x_s.clipboard import find_latest_screenshot
+        from glacis.clipboard import find_latest_screenshot
 
         ws = app.store.get_active_workspace()
         ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()

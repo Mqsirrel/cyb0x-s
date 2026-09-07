@@ -1,4 +1,4 @@
-"""Modal dialogs and popup screens for the CYB0X-S TUI."""
+"""Modal dialogs and popup screens for the GLACIS TUI."""
 
 from __future__ import annotations
 
@@ -11,19 +11,19 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView, Select, Static
 
-from cyb0x_s.clipboard import copy_to_clipboard
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.parsers import detect_file_scan_type, parse_web_enum_file
-from cyb0x_s.scan_import import (
+from glacis.clipboard import copy_to_clipboard
+from glacis.db.store import NotebookStore
+from glacis.parsers import detect_file_scan_type, parse_web_enum_file
+from glacis.scan_import import (
     check_scan_already_imported,
     commit_scan_results,
     commit_web_enum_results,
     inspect_scan_file,
 )
-from cyb0x_s.search import SearchMatch, search_notebook
-from cyb0x_s.settings import derive_guidance_enabled
-from cyb0x_s.tui.theme import PALETTES, S, current_palette, get_default_theme, save_default_theme
-from cyb0x_s.tui.widgets import DataListItem
+from glacis.search import SearchMatch, search_notebook
+from glacis.settings import derive_guidance_enabled
+from glacis.tui.theme import PALETTES, S, current_palette, get_default_theme, save_default_theme
+from glacis.tui.widgets import DataListItem
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -1012,11 +1012,11 @@ class HelpModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="help-box"):
             P = current_palette()
-            yield Label(f"[bold {P.accent}]CYB0X-S WORKSHEET — KEYBOARD REFERENCE[/bold {P.accent}]\n")
+            yield Label(f"[bold {P.accent}]GLACIS WORKSHEET — KEYBOARD REFERENCE[/bold {P.accent}]\n")
             with VerticalScroll():
                 text = f"""
 [bold]Key Design Principle:[/bold]
-The human decides and performs the security-testing actions. CYB0X-S records and organizes them.
+The human decides and performs the security-testing actions. GLACIS records and organizes them.
 Pure passive recording • Local-first SQLite store • Zero background scanning or AI.
 
 [bold]Stations:[/bold]
@@ -1068,11 +1068,11 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
   :ref <term>             offline cheat sheet       :1 :2 :3 :4  stations
 
 [bold]Shell equivalents:[/bold]
-  cyb0x-s target 10.10.10.20
-  cyb0x-s service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
-  cyb0x-s finding "SMB anonymous access enabled" --severity HIGH
-  cyb0x-s cred admin:password --source backup.zip
-  cyb0x-s export --format md -o notes.md
+  glacis target 10.10.10.20
+  glacis service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
+  glacis finding "SMB anonymous access enabled" --severity HIGH
+  glacis cred admin:password --source backup.zip
+  glacis export --format md -o notes.md
 
 Press [bold]Esc[/bold] or [bold]q[/bold] to return to the worksheet.
 """
@@ -1131,7 +1131,7 @@ class TemplateSelectionModal(ModalScreen[Any]):
                 yield Button("Cancel (Esc)", variant="default", id="btn-cancel")
 
     def on_mount(self) -> None:
-        from cyb0x_s.templates import STATIC_TEMPLATES
+        from glacis.templates import STATIC_TEMPLATES
 
         t_list = self.query_one("#template-list", ListView)
         for key, tmpl in STATIC_TEMPLATES.items():
@@ -1232,7 +1232,7 @@ class ReferenceModal(ModalScreen[Optional[str]]):
         self._populate_list(event.value)
 
     def _populate_list(self, query: str) -> None:
-        from cyb0x_s.reference import search_reference
+        from glacis.reference import search_reference
 
         ref_list = self.query_one("#ref-list", ListView)
         ref_list.clear()

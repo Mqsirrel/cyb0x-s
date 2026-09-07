@@ -1,4 +1,4 @@
-"""Static penetration testing cheat sheet & command reference manual for CYB0X-S.
+"""Static penetration testing cheat sheet & command reference manual for GLACIS.
 
 Provides instant, offline command syntax lookup and standard methodology recipes with target IP substitution.
 Strictly passive reference database: human decides and executes all commands.

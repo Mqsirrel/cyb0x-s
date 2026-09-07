@@ -8,9 +8,9 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from cyb0x_s.cli import cli
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.extractor import (
+from glacis.cli import cli
+from glacis.db.store import NotebookStore
+from glacis.extractor import (
     CandidateType,
     extract_candidates,
     stage_and_commit_candidate,

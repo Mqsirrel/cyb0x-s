@@ -1,4 +1,4 @@
-"""Clipboard copying utilities for CYB0X-S.
+"""Clipboard copying utilities for GLACIS.
 
 Supports OSC 52 terminal copy escapes (SSH/tmux/local) and desktop tools (wl-copy, xclip, pbcopy).
 Does NOT generate automatic commands or payloads.
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from cyb0x_s.models import (
+from glacis.models import (
     ChecklistItem,
     Credential,
     Evidence,

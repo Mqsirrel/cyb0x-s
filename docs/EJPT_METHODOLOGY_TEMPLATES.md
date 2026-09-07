@@ -1,6 +1,6 @@
 # Penetration Testing & Assessment Methodology Templates Guide
 
-This document describes the ready-to-use methodology checklists based on standard manual penetration testing guidelines (PTES, OWASP WSTG, NIST SP 800-115) built directly into **CYB0X-S**.
+This document describes the ready-to-use methodology checklists based on standard manual penetration testing guidelines (PTES, OWASP WSTG, NIST SP 800-115) built directly into **GLACIS**.
 
 ---
 
@@ -13,13 +13,13 @@ This document describes the ready-to-use methodology checklists based on standar
 > * **Manual note-taking and static methodology checklists are 100% permitted.**
 > * **Automated attack planners and autonomous exploit engines are strictly prohibited.**
 >
-> CYB0X-S templates are **completely static human checklists**. They do not run tools on your behalf, do not execute commands, and do not make autonomous decisions. They serve purely as your cognitive safety net under time pressure.
+> GLACIS templates are **completely static human checklists**. They do not run tools on your behalf, do not execute commands, and do not make autonomous decisions. They serve purely as your cognitive safety net under time pressure.
 
 ---
 
 ## 2. Available Ready Templates
 
-You can apply any template in the TUI by pressing **`m`** and picking from the interactive list, or from the CLI using `cyb0x-s checklist template <name>`.
+You can apply any template in the TUI by pressing **`m`** and picking from the interactive list, or from the CLI using `glacis checklist template <name>`.
 
 | Template Name | Focus Area | Items | Description |
 |---|---|---|---|
@@ -115,7 +115,7 @@ Essential when you compromise a dual-homed host:
 
 ---
 
-## 4. How to Use in CYB0X-S
+## 4. How to Use in GLACIS
 
 ### Inside the TUI:
 1. Press **`m`** on any active target.
@@ -127,14 +127,14 @@ Essential when you compromise a dual-homed host:
 ### From the Command Line:
 ```bash
 # Apply eJPT master methodology
-cyb0x-s checklist template ejpt
+glacis checklist template ejpt
 
 # Apply pivoting checklist for an internal dual-homed machine
-cyb0x-s checklist template pivoting -t 10.10.10.20
+glacis checklist template pivoting -t 10.10.10.20
 
 # Apply web application testing checklist
-cyb0x-s checklist template web -t 10.10.10.20
+glacis checklist template web -t 10.10.10.20
 
 # Check off an item
-cyb0x-s checklist check "Directory and file fuzzing" -t 10.10.10.20
+glacis checklist check "Directory and file fuzzing" -t 10.10.10.20
 ```

@@ -1,6 +1,6 @@
-"""Runnable mock of the CYB0X-S Redesign v2 "Mission Deck" layout.
+"""Runnable mock of the GLACIS Redesign v2 "Mission Deck" layout.
 
-Self-contained: fake data, no imports from the cyb0x_s package.
+Self-contained: fake data, no imports from the glacis package.
 Run from the repo root:
 
     uv run python dev/redesign_preview.py
@@ -140,7 +140,7 @@ class MissionDeckPreview(App):
     def render_strip(self) -> str:
         t = str(timedelta(seconds=self.elapsed))
         return (
-            f" CYB0X-S . ejpt-lab    T+{t}    target 10.10.10.5 (web)    "
+            f" GLACIS . ejpt-lab    T+{t}    target 10.10.10.5 (web)    "
             f"flags 2/4    [######..] 62%"
         )
 

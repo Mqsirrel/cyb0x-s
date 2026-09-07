@@ -1,4 +1,4 @@
-"""Command Line Interface for CYB0X-S (Safe Field Notebook).
+"""Command Line Interface for GLACIS (Safe Field Notebook).
 
 Provides ultra-fast capture commands to record findings and discoveries in seconds.
 Strictly passive: stores verbatim inputs without classification, parsing, or autonomous actions.
@@ -16,20 +16,20 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from cyb0x_s.clipboard import copy_to_clipboard
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.export import export_json, export_markdown, export_txt, import_json
-from cyb0x_s.extractor import CandidateType, extract_candidates, stage_and_commit_candidate
-from cyb0x_s.models import ChecklistStatus
-from cyb0x_s.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
-from cyb0x_s.scan_import import check_scan_already_imported, commit_scan_results, inspect_scan_file
-from cyb0x_s.search import search_notebook
-from cyb0x_s.templates import apply_template_to_store
+from glacis.clipboard import copy_to_clipboard
+from glacis.db.store import NotebookStore
+from glacis.export import export_json, export_markdown, export_txt, import_json
+from glacis.extractor import CandidateType, extract_candidates, stage_and_commit_candidate
+from glacis.models import ChecklistStatus
+from glacis.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
+from glacis.scan_import import check_scan_already_imported, commit_scan_results, inspect_scan_file
+from glacis.search import search_notebook
+from glacis.templates import apply_template_to_store
 
 console = Console()
 err_console = Console(stderr=True)
 
-BANNER = """[bold cyan]CYB0X-S WORKSHEET[/bold cyan]
+BANNER = """[bold cyan]GLACIS WORKSHEET[/bold cyan]
 [dim]Field Notes & Methodology Worksheet • Human-controlled[/dim]"""
 
 
@@ -46,7 +46,7 @@ def _get_store(ctx: click.Context) -> NotebookStore:
 @click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, cyber, sugary, candy, caramel).")
 @click.pass_context
 def cli(ctx: click.Context, db_path: Optional[str], workspace_name: Optional[str], theme_name: Optional[str] = None) -> None:
-    """CYB0X-S — Conservative, passive, human-controlled field notebook."""
+    """GLACIS — Conservative, passive, human-controlled field notebook."""
     ctx.ensure_object(dict)
     ctx.obj["db_path"] = db_path
     ctx.obj["theme_name"] = theme_name
@@ -68,7 +68,7 @@ def cli(ctx: click.Context, db_path: Optional[str], workspace_name: Optional[str
 @click.option("--copy", "-c", is_flag=True, help="Copy target IP to clipboard")
 @click.pass_context
 def target_cmd(ctx: click.Context, ip: str, hostname: str, os_name: str, notes: str, copy: bool) -> None:
-    """Record a target machine (e.g. cyb0x-s target 10.10.10.20)."""
+    """Record a target machine (e.g. glacis target 10.10.10.20)."""
     store = _get_store(ctx)
     target = store.add_target(ip=ip, hostname=hostname, os_name=os_name, notes=notes)
     console.print(f"[green]✓ Target recorded:[/green] [bold]{target.ip}[/bold] (ID: {target.id})")
@@ -113,9 +113,9 @@ def service_cmd(
     """Record a service.
 
     Syntax examples:
-      cyb0x-s service 10.10.10.20 445/tcp SMB
-      cyb0x-s service 445/tcp SMB
-      cyb0x-s service 80 HTTP --version "Apache 2.4"
+      glacis service 10.10.10.20 445/tcp SMB
+      glacis service 445/tcp SMB
+      glacis service 80 HTTP --version "Apache 2.4"
     """
     store = _get_store(ctx)
 
@@ -143,7 +143,7 @@ def service_cmd(
     elif len(args) == 1:
         port_proto_str = args[0]
     else:
-        err_console.print("[red]Usage: cyb0x-s service [TARGET] <PORT/PROTO> [SERVICE][/red]")
+        err_console.print("[red]Usage: glacis service [TARGET] <PORT/PROTO> [SERVICE][/red]")
         sys.exit(1)
 
     if not target_obj:
@@ -593,7 +593,7 @@ def init_cmd(ctx: click.Context, directory: str, name: Optional[str], desc: str)
     )
     console.print(f"[green]✓ Workspace initialized & selected:[/green] [bold]{ws.name}[/bold]")
     console.print(f"  [dim]Location:[/dim] {resolved_path}")
-    console.print("  [dim]Local Database:[/dim] .cyb0x-s/notebook.db (portable)")
+    console.print("  [dim]Local Database:[/dim] .glacis/notebook.db (portable)")
     console.print("  [dim]Folders created:[/dim] scans/ enum/ screenshots/ notes/ loot/")
     console.print("  [dim]Scaffolded report:[/dim] findings.md")
 
@@ -668,7 +668,7 @@ def ws_init(ctx: click.Context, name: str, target_path: Optional[str], desc: str
     ws, resolved = store.init_workspace_directory(name=name, target_dir=dest, description=desc)
     console.print(f"[green]✓ Initialized workspace:[/green] [bold]{ws.name}[/bold]")
     console.print(f"  [dim]Directory:[/dim] {resolved}")
-    console.print("  [dim]Local Database:[/dim] .cyb0x-s/notebook.db (portable)")
+    console.print("  [dim]Local Database:[/dim] .glacis/notebook.db (portable)")
     console.print("  [dim]Scaffolding:[/dim] scans/ enum/ screenshots/ notes/ loot/ findings.md")
 
 
@@ -771,7 +771,7 @@ def import_cmd(ctx: click.Context, scan_file: str, apply: bool, no_copy: bool, w
 @click.option("--target", "-t", default=None, help="Target IP or ID")
 @click.pass_context
 def flag_cmd(ctx: click.Context, flag_type: str, value: str, target: Optional[str]) -> None:
-    """Record a captured user or root flag (e.g. cyb0x-s flag user <flag_value>)."""
+    """Record a captured user or root flag (e.g. glacis flag user <flag_value>)."""
     store = _get_store(ctx)
     t = store.resolve_target(target)
     if not t:
@@ -859,8 +859,8 @@ def failure_cmd_cli(
 @click.option("--copy", "-c", is_flag=True, help="Copy first matching command to clipboard")
 @click.pass_context
 def ref_cmd(ctx: click.Context, query: str, target: Optional[str], copy: bool) -> None:
-    """Search offline assessment cheat sheet and command references (e.g. cyb0x-s ref winrm)."""
-    from cyb0x_s.reference import search_reference
+    """Search offline assessment cheat sheet and command references (e.g. glacis ref winrm)."""
+    from glacis.reference import search_reference
 
     store = _get_store(ctx)
     t = store.resolve_target(target)
@@ -920,7 +920,7 @@ def audit_cmd(ctx: click.Context, target: Optional[str], audit_all: bool) -> Non
     else:
         t_obj = store.resolve_target(target) if target else store.get_active_target()
         if not t_obj:
-            err_console.print("[red]Error: No target specified and no active target set. Try 'cyb0x-s audit <IP>' or '--all'.[/red]")
+            err_console.print("[red]Error: No target specified and no active target set. Try 'glacis audit <IP>' or '--all'.[/red]")
             sys.exit(1)
         targets_to_audit = [t_obj]
 
@@ -1038,7 +1038,7 @@ def route_cmd(ctx: click.Context, destination: Optional[str], proxychains: bool,
                     p["pivot_route"] or "Dual-homed gateway",
                 )
             console.print(p_table)
-            console.print("[dim yellow]Run 'cyb0x-s route <IP>' to calculate route hops to any host.[/dim yellow]\n")
+            console.print("[dim yellow]Run 'glacis route <IP>' to calculate route hops to any host.[/dim yellow]\n")
             console.print("[dim]Use '--proxychains' to generate proxychains4.conf or '--mermaid' for diagrams.[/dim]\n")
         else:
             console.print("\n[dim]No pivot gateways documented yet. Document a pivot on a target with: :pivot <route> (e.g. :pivot 192.168.1.0/24 via socks5:1080)[/dim]\n")
@@ -1073,7 +1073,7 @@ def extract_cmd(
             return
         raw_text = p.read_text(encoding="utf-8", errors="replace")
     else:
-        console.print("[yellow]Usage: cyb0x-s extract <log_file> (or pipe command output via 'cat log.txt | cyb0x-s extract -')[/yellow]")
+        console.print("[yellow]Usage: glacis extract <log_file> (or pipe command output via 'cat log.txt | glacis extract -')[/yellow]")
         return
 
     candidates = extract_candidates(raw_text, default_target_ip=target)
@@ -1241,7 +1241,7 @@ def cmd_cli(
         return
 
     if not command_text:
-        err_console.print("[red]Usage: cyb0x-s cmd <COMMAND> [--golden] [--step <STEP>] [--notes <NOTES>] or --list[/red]")
+        err_console.print("[red]Usage: glacis cmd <COMMAND> [--golden] [--step <STEP>] [--notes <NOTES>] or --list[/red]")
         sys.exit(1)
 
     rec = store.add_command(
@@ -1268,7 +1268,7 @@ def clean_cmd(ctx: click.Context, file_path: Optional[str], copy: bool) -> None:
             raw_text = f.read()
     else:
         if sys.stdin.isatty():
-            err_console.print("[yellow]Reading from stdin... (Paste text and press Ctrl+D, or pipe via 'cat file | cyb0x-s clean')[/yellow]")
+            err_console.print("[yellow]Reading from stdin... (Paste text and press Ctrl+D, or pipe via 'cat file | glacis clean')[/yellow]")
         raw_text = sys.stdin.read()
 
     # Strip ANSI escapes and carriage returns
@@ -1291,11 +1291,11 @@ def clean_cmd(ctx: click.Context, file_path: Optional[str], copy: bool) -> None:
 @click.pass_context
 def tui_cmd(ctx: click.Context, theme_name: Optional[str] = None) -> None:
     """Launch the interactive terminal user interface."""
-    from cyb0x_s.tui.app import CyboxSafeApp
+    from glacis.tui.app import GlacisApp
 
     store = _get_store(ctx)
     selected_theme = theme_name or ctx.obj.get("theme_name")
-    app = CyboxSafeApp(store=store, theme=selected_theme)
+    app = GlacisApp(store=store, theme=selected_theme)
     app.run()
 
 

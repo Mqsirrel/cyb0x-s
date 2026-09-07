@@ -8,7 +8,7 @@ companion mock `dev/redesign_preview_v3.py` demonstrates the fixes.
 
 | # | Where | Evidence | Problem | Fix |
 |---|-------|----------|---------|-----|
-| F1 | everywhere | `▯` boxes before creds, flags, vuln tags, card titles | The terminal font has no emoji glyphs; 🔑🏁👑⚠️📷🕳️ render as tofu | Purge emoji from row markup. Text tags (`[VULN]`, `[U]`, `[R]`) + the glyph set that provably renders in your shots (`✓ ✗ → ○ ◐ ● ◈ ▸ █ ░`) carry all meaning. Optional later: `CYB0X_GLYPHS=nerd` for Nerd Font users |
+| F1 | everywhere | `▯` boxes before creds, flags, vuln tags, card titles | The terminal font has no emoji glyphs; 🔑🏁👑⚠️📷🕳️ render as tofu | Purge emoji from row markup. Text tags (`[VULN]`, `[U]`, `[R]`) + the glyph set that provably renders in your shots (`✓ ✗ → ○ ◐ ● ◈ ▸ █ ░`) carry all meaning. Optional later: `GLACIS_GLYPHS=nerd` for Nerd Font users |
 | F2 | status strip | `eJPT{user_f…` | Flags elided at 12 chars are unreadable — and flags are the highest-value strings in the app | Strip shows a workspace flag count (`flags 2/4`) only; full flags live in the Intel station, never elided |
 | F3 | cockpit creds | `[We` | Scope chip capped at 8 chars is information-free | Widen to ≥9 or drop the chip in the mini-list; full scope lives in the Vault |
 | F4 | notes panel | `…contains archive.zip and admi` (hard clip) | Long notes unreadable; no wrap, no detail view | Wrap notes to 2 lines in a VerticalScroll; Enter opens a full-text detail modal |

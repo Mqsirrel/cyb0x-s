@@ -1,11 +1,11 @@
-"""Integration tests for CYB0X-S CLI fast-capture commands."""
+"""Integration tests for GLACIS CLI fast-capture commands."""
 
 from pathlib import Path
 
 from click.testing import CliRunner
 
-from cyb0x_s.cli import cli
-from cyb0x_s.db.store import NotebookStore
+from glacis.cli import cli
+from glacis.db.store import NotebookStore
 
 
 def test_cli_target_capture(cli_runner: CliRunner, temp_db_path: Path) -> None:
@@ -25,7 +25,7 @@ def test_cli_service_capture(cli_runner: CliRunner, temp_db_path: Path) -> None:
     # Setup target first
     cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.20"])
 
-    # Record service with full syntax: cyb0x-s service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
+    # Record service with full syntax: glacis service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
     res = cli_runner.invoke(
         cli,
         ["--db", str(temp_db_path), "service", "10.10.10.20", "445/tcp", "SMB", "--version", "Samba 4.3"],

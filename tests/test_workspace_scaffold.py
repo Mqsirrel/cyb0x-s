@@ -1,12 +1,12 @@
-"""Tests for CYB0X-S per-lab workspace scaffolding and path portability."""
+"""Tests for GLACIS per-lab workspace scaffolding and path portability."""
 
 from pathlib import Path
 
 from click.testing import CliRunner
 
-from cyb0x_s.cli import cli
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import Evidence
+from glacis.cli import cli
+from glacis.db.store import NotebookStore
+from glacis.models import Evidence
 
 
 def test_init_workspace_directory_scaffolding(tmp_path: Path) -> None:

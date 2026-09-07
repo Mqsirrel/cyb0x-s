@@ -1,4 +1,4 @@
-"""SQLite schema definition for CYB0X-S (Safe Field Notebook).
+"""SQLite schema definition for GLACIS (Safe Field Notebook).
 
 Local-first, relational integrity, zero network dependencies.
 """

@@ -1,4 +1,4 @@
-"""Data models for CYB0X-S (Safe Field Notebook).
+"""Data models for GLACIS (Safe Field Notebook).
 
 Strictly passive data structures representing user-supplied observations.
 No AI, no automatic classification, no dynamic attack generation.

@@ -10,8 +10,8 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ChecklistStatus, Workspace
+from glacis.db.store import NotebookStore
+from glacis.models import ChecklistStatus, Workspace
 
 
 def export_markdown(
@@ -251,7 +251,7 @@ def export_txt(store: NotebookStore, workspace_id: Optional[int] = None) -> str:
         return "Empty Workspace\n"
 
     lines: List[str] = [
-        "CYB0X-S SAFE FIELD NOTEBOOK",
+        "GLACIS SAFE FIELD NOTEBOOK",
         f"Workspace: {ws.name}",
         f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
         "=" * 60,
@@ -312,7 +312,7 @@ def export_json(store: NotebookStore, workspace_id: Optional[int] = None) -> str
 
     data: Dict[str, Any] = {
         "version": "1.0",
-        "format": "cyb0x-s-backup",
+        "format": "glacis-backup",
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "workspace": ws.model_dump(mode="json"),
         "targets": [],

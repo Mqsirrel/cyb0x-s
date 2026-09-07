@@ -1,33 +1,33 @@
-# CYB0X-S — SAFE FIELD WORKSHEET
+# GLACIS — SAFE FIELD WORKSHEET
 
 **Local, human-controlled field worksheet and offline methodology companion.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ CYB0X-S WORKSHEET                    MODE: SAFE             │
+│ GLACIS WORKSHEET                    MODE: SAFE             │
 │ Local field notebook                 Human-controlled       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-CYB0X-S provides a fast, keyboard-driven terminal field worksheet for recording, structuring, and searching information discovered during cybersecurity labs, CTFs, and practical assessments.
+GLACIS provides a fast, keyboard-driven terminal field worksheet for recording, structuring, and searching information discovered during cybersecurity labs, CTFs, and practical assessments.
 
 ---
 
 ## 1. Core Design Principle
 
 > **The human decides and performs all security-testing actions.**  
-> **CYB0X-S records, organizes, and searches them.**
+> **GLACIS records, organizes, and searches them.**
 
-CYB0X-S is **NOT** an AI pentesting assistant, solver, attack planner, or automated scanner. It contains zero autonomous scripts, zero external AI API integrations, and zero background network scanners.
+GLACIS is **NOT** an AI pentesting assistant, solver, attack planner, or automated scanner. It contains zero autonomous scripts, zero external AI API integrations, and zero background network scanners.
 
 ---
 
 ## 2. Operational Posture & Transparency
 
 To maintain total transparency and avoid overclaiming:
-* **Default Mode: Strict Passive Recording**: Out of the box, CYB0X-S is a pure manual notebook. It stores only what you type, tracks your manual checklist progress, and searches your local records.
+* **Default Mode: Strict Passive Recording**: Out of the box, GLACIS is a pure manual notebook. It stores only what you type, tracks your manual checklist progress, and searches your local records.
 * **Offline Cognitive Playbooks**: Provides pre-compiled, static command syntax reference sheets (like a built-in `man` page or cheatsheet notebook) so you never need to leave the terminal to look up common utility flags.
-* **Optional Static Guidance (`derive_guidance`)**: CYB0X-S includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`CYB0X_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the user, it acts as a deterministic local dictionary lookup—never an AI, never a live scanner, and never an autonomous decision-maker.
+* **Optional Static Guidance (`derive_guidance`)**: GLACIS includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`GLACIS_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the user, it acts as a deterministic local dictionary lookup—never an AI, never a live scanner, and never an autonomous decision-maker.
 
 ### What It Does
 * **Organizes by Target**: Records target IPs, hostnames, OS info, and user observations.
@@ -36,9 +36,9 @@ To maintain total transparency and avoid overclaiming:
 * **Manages Credentials Safely**: Simple local vault with masked password display (`********`), explicit toggle reveal, and direct clipboard copying.
 * **Tracks Methodology Checklist**: Manually toggled status (`TODO`, `CHECKED`, `DEFERRED`, `DEAD-END`) with static open-source methodology templates.
 * **Captures Evidence**: Logs references and paths to screenshots, flag hashes, and command outputs without automatic collection.
-* **Fast CLI Capture**: Record discoveries in sub-second CLI commands (e.g. `cyb0x-s note "..."`, `cyb0x-s cred admin:pass`).
+* **Fast CLI Capture**: Record discoveries in sub-second CLI commands (e.g. `glacis note "..."`, `glacis cred admin:pass`).
 * **Standalone Export**: Export clean, human-readable Markdown notebooks, JSON backups, or plain text summaries.
-* **Fast Search**: Instant keyword search across notes, findings, services, creds, and evidence (`Ctrl+F` or `cyb0x-s search`).
+* **Fast Search**: Instant keyword search across notes, findings, services, creds, and evidence (`Ctrl+F` or `glacis search`).
 * **Clipboard Integration**: Instant copying of IPs, `IP:port`, credentials, or checklist items directly to your terminal clipboard (`y` key).
 
 ### What It Does NOT Do
@@ -47,23 +47,23 @@ To maintain total transparency and avoid overclaiming:
 * **NO Automatic Network Scanning**: Does not execute nmap, masscan, gobuster, or any background network probes.
 * **NO Real-Time Collaboration**: Strictly a single-user local SQLite notebook; no multi-user sharing or external sync.
 * **NO Automatic Vulnerability Classification**: Does not parse live banners to infer CVEs or probe targets.
-* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `CYB0X_DERIVE_GUIDANCE=1` or press **`G`** in the TUI.
+* **NO Implicit Derivation**: Access-potential ratings and suggested next-step commands are **off by default**. `derive_potential_and_next()` returns blank until you opt in via `GLACIS_DERIVE_GUIDANCE=1` or press **`G`** in the TUI.
 
 ---
 
 ## 3. Practical Exam & Certification Compliance (e.g., INE / eJPT)
 
-Candidates often ask whether CYB0X-S is permitted during practical certification exams like the INE eJPT, eWPT, or similar hands-on assessments.
+Candidates often ask whether GLACIS is permitted during practical certification exams like the INE eJPT, eWPT, or similar hands-on assessments.
 
-### How CYB0X-S Aligns with Certification Policies:
+### How GLACIS Aligns with Certification Policies:
 * **Local & Offline**: Zero cloud dependencies, zero external network traffic, and no telemetry.
-* **Personal Worksheet Model**: Practical exams permit candidates to maintain their own notes, command references, and methodology checklists. CYB0X-S is simply a fast terminal-based alternative to Obsidian, CherryTree, or a local markdown file.
-* **Human-in-the-Loop**: All commands must be executed manually by the candidate in their own terminal. CYB0X-S does not execute commands on your behalf.
+* **Personal Worksheet Model**: Practical exams permit candidates to maintain their own notes, command references, and methodology checklists. GLACIS is simply a fast terminal-based alternative to Obsidian, CherryTree, or a local markdown file.
+* **Human-in-the-Loop**: All commands must be executed manually by the candidate in their own terminal. GLACIS does not execute commands on your behalf.
 * **Zero Unauthorized Assistance**: Does not communicate with outside parties, mentors, or generative AI models.
 * **Zero Compromised Content**: Does not ship with or reference any actual exam machines, answers, past-attempt data, or walkthroughs.
 
 > [!NOTE]
-> **No Need to Cripple the Tool**: Compliance does not require disabling the core TUI, offline playbooks, or checklist features. As long as you maintain the exam-safe posture (keeping `derive_guidance` in its default `OFF` state and avoiding storing prohibited or NDA exam content), CYB0X-S functions strictly as an individual candidate's electronic field journal.
+> **No Need to Cripple the Tool**: Compliance does not require disabling the core TUI, offline playbooks, or checklist features. As long as you maintain the exam-safe posture (keeping `derive_guidance` in its default `OFF` state and avoiding storing prohibited or NDA exam content), GLACIS functions strictly as an individual candidate's electronic field journal.
 >
 > *Always consult the specific, current guidelines of your certification authority (INE, OffSec, etc.) prior to starting your exam session.*
 
@@ -92,7 +92,7 @@ Run your tools yourself (nmap, burp, terminal)
                ↓
      Discover something
                ↓
-    Record it in CYB0X-S
+    Record it in GLACIS
                ↓
        Continue working
                ↓
@@ -107,8 +107,8 @@ Run your tools yourself (nmap, burp, terminal)
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/cyb0x-s.git
-cd cyb0x-s
+git clone https://github.com/your-org/glacis.git
+cd glacis
 
 # Install locally with pip or uv
 pip install -e .
@@ -124,43 +124,43 @@ The CLI is engineered for minimal friction. It records verbatim what you supply:
 
 ### Record a Target
 ```bash
-cyb0x-s target 10.10.10.20 --hostname target.local --os Linux
+glacis target 10.10.10.20 --hostname target.local --os Linux
 # Shorthand alias:
-cyb0x-s t 10.10.10.20
+glacis t 10.10.10.20
 ```
 
 ### Record a Service
 ```bash
-cyb0x-s service 10.10.10.20 22/tcp SSH --version "OpenSSH 8.2p1"
-cyb0x-s service 10.10.10.20 80/tcp HTTP --version "Apache 2.4.41"
-cyb0x-s service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
+glacis service 10.10.10.20 22/tcp SSH --version "OpenSSH 8.2p1"
+glacis service 10.10.10.20 80/tcp HTTP --version "Apache 2.4.41"
+glacis service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
 # Shorthand alias:
-cyb0x-s s 445/tcp SMB
+glacis s 445/tcp SMB
 ```
 
 ### Record a Field Note
 ```bash
-cyb0x-s note "Port 80 redirects to /login"
+glacis note "Port 80 redirects to /login"
 # Shorthand alias:
-cyb0x-s n "backup share contains archive.zip"
+glacis n "backup share contains archive.zip"
 ```
 
 ### Record a Manually Discovered Finding
 ```bash
-cyb0x-s finding "SMB anonymous access enabled" --notes "read access to backup share" --severity HIGH
+glacis finding "SMB anonymous access enabled" --notes "read access to backup share" --severity HIGH
 # Shorthand alias:
-cyb0x-s f "HTTP default credentials on tomcat manager"
+glacis f "HTTP default credentials on tomcat manager"
 ```
 
 ### Record a Credential
 ```bash
-cyb0x-s cred admin:secret123 --source "backup.zip" --scope "SMB"
+glacis cred admin:secret123 --source "backup.zip" --scope "SMB"
 # Shorthand alias:
-cyb0x-s c user:Summer2024!
+glacis c user:Summer2024!
 ```
 
 ### Manage Checklists & Ready Methodology Templates
-CYB0X-S includes ready-to-use, standard penetration testing methodology templates (PTES, OWASP, NIST standard). These are 100% static cognitive safety nets and memory aids.
+GLACIS includes ready-to-use, standard penetration testing methodology templates (PTES, OWASP, NIST standard). These are 100% static cognitive safety nets and memory aids.
 
 | Template | Focus Area | Items | Description |
 |---|---|---|---|
@@ -179,16 +179,16 @@ CYB0X-S includes ready-to-use, standard penetration testing methodology template
 
 ```bash
 # Apply eJPT master methodology to active target:
-cyb0x-s checklist template ejpt
+glacis checklist template ejpt
 
 # Apply pivoting checklist for an internal host:
-cyb0x-s checklist template pivoting
+glacis checklist template pivoting
 
 # Check off an item:
-cyb0x-s checklist check "Directory and file fuzzing"
+glacis checklist check "Directory and file fuzzing"
 
 # List current checklist items:
-cyb0x-s checklist list
+glacis checklist list
 ```
 
 *(In the TUI, press **`m`** to open the interactive template picker)*
@@ -198,34 +198,34 @@ Instant, offline playbook lookup with dynamic target IP substitution:
 
 ```bash
 # Lookup WinRM commands for active target:
-cyb0x-s ref winrm
+glacis ref winrm
 
 # Lookup SMB commands and copy top syntax to clipboard:
-cyb0x-s ref smb --copy
+glacis ref smb --copy
 
 # Lookup PrivEsc, Pivoting, or Database commands:
-cyb0x-s ref privesc
-cyb0x-s ref mssql
-cyb0x-s ref mimikatz
+glacis ref privesc
+glacis ref mssql
+glacis ref mimikatz
 ```
 
 *(In the TUI, press **`r`** or type `:ref <keyword>` to open the interactive Cheat Sheet modal)*
 
 ### Search Across Everything
 ```bash
-cyb0x-s search "backup"
+glacis search "backup"
 ```
 
 ### Export Notes
 ```bash
 # Clean standalone Markdown notebook:
-cyb0x-s export --format md -o notes.md
+glacis export --format md -o notes.md
 
 # Full lossless JSON backup:
-cyb0x-s export --format json -o workspace_backup.json
+glacis export --format json -o workspace_backup.json
 
 # Plain text:
-cyb0x-s export --format txt
+glacis export --format txt
 ```
 
 ---
@@ -235,15 +235,15 @@ cyb0x-s export --format txt
 Launch the interactive field worksheet by running:
 
 ```bash
-cyb0x-s
+glacis
 # or
-cyb0x-s tui
+glacis tui
 ```
 
 ### The cockpit (station 1)
 
 ```
-┌─ CYB0X-S  worksheet · Lab-01 ───────────────────────────────────── targets 1 ─┐
+┌─ GLACIS  worksheet · Lab-01 ───────────────────────────────────── targets 1 ─┐
 │ ◆ 10.10.10.20  target.local  Linux   [IN-SCOPE]  🏁 —  👑 —   3 ports 1 cred   │
 │ NEXT ▸ SMB null session check   ██████░░░░  50% (2/4)              no blockers │
 │  1 ⌂ Cockpit    2 ▸ Playbooks    3 ▸ Credentials    4 ▸ Loot & Flags          │
@@ -325,7 +325,7 @@ python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png (needs Pi
 | `T` | Open the theme picker (live preview, Esc restores) |
 | `G` | Toggle derive guidance (auto access-potential / next-step) — **off** by default |
 | `?` | Help and shortcut reference |
-| `q` | Exit CYB0X-S |
+| `q` | Exit GLACIS |
 
 The footer only shows the five keys you need to get going (`q ? / y Space`);
 press `?` for the complete reference.

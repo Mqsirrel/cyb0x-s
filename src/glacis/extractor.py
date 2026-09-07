@@ -1,4 +1,4 @@
-"""Constrained Candidate Log Extractor for CYB0X-S (P4).
+"""Constrained Candidate Log Extractor for GLACIS (P4).
 
 Parses terminal, tool, and scan logs for:
     - Targets (IPs, Hostnames)
@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel
 
-from cyb0x_s.db.store import NotebookStore
+from glacis.db.store import NotebookStore
 
 
 class CandidateType(str, Enum):

@@ -1,27 +1,27 @@
-# CYB0X-S Assessment Field Workflow Guide
+# GLACIS Assessment Field Workflow Guide
 
-This guide walks through using **CYB0X-S** during a real cybersecurity lab, CTF, or penetration test.
+This guide walks through using **GLACIS** during a real cybersecurity lab, CTF, or penetration test.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ CYB0X-S WORKSHEET                                           │
+│ GLACIS WORKSHEET                                           │
 │ Field notes & methodology tracker    Human-controlled       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 1. Why CYB0X-S vs `notes.txt` or Obsidian?
+## 1. Why GLACIS vs `notes.txt` or Obsidian?
 
 During a timed lab or fast-paced assessment, context switching is expensive. Opening a heavy note-taking tool or manually formatting bullet points in `notes.txt` introduces friction:
 
-| Friction Point | `notes.txt` / Markdown file | CYB0X-S |
+| Friction Point | `notes.txt` / Markdown file | GLACIS |
 |---|---|---|
-| **Adding a port & service** | Open editor, find section, type `- 445/tcp SMB Samba 4.3` | `cyb0x-s s 10.10.10.20 445/tcp SMB -v "Samba 4.3"` (< 1s) |
+| **Adding a port & service** | Open editor, find section, type `- 445/tcp SMB Samba 4.3` | `glacis s 10.10.10.20 445/tcp SMB -v "Samba 4.3"` (< 1s) |
 | **Masking credentials** | Plaintext in file, risk of shoulder surfing / stream leak | Masked by default (`********`), space/toggle to reveal |
 | **Copying Target IP:Port** | Highlight with mouse, copy | Press `y` on service item |
 | **Tracking methodology** | Manual checkboxes, messy status changes | Press `Space` to cycle `TODO` → `CHECKED` → `DEFERRED` → `DEAD-END` |
-| **Exam preparation** | Complex formatting cleanup required at the end | Instant standalone Markdown export with `cyb0x-s export -f md` |
+| **Exam preparation** | Complex formatting cleanup required at the end | Instant standalone Markdown export with `glacis export -f md` |
 
 ---
 
@@ -36,9 +36,9 @@ $ ping -c 1 10.10.10.20
 PING 10.10.10.20 (10.10.10.20) 56(84) bytes of data.
 64 bytes from 10.10.10.20: icmp_seq=1 ttl=63 time=21.4 ms
 ```
-Record the target in CYB0X-S:
+Record the target in GLACIS:
 ```bash
-$ cyb0x-s target 10.10.10.20 --hostname target.local --os Linux
+$ glacis target 10.10.10.20 --hostname target.local --os Linux
 ✓ Target recorded: 10.10.10.20 (ID: 1)
 ```
 
@@ -53,15 +53,15 @@ PORT    STATE SERVICE     VERSION
 ```
 Instantly record each service:
 ```bash
-$ cyb0x-s s 10.10.10.20 22/tcp SSH --version "OpenSSH 8.2p1"
-$ cyb0x-s s 10.10.10.20 80/tcp HTTP --version "Apache 2.4.41"
-$ cyb0x-s s 10.10.10.20 445/tcp SMB --version "Samba 4.6.2"
+$ glacis s 10.10.10.20 22/tcp SSH --version "OpenSSH 8.2p1"
+$ glacis s 10.10.10.20 80/tcp HTTP --version "Apache 2.4.41"
+$ glacis s 10.10.10.20 445/tcp SMB --version "Samba 4.6.2"
 ```
 
 ### Step 3: Apply Static Methodology Checklist
 Load a standard methodology checklist to track what you check:
 ```bash
-$ cyb0x-s checklist template smb
+$ glacis checklist template smb
 ✓ Applied static template 'smb' (7 items) for 10.10.10.20
 ```
 
@@ -77,9 +77,9 @@ Anonymous login successful
 ```
 Check off the methodology item and record the finding:
 ```bash
-$ cyb0x-s checklist check "null session"
-$ cyb0x-s finding "SMB anonymous access enabled" --notes "Read access to 'backup' share" --severity HIGH
-$ cyb0x-s note "backup share contains company_backup.zip"
+$ glacis checklist check "null session"
+$ glacis finding "SMB anonymous access enabled" --notes "Read access to 'backup' share" --severity HIGH
+$ glacis note "backup share contains company_backup.zip"
 ```
 
 ### Step 5: Recording Stored Credentials
@@ -90,9 +90,9 @@ $ cat config.php | grep -i pass
 $db_user = 'admin';
 $db_pass = 'Summer2024!Secure';
 ```
-Store the credential into CYB0X-S:
+Store the credential into GLACIS:
 ```bash
-$ cyb0x-s cred admin:Summer2024!Secure --source "company_backup.zip / config.php" --scope "Web/Database"
+$ glacis cred admin:Summer2024!Secure --source "company_backup.zip / config.php" --scope "Web/Database"
 ✓ Credential saved (10.10.10.20): admin : ********
 ```
 Notice that the password is automatically masked on screen.
@@ -100,13 +100,13 @@ Notice that the password is automatically masked on screen.
 ### Step 6: Logging Screenshots & Evidence
 You capture a screenshot of your initial shell or user flag:
 ```bash
-$ cyb0x-s evidence "screenshots/proof_user_flag.png" --desc "User flag retrieved via web shell"
+$ glacis evidence "screenshots/proof_user_flag.png" --desc "User flag retrieved via web shell"
 ```
 
 ### Step 7: Live TUI Monitoring & Fast Toggling
-Keep `cyb0x-s` open in a tmux pane or split terminal:
+Keep `glacis` open in a tmux pane or split terminal:
 ```bash
-$ cyb0x-s
+$ glacis
 ```
 * Use `j`/`k` to navigate between findings and services.
 * Press `y` on the service to copy `10.10.10.20:445` or target IP directly to your clipboard.
@@ -117,7 +117,7 @@ $ cyb0x-s
 ### Step 8: Generating Standalone Deliverable / Report
 When you finish your assessment or lab session, export everything to a standalone Markdown notebook:
 ```bash
-$ cyb0x-s export --format md -o assessment_notes.md
+$ glacis export --format md -o assessment_notes.md
 ✓ Exported workspace to: /path/to/assessment_notes.md
 ```
 
@@ -154,7 +154,7 @@ Your Markdown export is completely readable and structured:
 
 ## 3. Passive Safety Rules in Practice
 
-1. **You make the decisions**: CYB0X-S will never recommend that you test SMB before HTTP.
-2. **Exact verbatim storage**: `cyb0x-s note "admin:pass"` stays a note. Only `cyb0x-s cred admin:pass` stores a credential.
-3. **No background tasks**: When `cyb0x-s` isn't responding to a keystroke or command, it does nothing.
+1. **You make the decisions**: GLACIS will never recommend that you test SMB before HTTP.
+2. **Exact verbatim storage**: `glacis note "admin:pass"` stays a note. Only `glacis cred admin:pass` stores a credential.
+3. **No background tasks**: When `glacis` isn't responding to a keystroke or command, it does nothing.
 4. **Offline and self-contained**: Everything is stored in a single local SQLite database.

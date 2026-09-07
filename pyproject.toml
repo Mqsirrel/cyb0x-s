@@ -1,10 +1,10 @@
 [project]
-name = "cyb0x-s"
+name = "glacis"
 version = "0.1.0"
-description = "CYB0X-S — Conservative, passive, human-controlled pentesting and lab field worksheet"
+description = "GLACIS — Conservative, passive, human-controlled pentesting and lab field worksheet"
 readme = "README.md"
 authors = [
-    { name = "CYB0X-S Contributors" }
+    { name = "GLACIS Contributors" }
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -15,8 +15,10 @@ dependencies = [
 ]
 
 [project.scripts]
-cyb0x-s = "cyb0x_s.cli:main"
-cys = "cyb0x_s.cli:main"
+glacis = "glacis.cli:main"
+gls = "glacis.cli:main"
+cyb0x-s = "glacis.cli:main"
+cys = "glacis.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

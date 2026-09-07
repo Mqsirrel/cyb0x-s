@@ -1,4 +1,4 @@
-"""Unified search engine for CYB0X-S across all notebook entities.
+"""Unified search engine for GLACIS across all notebook entities.
 
 Powered by SQLite FTS5 with Okapi BM25 ranking, prefix completion,
 automatic trigger synchronization, and graceful fallback.
@@ -11,7 +11,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from cyb0x_s.db.store import NotebookStore
+from glacis.db.store import NotebookStore
 
 
 class SearchMatch(BaseModel):

@@ -1,4 +1,4 @@
-"""Render all CYB0X-S palettes as a single PNG gallery (headless).
+"""Render all GLACIS palettes as a single PNG gallery (headless).
 
 Dev tool: boots the Textual app once per palette, rasterises each compositor
 frame, and tiles the thumbnails 2-up with a label in each palette's own accent.
@@ -6,7 +6,7 @@ frame, and tiles the thumbnails 2-up with a label in each palette's own accent.
 Usage:
     python dev/theme_gallery.py [out_dir]
 
-Requires Pillow. Reads the palettes from ``cyb0x_s.tui.theme``; the per-frame
+Requires Pillow. Reads the palettes from ``glacis.tui.theme``; the per-frame
 rendering is delegated to :func:`screenshot.render_strips` (which reads the
 active palette via :func:`screenshot._defaults`).
 """
@@ -25,9 +25,9 @@ from demo_seed import seed_demo  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 from screenshot import render_strips  # noqa: E402
 
-from cyb0x_s.db.store import NotebookStore  # noqa: E402
-from cyb0x_s.tui.app import CyboxSafeApp  # noqa: E402
-from cyb0x_s.tui.theme import PALETTES  # noqa: E402
+from glacis.db.store import NotebookStore  # noqa: E402
+from glacis.tui.app import CyboxSafeApp  # noqa: E402
+from glacis.tui.theme import PALETTES  # noqa: E402
 
 SIZE = (150, 34)
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")

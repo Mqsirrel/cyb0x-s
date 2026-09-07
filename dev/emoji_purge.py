@@ -63,7 +63,7 @@ def main() -> int:
     check_only = "--check" in sys.argv
     root = Path(__file__).resolve().parent.parent
     rewritten = 0
-    for path in sorted(root.glob("src/cyb0x_s/**/*.py")):
+    for path in sorted(root.glob("src/glacis/**/*.py")):
         text = path.read_text(encoding="utf-8")
         original = text
         hits = {}

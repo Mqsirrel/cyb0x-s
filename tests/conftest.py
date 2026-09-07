@@ -13,8 +13,8 @@ from typing import Any, Generator, Optional
 import pytest
 from click.testing import CliRunner
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.tui.widgets import clear_badge_caches
+from glacis.db.store import NotebookStore
+from glacis.tui.widgets import clear_badge_caches
 
 
 def _get_physical_core_count() -> int:
@@ -189,12 +189,12 @@ def session_config_dir(tmp_path_factory: pytest.TempPathFactory) -> Generator[Pa
 def isolate_test_environment(session_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Ensure every test runs in an isolated sandbox with clean config directory and GC sweep."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(session_config_dir))
-    monkeypatch.delenv("CYB0X_THEME", raising=False)
-    monkeypatch.delenv("CYB0X_PALETTE", raising=False)
-    monkeypatch.delenv("CYB0X_TRANSPARENT", raising=False)
-    theme_file = session_config_dir / "cyb0x-s" / "theme"
-    if theme_file.exists():
-        theme_file.unlink()
+    for v in ["GLACIS_THEME", "GLACIS_PALETTE", "GLACIS_TRANSPARENT", "CYB0X_THEME", "CYB0X_PALETTE", "CYB0X_TRANSPARENT"]:
+        monkeypatch.delenv(v, raising=False)
+    for sub in ["glacis", "cyb0x-s"]:
+        theme_file = session_config_dir / sub / "theme"
+        if theme_file.exists():
+            theme_file.unlink()
     yield
     # Post-test memory sweep: instantly reclaim circular Textual DOM graphs
     clear_badge_caches()
@@ -248,7 +248,7 @@ def _find_git_impacted_tests(repo_root: Path) -> Optional[set[str]]:
         if m.name in global_triggers:
             return None
 
-    src_dir = repo_root / "src" / "cyb0x_s"
+    src_dir = repo_root / "src" / "glacis"
     tests_dir = repo_root / "tests"
     all_tests = set(tests_dir.rglob("test_*.py"))
     modified_tests = modified.intersection(all_tests)
@@ -270,14 +270,14 @@ def _find_git_impacted_tests(repo_root: Path) -> Optional[set[str]]:
             mod_names = []
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name.startswith("cyb0x_s"):
+                    if alias.name.startswith("glacis"):
                         mod_names.append(alias.name)
             elif isinstance(node, ast.ImportFrom):
-                if node.module and node.module.startswith("cyb0x_s"):
+                if node.module and node.module.startswith("glacis"):
                     mod_names.append(node.module)
 
             for mod in mod_names:
-                rel = mod.replace("cyb0x_s", "").lstrip(".")
+                rel = mod.replace("glacis", "").lstrip(".")
                 parts = rel.split(".")
                 cand = src_dir.joinpath(*parts).with_suffix(".py")
                 if cand.is_file():
