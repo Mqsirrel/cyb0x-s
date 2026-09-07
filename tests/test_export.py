@@ -63,7 +63,7 @@ def test_export_txt(store: NotebookStore) -> None:
     store.add_note("Test TXT note", target_id=t.id)
 
     txt = export_txt(store)
-    assert "GLACIS SAFE FIELD NOTEBOOK" in txt
+    assert "GLACIS FIELD NOTEBOOK" in txt
     assert "TARGET: 10.10.10.20" in txt
     assert "Test TXT note" in txt
 

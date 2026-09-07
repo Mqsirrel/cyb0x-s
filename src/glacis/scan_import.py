@@ -1,9 +1,9 @@
-"""Offline scan ingestion engine for GLACIS (Safe Field Notebook).
+"""Offline scan ingestion engine for GLACIS Field Notebook.
 
-Strictly passive and exam-safe:
+Strictly passive and manual:
 - Parses local scan output files (Nmap XML, normal text, Gnmap, NetExec).
 - Operates 100% offline: zero network interaction, zero automated scanning.
-- Human-in-the-loop review: extracts candidates for operator confirmation.
+- Human-in-the-loop review: extracts candidates for user confirmation.
 - Preserves raw output files in workspace `scans/` folder as immutable evidence.
 - Tracks SHA-256 file hashes to prevent redundant duplicates.
 """
@@ -32,7 +32,7 @@ def compute_file_hash(file_path: Union[str, Path]) -> str:
 
 
 def inspect_scan_file(file_path: Union[str, Path]) -> List[Dict[str, Any]]:
-    """Parse a scan file offline for operator review without committing to database.
+    """Parse a scan file offline for user review without committing to database.
 
     Handles complete or truncated files gracefully (e.g. interrupted Nmap scans).
     """

@@ -1,4 +1,4 @@
-"""Static penetration testing cheat sheet & command reference manual for GLACIS.
+"""Static penetration testing command reference & command reference manual for GLACIS.
 
 Provides instant, offline command syntax lookup and standard methodology recipes with target IP substitution.
 Strictly passive reference database: human decides and executes all commands.

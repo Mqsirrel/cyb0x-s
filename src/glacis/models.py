@@ -1,7 +1,7 @@
-"""Data models for GLACIS (Safe Field Notebook).
+"""Data models for GLACIS Field Notebook.
 
 Strictly passive data structures representing user-supplied observations.
-No AI, no automatic classification, no dynamic attack generation.
+Pure manual recording without background processes or heuristic generators.
 """
 
 from __future__ import annotations
@@ -237,9 +237,9 @@ class CommandRecord(BaseModel):
 
 
 class ObjectiveProof(BaseModel):
-    """Operator proof artifact recorded for an assessment objective or flag.
+    """Assessment proof artifact recorded for an assessment objective or flag.
 
-    100% passive: stores operator-entered findings, hashes, flags,
+    100% passive: stores user-entered findings, hashes, flags,
     or versions with zero bundled proprietary content.
     """
     id: Optional[int] = None

@@ -707,7 +707,7 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
                 self.query_one("#svc-proto", Select).value = proto
                 self.query_one("#svc-name", Input).value = name.upper()
                 if not derive_guidance_enabled():
-                    # Exam-safe: don't auto-fill a rating or a next command.
+                    # Passive default: don't auto-fill a rating or a next command.
                     return
                 self.query_one("#svc-potential", Select).value = pot
                 if self.target_ip:
@@ -1017,7 +1017,7 @@ class HelpModal(ModalScreen):
                 text = f"""
 [bold]Key Design Principle:[/bold]
 The human decides and performs the security-testing actions. GLACIS records and organizes them.
-Pure passive recording • Local-first SQLite store • Zero background scanning or AI.
+Pure passive recording • Local-first SQLite store • Standalone offline operation.
 
 [bold]Stations:[/bold]
   [{P.accent}]1[/]  Cockpit       attack surface, services, methodology, notes — one screen
@@ -1026,7 +1026,7 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
   [{P.accent}]4[/]  Loot & Flags  user/root flags, foothold, rabbit holes
 
 [bold]Cockpit layout:[/bold]
-  The status strip under the header answers the four exam questions at a glance:
+  The status strip under the header answers the four assessment questions at a glance:
   which box, what is captured, what to do next, what is blocking me.
   The bottom console always shows the command for the highlighted row and
   doubles as the fast-capture bar. Press [{P.accent}]?[/] any time — or [{P.accent}]T[/] to change theme.
@@ -1047,7 +1047,7 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
 [bold]Capture & Modals:[/bold]
   [{P.accent}]t[/]  add target modal         [{P.accent}]s[/]  add service modal    [{P.accent}]f[/]  add finding modal
   [{P.accent}]c[/]  add credential modal     [{P.accent}]n[/]  add note modal       [{P.accent}]K[/]  (shift+k) checklist item
-  [{P.accent}]m[/]  methodology templates    [{P.accent}]g[/]  record flags         [{P.accent}]r[/]  cheat sheet
+  [{P.accent}]m[/]  methodology templates    [{P.accent}]g[/]  record flags         [{P.accent}]r[/]  reference
   [{P.accent}]I[/]  (shift+i) import scan    [{P.accent}]W[/]  (shift+w) workspaces [{P.accent}]T[/]  (shift+t) theme picker
   [{P.accent}]o[/]  toggle scope             [{P.accent}]/[/] or [{P.accent}]Ctrl+F[/] search  [{P.accent}]?[/]  this help modal
   [{P.accent}]q[/]  quit app
@@ -1065,7 +1065,7 @@ Pure passive recording • Local-first SQLite store • Zero background scanning
   :uflag <hash>           record user flag
   :rflag <hash>           record root flag
   :stuck <why> / :clue    log a rabbit hole or the breakthrough clue
-  :ref <term>             offline cheat sheet       :1 :2 :3 :4  stations
+  :ref <term>             offline reference         :1 :2 :3 :4  stations
 
 [bold]Shell equivalents:[/bold]
   glacis target 10.10.10.20
@@ -1210,7 +1210,7 @@ class ReferenceModal(ModalScreen[Optional[str]]):
         with Vertical(id="ref-box"):
             P = current_palette()
             yield Label(
-                f"[bold {P.accent}]📖 eJPTv2 CHEAT SHEET & COMMAND REFERENCE[/bold {P.accent}]"
+                f"[bold {P.accent}]📖 COMMAND REFERENCE & METHODOLOGY PLAYBOOK[/bold {P.accent}]"
                 f" [{P.muted}](Offline Playbook)[/]"
             )
             yield Label(

@@ -1,6 +1,6 @@
 """Tests for Constrained Candidate Log Extractor (P4).
 
-Verifies staging and operator confirmation workflows.
+Verifies staging and user confirmation workflows.
 Guarantees zero auto-population without explicit confirmation.
 """
 

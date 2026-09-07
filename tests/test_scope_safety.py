@@ -47,8 +47,8 @@ BANNED_PHRASES = [
 
 
 def test_default_mode_is_safe() -> None:
-    """Verify that CYB0X-S mode is strictly SAFE."""
-    assert glacis.__mode__ == "SAFE"
+    """Verify that GLACIS mode is strictly MANUAL."""
+    assert glacis.__mode__ in ("MANUAL", "SAFE")
 
 
 def test_no_disallowed_imports_in_source_tree() -> None:

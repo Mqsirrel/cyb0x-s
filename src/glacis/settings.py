@@ -44,7 +44,7 @@ def _from_env() -> bool:
 def derive_guidance_enabled() -> bool:
     """True when GLACIS may derive ratings/suggestions from recorded data.
 
-    Default: **False** (exam-safe posture).
+    Default: **False** (passive posture).
     """
     if _override is not None:
         return _override
