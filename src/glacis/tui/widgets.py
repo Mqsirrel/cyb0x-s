@@ -1305,15 +1305,15 @@ class LootAndFlagsWidget(Static):
         """Ensure Loot & Flags data is populated as soon as the station is mounted."""
         try:
             self.query_one("#loot-flags-box", Vertical).border_title = " ★ OBJECTIVES & CAPTURED FLAGS "
-            self.query_one("#loot-flags-box", Vertical).border_subtitle = " [g: Set Flags] "
+            self.query_one("#loot-flags-box", Vertical).border_subtitle = " [g: Flags] "
             self.query_one("#loot-foothold-box", Vertical).border_title = " ▸ INITIAL FOOTHOLD & EXPLOIT "
             self.query_one("#loot-foothold-box", Vertical).border_subtitle = " [:foothold] "
             self.query_one("#loot-privesc-box", Vertical).border_title = " ★ PRIVILEGE ESCALATION & ROOT "
             self.query_one("#loot-privesc-box", Vertical).border_subtitle = " [:privesc] "
             self.query_one("#loot-evidence-box", Vertical).border_title = " ◆ QUESTION & EVIDENCE PROOFS "
-            self.query_one("#loot-evidence-box", Vertical).border_subtitle = " [a: Add · e: Export · Enter: Copy] "
+            self.query_one("#loot-evidence-box", Vertical).border_subtitle = " [a: Add · e: Export] "
             self.query_one("#loot-files-box", Vertical).border_title = " ■ DISK LOOT & EVIDENCE FILES "
-            self.query_one("#loot-files-box", Vertical).border_subtitle = " [Enter: Copy · Space: Preview · v: Paste] "
+            self.query_one("#loot-files-box", Vertical).border_subtitle = " [Space: View · v: Paste] "
             self.query_one("#loot-failure-box", Vertical).border_title = " ▲ RABBIT HOLES & BREAKTHROUGHS "
             self.query_one("#loot-failure-box", Vertical).border_subtitle = " [:stuck · :clue] "
         except Exception:
@@ -1437,7 +1437,11 @@ class LootAndFlagsWidget(Static):
                     txt.append(f"   • {p.notes}", style="dim italic")
                 p_list.append(DataListItem(data_obj=p.answer_proof, display_text=txt))
         else:
-            txt = Text("  • No question proofs recorded yet. Press 'a' or :q <num> <proof>", style="dim italic")
+            txt = Text()
+            txt.append("  [+ PROOF]  ", style=f"bold {P.bg} on {P.accent}")
+            txt.append("Press 'a' or :q <num> <proof>\n", style=f"bold {P.text}")
+            txt.append("  [▸ EXPORT] ", style=f"bold {P.bg} on {P.warn}")
+            txt.append("Press 'e' to export exam report", style=f"{P.muted}")
             p_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # Disk Loot & Evidence Files List
@@ -1472,7 +1476,11 @@ class LootAndFlagsWidget(Static):
                 txt.append("   ❯ Enter: Copy path · Space: Preview", style="dim italic")
                 f_list.append(DataListItem(data_obj=rel, display_text=txt))
         else:
-            txt = Text("  • No files found in loot/ or screenshots/.\n  • Type :export wordlists or :paste-ev", style="dim italic")
+            txt = Text()
+            txt.append("  [LOOT DIR] ", style=f"bold {P.bg} on {P.accent}")
+            txt.append("No files in loot/ or screenshots/\n", style=f"bold {P.text}")
+            txt.append("  [▸ PASTE]  ", style=f"bold {P.bg} on {P.ok}")
+            txt.append("Press 'v' or :paste-ev from clipboard", style=f"{P.muted}")
             f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # Failure Log List
@@ -1491,7 +1499,11 @@ class LootAndFlagsWidget(Static):
                     txt.append(f" {fl.rule_for_next_time}", style="dim italic")
                 fail_list.append(DataListItem(data_obj=fl, display_text=txt))
         else:
-            txt = Text("  • No rabbit holes or failure logs recorded.\n  • Type :stuck <where> / :clue <breakthrough>", style="dim italic")
+            txt = Text()
+            txt.append("  [+ DEAD-END] ", style=f"bold {P.bg} on {P.danger}")
+            txt.append("Type :stuck <where/why>\n", style=f"bold {P.text}")
+            txt.append("  [+ CLUE]     ", style=f"bold {P.bg} on {P.ok}")
+            txt.append("Type :clue <breakthrough>", style=f"{P.muted}")
             fail_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
