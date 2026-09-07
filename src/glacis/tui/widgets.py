@@ -117,14 +117,15 @@ class TargetTreeWidget(Tree):
 
         def _add_target_to_node(parent_node: Any, target: Target) -> None:
             target_svcs = svc_map.get(target.id or 0, [])
-            icon = "✔" if target.root_flag else ("★" if target.initial_access_vuln or target.user_flag else "○")
+            icon = "★" if target.root_flag else ("◆" if target.initial_access_vuln or target.user_flag else "●")
+            icon_style = f"bold {P.accent}" if target.root_flag else (f"bold {P.warn}" if target.user_flag else f"bold {P.ok}")
             safe_ip = target.ip
             host = target.hostname or ""
             if len(host) > 10:
                 host = host[:9] + "…"
-            safe_host = f" ({host})" if host else ""
-            pivot_badge = f" [bold {P.warn}]⇄ [PIVOT][/]" if target.is_pivot else ""
-            label = f"{icon} [bold]{safe_ip}[/bold]{safe_host}{pivot_badge} [{P.muted}]({len(target_svcs)})[/]"
+            safe_host = f" [{P.text_soft}]({host})[/]" if host else ""
+            pivot_badge = f" [bold {P.bg} on {P.warn}][⇄ PIVOT][/]" if target.is_pivot else ""
+            label = f"[{icon_style}]{icon}[/] [bold {P.text}]{safe_ip}[/]{safe_host}{pivot_badge} [{P.muted}][{len(target_svcs)}][/]"
             if not target.is_in_scope:
                 label = f"[{P.muted} strike]{label} ⃠[/]"
 
@@ -140,15 +141,16 @@ class TargetTreeWidget(Tree):
             )
 
             for svc in target_svcs:
-                svc_icon = "✓" if svc.status.value == "CHECKED" else ("✗" if svc.status.value == "DEAD-END" else "→")
+                svc_icon = "✓" if svc.status.value == "CHECKED" else ("✖" if svc.status.value == "DEAD-END" else "●")
+                icon_col = P.ok if svc.status.value == "CHECKED" else (P.danger if svc.status.value == "DEAD-END" else P.accent)
                 pot_badge = (
-                    f" [bold {P.danger}][{svc.access_potential}][/]"
+                    f" [bold {P.bg} on {P.danger}][{svc.access_potential}][/]"
                     if svc.access_potential in ("HIGH", "CRITICAL")
                     else ""
                 )
-                port_text = f"{svc.port}/{svc.protocol}"
+                port_text = f"[{svc.port}/{svc.protocol}]"
                 svc_label = (
-                    f"{svc_icon} [bold {P.accent}]{port_text:<9}[/]"
+                    f"[{icon_col}]{svc_icon}[/] [{P.accent}]{port_text:<11}[/]"
                     f" [bold {P.text}]{svc.service}[/]{pot_badge}"
                 )
                 target_node.add_leaf(
@@ -1036,28 +1038,43 @@ class PlaybookBrowserWidget(Static):
     }
     #playbook-search-input {
         width: 1fr;
+        height: 3;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
+        border-subtitle-color: $text-muted;
+        border-subtitle-align: right;
         background: $surface;
+        padding: 0 1;
+    }
+    #playbook-search-input:focus {
+        border: double $accent;
+        border-title-color: $accent;
+        border-subtitle-color: $accent;
     }
     #playbook-body {
         height: 1fr;
         layout: horizontal;
     }
     #playbook-cat-panel {
-        width: 25%;
+        width: 26%;
         height: 1fr;
         border: solid $border;
         border-title-color: $text-soft;
         border-title-style: bold;
+        border-subtitle-color: $text-muted;
+        border-subtitle-align: right;
         background: $surface;
         padding: 0;
         margin-right: 1;
     }
     #playbook-cat-panel:focus-within {
-        border: solid $accent;
+        border: double $accent;
+        border-title-color: $accent;
+        border-subtitle-color: $accent;
     }
     #playbook-cmd-panel {
-        width: 75%;
+        width: 74%;
         height: 1fr;
         border: solid $border;
         border-title-color: $text-soft;
@@ -1068,7 +1085,9 @@ class PlaybookBrowserWidget(Static):
         padding: 0;
     }
     #playbook-cmd-panel:focus-within {
-        border: solid $accent;
+        border: double $accent;
+        border-title-color: $accent;
+        border-subtitle-color: $accent;
     }
     """
 
@@ -1081,7 +1100,7 @@ class PlaybookBrowserWidget(Static):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="playbook-top-bar"):
-            yield Input(placeholder="Search all commands: smb, winrm, mimikatz, pivot, privesc, sql, hydra...", id="playbook-search-input")
+            yield Input(placeholder="🔍 Search commands, tools, exploits (e.g. smb, winrm, mimikatz, privesc, pivot)...", id="playbook-search-input")
         with Horizontal(id="playbook-body"):
             with Vertical(id="playbook-cat-panel"):
                 yield ListView(id="playbook-cat-list")
@@ -1090,7 +1109,9 @@ class PlaybookBrowserWidget(Static):
 
     def on_mount(self) -> None:
         try:
-            self.query_one("#playbook-cat-panel", Vertical).border_title = " CATEGORIES "
+            self.query_one("#playbook-search-input", Input).border_title = " QUICK SEARCH "
+            self.query_one("#playbook-cat-panel", Vertical).border_title = " PLAYBOOK CATEGORIES "
+            self.query_one("#playbook-cat-panel", Vertical).border_subtitle = " [Tab ⇄] "
             self.query_one("#playbook-cmd-panel", Vertical).border_subtitle = " [Enter: Copy] "
         except Exception:
             pass
@@ -1109,17 +1130,22 @@ class PlaybookBrowserWidget(Static):
         cat_list = self.query_one("#playbook-cat-list", ListView)
         cat_list.clear()
 
-        # Count per category
+        P = current_palette()
         counts: dict[str, int] = {}
         for item in REFERENCE_PLAYBOOK:
             c = item["category"]
             counts[c] = counts.get(c, 0) + 1
 
-        all_txt = Text(f"★ ALL PLAYBOOKS ({len(REFERENCE_PLAYBOOK)})", style=S("accent"))
+        all_txt = Text()
+        all_txt.append(" [★ ALL] ", style=f"bold {P.bg} on {P.accent}")
+        all_txt.append(f"  All Playbooks [{len(REFERENCE_PLAYBOOK)}]", style=f"bold {P.text}")
         cat_list.append(DataListItem(data_obj="ALL", display_text=all_txt))
 
         for cat, cnt in sorted(counts.items()):
-            txt = Text(f"• {cat} ({cnt})", style=S("text"))
+            txt = Text()
+            txt.append(" ● ", style=f"bold {P.accent}")
+            txt.append(f"{cat:<16}", style=f"bold {P.text}")
+            txt.append(f" [{cnt}]", style=f"{P.muted}")
             cat_list.append(DataListItem(data_obj=cat, display_text=txt))
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -1148,6 +1174,8 @@ class PlaybookBrowserWidget(Static):
                 self.app.notify(f"Copied command: {cmd}")
 
     def _populate_commands(self) -> None:
+        import re
+
         from glacis.reference import search_reference
 
         cmd_list = self.query_one("#playbook-cmd-list", ListView)
@@ -1169,23 +1197,37 @@ class PlaybookBrowserWidget(Static):
         try:
             cmd_panel = self.query_one("#playbook-cmd-panel", Vertical)
             count_str = f" ({len(matches)} ready commands)" if matches else ""
-            cmd_panel.border_title = f" COMMAND REFERENCE: {self.selected_category}{count_str} "
-            cmd_panel.border_subtitle = " [Enter: Copy] "
+            cat_label = self.selected_category.upper()
+            cmd_panel.border_title = f" COMMAND REFERENCE · {cat_label}{count_str} "
+            cmd_panel.border_subtitle = " [Enter: Copy to Clipboard] "
         except Exception:
             pass
 
+        P = current_palette()
         if matches:
             for item in matches:
                 txt = Text()
-                txt.append(f"[{item['category']}] ", style=S("warn"))
-                txt.append(f"{item['title']}\n", style=S("text"))
-                txt.append(f"  ❯ {item['command']}\n", style=S("warn"))
+                cat = item.get("category", "CMD").upper()
+                txt.append(f"[{cat}] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(f" {item['title']}\n", style=f"bold {P.text}")
+
+                txt.append("  ❯ ", style=f"bold {P.ok}")
+                cmd_str = item["command"]
+                tokens = re.split(r"(<[^>]+>)", cmd_str)
+                for t in tokens:
+                    if t.startswith("<") and t.endswith(">"):
+                        txt.append(t, style=f"bold {P.warn} on {P.raised}")
+                    else:
+                        txt.append(t, style=f"bold {P.text_soft}")
+                txt.append("\n")
                 desc = item.get("desc", "")
                 if desc:
-                    txt.append(f"    • {desc}", style="dim italic")
+                    txt.append(f"    • {desc}\n", style=f"{P.muted}")
+                else:
+                    txt.append("\n")
                 cmd_list.append(DataListItem(data_obj=item["command"], display_text=txt))
         else:
-            txt = Text("  • No matching commands found.", style="dim italic")
+            txt = Text("\n  • No matching commands found for current filter.\n  • Press Backspace to clear search.", style="dim italic")
             cmd_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
 
@@ -1207,9 +1249,21 @@ class LootAndFlagsWidget(Static):
         width: 1fr;
         height: 9;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
+        border-subtitle-color: $text-muted;
+        border-subtitle-align: right;
         background: $surface;
         padding: 0 1;
         margin-right: 1;
+    }
+    .loot-box:last-child {
+        margin-right: 0;
+    }
+    .loot-box:focus-within {
+        border: double $accent;
+        border-title-color: $accent;
+        border-subtitle-color: $accent;
     }
     #loot-lower-container {
         height: 1fr;
@@ -1219,19 +1273,27 @@ class LootAndFlagsWidget(Static):
         width: 1fr;
         height: 1fr;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
+        border-subtitle-color: $text-muted;
+        border-subtitle-align: right;
         background: $surface;
-        padding: 0 1;
+        padding: 0;
         margin-right: 1;
     }
+    .loot-lower-box:last-child {
+        margin-right: 0;
+    }
+    .loot-lower-box:focus-within {
+        border: double $accent;
+        border-title-color: $accent;
+        border-subtitle-color: $accent;
+    }
     .loot-title {
-        text-style: bold;
-        color: $accent;
-        margin-bottom: 0;
+        display: none;
     }
     .loot-sub {
-        height: 1;
-        color: $text-muted;
-        margin-bottom: 1;
+        display: none;
     }
     """
 
@@ -1241,6 +1303,22 @@ class LootAndFlagsWidget(Static):
 
     def on_mount(self) -> None:
         """Ensure Loot & Flags data is populated as soon as the station is mounted."""
+        try:
+            self.query_one("#loot-flags-box", Vertical).border_title = " ★ OBJECTIVES & CAPTURED FLAGS "
+            self.query_one("#loot-flags-box", Vertical).border_subtitle = " [g: Set Flags] "
+            self.query_one("#loot-foothold-box", Vertical).border_title = " ▸ INITIAL FOOTHOLD & EXPLOIT "
+            self.query_one("#loot-foothold-box", Vertical).border_subtitle = " [:foothold] "
+            self.query_one("#loot-privesc-box", Vertical).border_title = " ★ PRIVILEGE ESCALATION & ROOT "
+            self.query_one("#loot-privesc-box", Vertical).border_subtitle = " [:privesc] "
+            self.query_one("#loot-evidence-box", Vertical).border_title = " ◆ QUESTION & EVIDENCE PROOFS "
+            self.query_one("#loot-evidence-box", Vertical).border_subtitle = " [a: Add · e: Export · Enter: Copy] "
+            self.query_one("#loot-files-box", Vertical).border_title = " ■ DISK LOOT & EVIDENCE FILES "
+            self.query_one("#loot-files-box", Vertical).border_subtitle = " [Enter: Copy · Space: Preview · v: Paste] "
+            self.query_one("#loot-failure-box", Vertical).border_title = " ▲ RABBIT HOLES & BREAKTHROUGHS "
+            self.query_one("#loot-failure-box", Vertical).border_subtitle = " [:stuck · :clue] "
+        except Exception:
+            pass
+
         if hasattr(self.app, "store"):
             try:
                 active = self.app.store.get_active_target()
@@ -1252,26 +1330,26 @@ class LootAndFlagsWidget(Static):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="loot-cards-container"):
-            with Vertical(classes="loot-box"):
-                yield Label("🏁 CAPTURED FLAGS", classes="loot-title")
+            with Vertical(id="loot-flags-box", classes="loot-box"):
+                yield Label("OBJECTIVES & CAPTURED FLAGS", classes="loot-title")
                 yield Static(id="loot-flags-content")
-            with Vertical(classes="loot-box"):
-                yield Label("⚡ INITIAL FOOTHOLD & EXPLOIT", classes="loot-title")
+            with Vertical(id="loot-foothold-box", classes="loot-box"):
+                yield Label("INITIAL FOOTHOLD & EXPLOIT", classes="loot-title")
                 yield Static(id="loot-foothold-content")
-            with Vertical(classes="loot-box"):
-                yield Label("👑 PRIVILEGE ESCALATION & ROOT PROOF", classes="loot-title")
+            with Vertical(id="loot-privesc-box", classes="loot-box"):
+                yield Label("PRIVILEGE ESCALATION & ROOT PROOF", classes="loot-title")
                 yield Static(id="loot-privesc-content")
         with Horizontal(id="loot-lower-container"):
             with Vertical(id="loot-evidence-box", classes="loot-lower-box"):
-                yield Label("📝 QUESTION & EVIDENCE PROOFS", classes="loot-title")
+                yield Label("QUESTION & EVIDENCE PROOFS", classes="loot-title")
                 yield Label("Press 'a' / :q <num> <proof> • Enter=Copy", classes="loot-sub")
                 yield ListView(id="loot-evidence-list")
             with Vertical(id="loot-files-box", classes="loot-lower-box"):
-                yield Label("📁 DISK LOOT & EVIDENCE FILES", classes="loot-title")
+                yield Label("DISK LOOT & EVIDENCE FILES", classes="loot-title")
                 yield Label("Enter=Copy Path • Space=Preview • v=Paste Screenshot", classes="loot-sub")
                 yield ListView(id="loot-files-list")
             with Vertical(id="loot-failure-box", classes="loot-lower-box"):
-                yield Label("🧠 RABBIT HOLES & BREAKTHROUGHS", classes="loot-title")
+                yield Label("RABBIT HOLES & BREAKTHROUGHS", classes="loot-title")
                 yield Label("Type :stuck <where> / :clue <breakthrough>", classes="loot-sub")
                 yield ListView(id="loot-failure-list")
 
@@ -1287,35 +1365,54 @@ class LootAndFlagsWidget(Static):
         # Flags Card
         f_txt = Text()
         if target:
-            f_txt.append("User Flag: ", style=S("accent"))
-            f_txt.append(f"{target.user_flag or '<NOT CAPTURED YET>'}\n", style=S("ok") if target.user_flag else S("muted", bold=False))
-            f_txt.append("Root Flag: ", style=S("warn"))
-            f_txt.append(f"{target.root_flag or '<NOT CAPTURED YET>'}\n\n", style=S("ok") if target.root_flag else S("muted", bold=False))
-            f_txt.append("[Press 'g' or type :uflag / :rflag to set flags]", style="dim italic")
+            if target.user_flag:
+                f_txt.append(" [✓ CAPTURED] ", style=f"bold {P.bg} on {P.ok}")
+                f_txt.append(" USER FLAG:\n", style=f"bold {P.text}")
+                f_txt.append(f" ❯ {target.user_flag}\n\n", style=f"bold {P.ok}")
+            else:
+                f_txt.append(" [⏳ PENDING]  ", style=f"bold {P.bg} on {P.muted}")
+                f_txt.append(" USER FLAG:\n", style=f"bold {P.text}")
+                f_txt.append(" ❯ <NOT CAPTURED YET>\n\n", style="dim italic")
+
+            if target.root_flag:
+                f_txt.append(" [★ ROOT CAPTURED] ", style=f"bold {P.bg} on {P.accent}")
+                f_txt.append(" ROOT FLAG:\n", style=f"bold {P.text}")
+                f_txt.append(f" ❯ {target.root_flag}\n", style=f"bold {P.accent}")
+            else:
+                f_txt.append(" [⏳ PENDING]  ", style=f"bold {P.bg} on {P.muted}")
+                f_txt.append(" ROOT FLAG:\n", style=f"bold {P.text}")
+                f_txt.append(" ❯ <NOT CAPTURED YET>\n", style="dim italic")
         else:
-            f_txt.append("No active target selected.\nPress 't' to add a target machine or switch with [ / ].", style="dim italic")
+            f_txt.append("\n  • No active target selected.\n  • Press 't' to add a target machine or switch with [ / ].", style="dim italic")
         self.query_one("#loot-flags-content", Static).update(f_txt)
 
         # Foothold Card
         fh_txt = Text()
         if target and (target.initial_access_vuln or target.foothold_cmd):
-            fh_txt.append("Vulnerability: ", style=S("accent"))
-            fh_txt.append(f"{target.initial_access_vuln or 'N/A'}\n", style=S("text"))
-            fh_txt.append("Context: ", style=S("accent"))
-            fh_txt.append(f"{target.foothold_context or 'N/A'}\n", style=S("text"))
-            fh_txt.append(f"Command:\n❯ {target.foothold_cmd or 'N/A'}", style=S("warn"))
+            if target.initial_access_vuln:
+                fh_txt.append(" [VULN] ", style=f"bold {P.bg} on {P.danger}")
+                fh_txt.append(f" {target.initial_access_vuln}\n", style=f"bold {P.text}")
+            if target.foothold_context:
+                fh_txt.append(" [VECT] ", style=f"bold {P.bg} on {P.accent}")
+                fh_txt.append(f" {target.foothold_context}\n", style=f"bold {P.text_soft}")
+            if target.foothold_cmd:
+                fh_txt.append(" [CMD]  ", style=f"bold {P.bg} on {P.warn}")
+                fh_txt.append(f" ❯ {target.foothold_cmd}", style=f"bold {P.warn}")
         else:
-            fh_txt.append("No foothold recorded yet.\nType :foothold <vuln> or :foot <cmd> to record.", style="dim italic")
+            fh_txt.append("\n  • No foothold recorded yet.\n  • Type :foothold <vuln> or :foot <cmd> to record.", style="dim italic")
         self.query_one("#loot-foothold-content", Static).update(fh_txt)
 
         # PrivEsc Card
         pe_txt = Text()
         if target and (target.privesc_vector or target.root_proof):
-            pe_txt.append("PrivEsc Vector: ", style=S("accent"))
-            pe_txt.append(f"{target.privesc_vector or 'N/A'}\n", style=S("text"))
-            pe_txt.append(f"Root Proof:\n❯ {target.root_proof or 'whoami && id && ip a'}", style=S("warn"))
+            if target.privesc_vector:
+                pe_txt.append(" [VECT] ", style=f"bold {P.bg} on {P.warn}")
+                pe_txt.append(f" {target.privesc_vector}\n", style=f"bold {P.text}")
+            proof = target.root_proof or "whoami && id && ip a"
+            pe_txt.append(" [ROOT] ", style=f"bold {P.bg} on {P.ok}")
+            pe_txt.append(f" ❯ {proof}", style=f"bold {P.accent}")
         else:
-            pe_txt.append("No PrivEsc recorded yet.\nType :privesc <vector> to record root proof.", style="dim italic")
+            pe_txt.append("\n  • No PrivEsc recorded yet.\n  • Type :privesc <vector> to record root proof.", style="dim italic")
         self.query_one("#loot-privesc-content", Static).update(pe_txt)
 
         # Question Proofs List
@@ -1333,11 +1430,11 @@ class LootAndFlagsWidget(Static):
 
             for p in sorted(proofs, key=sort_key):
                 txt = Text()
-                txt.append(f"[{p.question_num}] ", style=f"bold {P.accent}")
-                txt.append(f"[{p.category}] ", style=f"bold {P.warn}")
-                txt.append(f"{p.answer_proof}\n", style=f"bold {P.ok}")
+                txt.append(f"[{p.question_num}] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(f"[{p.category}] ", style=f"bold {P.bg} on {P.warn}")
+                txt.append(f" {p.answer_proof}\n", style=f"bold {P.ok}")
                 if p.notes:
-                    txt.append(f"   ℹ {p.notes}", style="dim italic")
+                    txt.append(f"   • {p.notes}", style="dim italic")
                 p_list.append(DataListItem(data_obj=p.answer_proof, display_text=txt))
         else:
             txt = Text("  • No question proofs recorded yet. Press 'a' or :q <num> <proof>", style="dim italic")
@@ -1368,14 +1465,14 @@ class LootAndFlagsWidget(Static):
                 size_str = f"{st.st_size} B" if st.st_size < 1024 else f"{st.st_size / 1024.0:.1f} KB"
                 rel = f"{sub}/{fp.name}"
                 txt = Text()
-                folder_style = S("accent") if sub == "loot" else (S("ok") if sub == "screenshots" else S("warn"))
-                txt.append(f"[{sub}] ", style=folder_style)
-                txt.append(f"{fp.name} ", style=f"bold {P.text}")
-                txt.append(f"({size_str})\n", style=f"{P.muted}")
-                txt.append("   ❯ Enter: Copy path • Space: Preview", style="dim italic")
+                folder_bg = P.accent if sub == "loot" else (P.ok if sub == "screenshots" else P.warn)
+                txt.append(f"[{sub.upper()}] ", style=f"bold {P.bg} on {folder_bg}")
+                txt.append(f" {fp.name} ", style=f"bold {P.text}")
+                txt.append(f"[{size_str}]\n", style=f"{P.muted}")
+                txt.append("   ❯ Enter: Copy path · Space: Preview", style="dim italic")
                 f_list.append(DataListItem(data_obj=rel, display_text=txt))
         else:
-            txt = Text("  • No files found in loot/ or screenshots/.\n  Type :export wordlists or :paste-ev", style="dim italic")
+            txt = Text("  • No files found in loot/ or screenshots/.\n  • Type :export wordlists or :paste-ev", style="dim italic")
             f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # Failure Log List
@@ -1384,15 +1481,17 @@ class LootAndFlagsWidget(Static):
         if failures:
             for fl in failures:
                 txt = Text()
-                txt.append("🕳️ [DEAD-END] ", style=S("danger"))
-                txt.append(f"{fl.where_stuck}\n", style=S("text"))
+                txt.append("[✖ DEAD-END] ", style=f"bold {P.bg} on {P.danger}")
+                txt.append(f" {fl.where_stuck}\n", style=f"bold {P.text}")
                 if fl.breakthrough_clue:
-                    txt.append(f"   🔑 Breakthrough Clue: {fl.breakthrough_clue}\n", style=S("ok"))
+                    txt.append("   [✓ CLUE] ", style=f"bold {P.bg} on {P.ok}")
+                    txt.append(f" {fl.breakthrough_clue}\n", style=f"bold {P.ok}")
                 if fl.rule_for_next_time:
-                    txt.append(f"   📌 Permanent Rule: {fl.rule_for_next_time}", style="dim italic")
+                    txt.append("   [• RULE] ", style=f"bold {P.bg} on {P.accent}")
+                    txt.append(f" {fl.rule_for_next_time}", style="dim italic")
                 fail_list.append(DataListItem(data_obj=fl, display_text=txt))
         else:
-            txt = Text("  • No rabbit holes or failure logs recorded. Type :stuck <where> / :clue <breakthrough>", style="dim italic")
+            txt = Text("  • No rabbit holes or failure logs recorded.\n  • Type :stuck <where> / :clue <breakthrough>", style="dim italic")
             fail_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -1506,26 +1605,41 @@ class CredentialMatrixWidget(Static):
         layout: vertical;
         padding: 0 1;
     }
+    #cred-matrix-top-bar {
+        height: 1;
+        layout: horizontal;
+        margin-bottom: 1;
+        padding: 0 1;
+    }
     #cred-matrix-hdr {
+        width: 1fr;
         height: 1;
     }
     #cred-matrix-sub {
+        width: auto;
         height: 1;
         color: $text-muted;
-        padding: 0 1;
-        margin-bottom: 1;
+        text-align: right;
     }
     #cred-matrix-table {
         height: 1fr;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
+        border-subtitle-color: $accent;
+        border-subtitle-align: right;
         background: $surface;
     }
     #cred-matrix-table:focus {
-        border: solid $accent;
+        border: double $accent;
+        border-title-color: $accent;
+        border-subtitle-color: $accent;
     }
     #cred-matrix-empty {
         height: 1fr;
         border: solid $border;
+        border-title-color: $text-soft;
+        border-title-style: bold;
         background: $surface;
         padding: 1 3;
         display: none;
@@ -1543,6 +1657,12 @@ class CredentialMatrixWidget(Static):
 
     def on_mount(self) -> None:
         """Ensure Credential Matrix data is populated as soon as mounted."""
+        try:
+            table = self.query_one("#cred-matrix-table", DataTable)
+            table.border_title = " CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX "
+            table.border_subtitle = " [Space: Cycle Status] · [Enter: Copy Spray Cmd] "
+        except Exception:
+            pass
         if hasattr(self.app, "store"):
             try:
                 creds = self.app.store.list_credentials()
@@ -1553,12 +1673,9 @@ class CredentialMatrixWidget(Static):
                 pass
 
     def compose(self) -> ComposeResult:
-        yield Label(
-            Text("CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX"),
-            id="cred-matrix-hdr",
-            classes="panel-header",
-        )
-        yield Label("", id="cred-matrix-sub", classes="panel-subtitle")
+        with Horizontal(id="cred-matrix-top-bar"):
+            yield Label("", id="cred-matrix-hdr")
+            yield Label("", id="cred-matrix-sub")
         yield Static(id="cred-matrix-empty")
         table = DataTable(id="cred-matrix-table", cursor_type="cell")
         table.zebra_stripes = True
@@ -1617,11 +1734,21 @@ class CredentialMatrixWidget(Static):
                 auth_pairs.append((t, s))
         self.auth_services = auth_pairs
 
-        # Summary subtitle
+        # Summary subtitle & KPI HUD
         tested = sum(1 for c in credentials if (c.status or "").lower() in ("valid", "tested"))
+        pwned = sum(
+            1 for c in credentials
+            if "pwn" in (c.status or "").lower()
+            or any("pwn" in (self.cell_states.get((c.id, s.id), "")).lower() for _, s in auth_pairs)
+        )
+
+        hdr_label = self.query_one("#cred-matrix-hdr", Label)
         subtitle = self.query_one("#cred-matrix-sub", Label)
 
+        P = current_palette()
+
         if not credentials:
+            hdr_label.update(Text("CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX", style=f"bold {P.accent}"))
             subtitle.update("No credentials recorded yet — press 'c' to add one or :c user:pass [scope]")
             empty_box.styles.display = "block"
             table.styles.display = "none"
@@ -1631,19 +1758,30 @@ class CredentialMatrixWidget(Static):
         empty_box.styles.display = "none"
         table.styles.display = "block"
 
-        if credentials:
-            sub_text = Text()
-            if auth_pairs:
-                sub_text.append(f"{len(credentials)} credential(s) • {tested} validated • {len(auth_pairs)} spray target(s)   ")
-            else:
-                sub_text.append(f"{len(credentials)} credential(s) recorded • Add SSH/SMB/RDP in Cockpit to enable 2D spray columns   ")
-            sub_text.append("[Space]", style=f"bold {current_palette().accent}")
-            sub_text.append("=Cycle Status  ")
-            sub_text.append("[Enter]", style=f"bold {current_palette().accent}")
-            sub_text.append("=Copy Spray Cmd  ")
-            sub_text.append("[c]", style=f"bold {current_palette().accent}")
-            sub_text.append("=Add")
-            subtitle.update(sub_text)
+        # KPI Badges
+        hdr_txt = Text()
+        hdr_txt.append(f" [ ★ {len(credentials)} CREDS ] ", style=f"bold {P.bg} on {P.accent}")
+        hdr_txt.append(" ")
+        hdr_txt.append(f" [ ✔ {tested} VALIDATED ] ", style=f"bold {P.bg} on {P.ok}")
+        if pwned:
+            hdr_txt.append(" ")
+            hdr_txt.append(f" [ ★ {pwned} PWNED ] ", style=f"bold {P.bg} on {P.warn}")
+        if auth_pairs:
+            hdr_txt.append(" ")
+            hdr_txt.append(f" [ ▸ {len(auth_pairs)} SPRAY TARGETS ] ", style=f"bold {P.bg} on {P.raised}")
+        hdr_label.update(hdr_txt)
+
+        # Action shortcuts
+        sub_text = Text()
+        sub_text.append("[Space]", style=f"bold {P.accent}")
+        sub_text.append(" Cycle Status  ")
+        sub_text.append("[Enter]", style=f"bold {P.accent}")
+        sub_text.append(" Copy Spray  ")
+        sub_text.append("[c]", style=f"bold {P.accent}")
+        sub_text.append(" Add Cred  ")
+        sub_text.append("[x]", style=f"bold {P.accent}")
+        sub_text.append(" Reveal")
+        subtitle.update(sub_text)
 
         # Setup Table Columns
         table.add_column("CREDENTIAL (USER : SECRET)", key="cred")
@@ -1659,12 +1797,22 @@ class CredentialMatrixWidget(Static):
 
         # Setup Table Rows
         for c in credentials:
-            secret = c.secret if c.id in revealed_ids else c.masked_secret
-            scope = f"[{c.service_scope.upper()}] " if c.service_scope else ""
-            cred_str = f"{scope}{c.username} : {secret}"
+            is_rev = c.id in revealed_ids
+            secret = c.secret if is_rev else ("•" * min(max(len(c.secret or "password"), 8), 16))
+            scope = c.service_scope.upper() if c.service_scope else "GLOBAL"
+            scope_color = P.accent if scope == "GLOBAL" else (P.warn if scope in ("SMB", "WINRM") else P.ok)
+
+            cred_txt = Text()
+            cred_txt.append(f"[{scope}] ", style=f"bold {P.bg} on {scope_color}")
+            cred_txt.append(f" {c.username} ", style=f"bold {P.text}")
+            cred_txt.append(": ", style=f"{P.muted}")
+            if is_rev:
+                cred_txt.append(f"{secret}", style=f"bold {P.warn}")
+            else:
+                cred_txt.append(f"{secret}", style=f"{P.muted}")
 
             if auth_pairs:
-                row_vals: List[Any] = [cred_str]
+                row_vals: List[Any] = [cred_txt]
                 for t, s in auth_pairs:
                     state = self.cell_states.get((c.id, s.id))
                     if not state:
@@ -1676,19 +1824,19 @@ class CredentialMatrixWidget(Static):
                     row_vals.append(self._format_state(state))
                 table.add_row(*row_vals, key=f"cred_{c.id}")
             else:
-                table.add_row(cred_str, c.service_scope or "GLOBAL", c.status.upper(), c.source or "-", "Add SSH/SMB/RDP in Cockpit to spray", key=f"cred_{c.id}")
+                table.add_row(cred_txt, c.service_scope or "GLOBAL", c.status.upper(), c.source or "-", "Add SSH/SMB/RDP in Cockpit to spray", key=f"cred_{c.id}")
 
     def _format_state(self, state: str) -> Text:
         P = current_palette()
         txt = Text()
         if "VALID" in state or "✔" in state:
-            txt.append(state, style=f"bold {P.ok}")
+            txt.append(" [✔ VALID] ", style=f"bold {P.bg} on {P.ok}")
         elif "PWN" in state or "👑" in state:
-            txt.append(state, style=f"bold {P.accent}")
+            txt.append(" [★ PWN3D] ", style=f"bold {P.bg} on {P.accent}")
         elif "INVALID" in state or "✗" in state:
-            txt.append(state, style=f"bold {P.danger}")
+            txt.append(" [✗ FAIL] ", style=f"bold {P.bg} on {P.danger}")
         else:
-            txt.append(state, style=f"{P.muted}")
+            txt.append(" [○ UNTESTED] ", style=f"dim {P.muted}")
         return txt
 
     def on_key(self, event: Any) -> None:
