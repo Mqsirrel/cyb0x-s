@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" rx="18" fill="#0b0f14"/>
+  <rect x="24" y="24" width="1152" height="672" rx="12" fill="#111820" stroke="#2b3540"/>
+  <circle cx="52" cy="52" r="6" fill="#ff6b6b"/><circle cx="74" cy="52" r="6" fill="#ffd166"/><circle cx="96" cy="52" r="6" fill="#06d6a0"/>
+  <text x="124" y="58" fill="#8b98a7" font-family="monospace" font-size="18">cyb0x-s  •  lab: web-01</text>
+  <text x="54" y="104" fill="#7ee787" font-family="monospace" font-size="17">TARGET</text>
+  <text x="54" y="136" fill="#f0f6fc" font-family="monospace" font-size="25">10.10.10.20</text>
+  <text x="54" y="164" fill="#8b98a7" font-family="monospace" font-size="16">Linux  •  target.local</text>
+  <line x1="54" y1="188" x2="1146" y2="188" stroke="#2b3540"/>
+  <text x="54" y="224" fill="#58a6ff" font-family="monospace" font-size="18">SERVICES</text>
+  <text x="54" y="260" fill="#f0f6fc" font-family="monospace" font-size="18">22/tcp   ssh     OpenSSH 9.2</text>
+  <text x="54" y="294" fill="#f0f6fc" font-family="monospace" font-size="18">80/tcp   http    Apache 2.4</text>
+  <text x="54" y="328" fill="#f0f6fc" font-family="monospace" font-size="18">443/tcp  https   nginx</text>
+  <text x="54" y="382" fill="#d29922" font-family="monospace" font-size="18">NOTE</text>
+  <text x="54" y="414" fill="#c9d1d9" font-family="monospace" font-size="18">/login redirects to /auth</text>
+  <text x="54" y="466" fill="#f85149" font-family="monospace" font-size="18">FINDING</text>
+  <text x="54" y="498" fill="#c9d1d9" font-family="monospace" font-size="18">Exposed backup endpoint</text>
+  <rect x="54" y="548" width="1092" height="76" rx="7" fill="#0b0f14" stroke="#2b3540"/>
+  <text x="74" y="578" fill="#8b98a7" font-family="monospace" font-size="15">COMMAND DECK</text>
+  <text x="74" y="606" fill="#f0f6fc" font-family="monospace" font-size="17">:t target   :s service   :n note   :f finding   :e evidence   :q quit</text>
+  <text x="54" y="660" fill="#7ee787" font-family="monospace" font-size="15">operator-controlled • local-first • no cloud AI</text>
+</svg>
