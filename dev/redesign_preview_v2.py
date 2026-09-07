@@ -1,4 +1,4 @@
-"""Runnable mock of CYB0X-S Redesign v2 — Mission Deck, rev 2.
+"""Runnable mock of GLACIS Redesign v2 — Mission Deck, rev 2.
 
 Updated after reading the real codebase: keeps the current cockpit's
 identity (Attack Surface rail, Services & Ports grid, Methodology, Notes,
@@ -11,7 +11,7 @@ ConsoleBar with live hints) and layers on the new elements:
   * Pivot-aware target rail with subnet grouping
   * Command palette (:) with searchable verbs — fixes discoverability
 
-Self-contained: fake data, no imports from cyb0x_s.
+Self-contained: fake data, no imports from glacis.
 Run from the repo root:
 
     uv run python dev/redesign_preview_v2.py
@@ -162,7 +162,7 @@ class MissionDeckPreview(App):
     def render_strip(self) -> str:
         t = str(timedelta(seconds=self.elapsed))
         ip = self.ips[self.target_idx]
-        return f" CYB0X-S . ejpt-lab   T+{t}   target {ip} [IN-SCOPE]   flags 2/4   creds 3   TGT {self.target_idx + 1}/3"
+        return f" GLACIS . ejpt-lab   T+{t}   target {ip} [IN-SCOPE]   flags 2/4   creds 3   TGT {self.target_idx + 1}/3"
 
     def render_console(self) -> str:
         cmd = RECIPES[self.recipe_idx]

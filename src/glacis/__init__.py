@@ -1,10 +1,10 @@
-"""CYB0X-S — Conservative, passive, human-controlled pentesting and lab field notebook."""
+"""GLACIS — Conservative, passive, human-controlled pentesting and lab field notebook."""
 
 __version__ = "0.1.0"
 __mode__ = "SAFE"
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import (
+from glacis.db.store import NotebookStore
+from glacis.models import (
     ChecklistItem,
     ChecklistStatus,
     Credential,

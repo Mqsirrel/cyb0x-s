@@ -12,11 +12,11 @@ from pathlib import Path
 import pytest
 from textual.widgets import Input, ListView
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.settings import set_derive_guidance
-from cyb0x_s.tui.app import CyboxSafeApp
-from cyb0x_s.tui.theme import current_palette
-from cyb0x_s.tui.widgets import (
+from glacis.db.store import NotebookStore
+from glacis.settings import set_derive_guidance
+from glacis.tui.app import CyboxSafeApp
+from glacis.tui.theme import current_palette
+from glacis.tui.widgets import (
     ConfirmModal,
     ConsoleBar,
     LootAndFlagsWidget,
@@ -254,7 +254,7 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
         await pilot.pause(0)
         assert app.theme_name == "caramel"
         assert current_palette().accent != before
-        assert app.theme == "cyb0x-caramel"
+        assert app.theme == "glacis-caramel"
 
         app.action_cycle_theme()
         await pilot.pause(0)
@@ -308,7 +308,7 @@ async def test_console_bar_live_hints_and_autocomplete(seeded_store: NotebookSto
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input, Static
 
-        from cyb0x_s.tui.widgets import ConsoleBar
+        from glacis.tui.widgets import ConsoleBar
 
         cmd = app.query_one("#cmd-input", Input)
         console = app.query_one("#guidance-box", ConsoleBar)
@@ -360,7 +360,7 @@ async def test_natural_language_command_aliases(seeded_store: NotebookStore) -> 
 @pytest.mark.asyncio
 async def test_change_methodology_tui(seeded_store: NotebookStore) -> None:
     """Test switching methodology template replaces current items and updates cockpit."""
-    from cyb0x_s.tui.widgets import TemplateSelectionModal
+    from glacis.tui.widgets import TemplateSelectionModal
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
@@ -457,7 +457,7 @@ async def test_sidebar_toggle_hotkey(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_service_space_cycles_status(seeded_store: NotebookStore) -> None:
     """Pressing Space on a highlighted service cycles its status."""
-    from cyb0x_s.models import ServiceStatus
+    from glacis.models import ServiceStatus
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
@@ -487,7 +487,7 @@ async def test_service_space_cycles_status(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_recipe_carousel_cycling(seeded_store: NotebookStore) -> None:
     """Pressing '.' and ',' cycles through alternative attack recipes for the service."""
-    from cyb0x_s.settings import set_derive_guidance
+    from glacis.settings import set_derive_guidance
 
     set_derive_guidance(True)
     app = CyboxSafeApp(store=seeded_store)
@@ -568,7 +568,7 @@ async def test_wordlist_command_execution(seeded_store: NotebookStore, monkeypat
     from textual.widgets import Input
 
     copied = []
-    monkeypatch.setattr("cyb0x_s.tui.commands.copy_to_clipboard", lambda text: copied.append(text))
+    monkeypatch.setattr("glacis.tui.commands.copy_to_clipboard", lambda text: copied.append(text))
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
@@ -591,7 +591,7 @@ async def test_credential_matrix_2d_spray(seeded_store: NotebookStore, monkeypat
     seeded_store.add_credential("admin", "P@ssword123", service_scope="global", target_id=target.id)
 
     copied = []
-    monkeypatch.setattr("cyb0x_s.tui.widgets.copy_to_clipboard", lambda text: copied.append(text))
+    monkeypatch.setattr("glacis.tui.widgets.copy_to_clipboard", lambda text: copied.append(text))
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
@@ -628,7 +628,7 @@ async def test_machine_status_strip_small_terminal_no_crash(seeded_store: Notebo
 
 def test_badge_caches_and_clear() -> None:
     """Test static protocol badge cache and status icon cache."""
-    from cyb0x_s.tui.widgets import (
+    from glacis.tui.widgets import (
         clear_badge_caches,
         get_protocol_badge,
         get_service_status_icon,
@@ -692,7 +692,7 @@ async def test_rapid_scrolling_stability(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_subnet_and_pivot_tree_rendering(seeded_store: NotebookStore) -> None:
     """Test multi-subnet grouping and pivot badge display in TargetTreeWidget."""
-    from cyb0x_s.tui.widgets import TargetTreeWidget
+    from glacis.tui.widgets import TargetTreeWidget
 
     # Add a second subnet target with pivot
     t1 = seeded_store.get_active_target()
@@ -715,7 +715,7 @@ async def test_subnet_and_pivot_tree_rendering(seeded_store: NotebookStore) -> N
 @pytest.mark.asyncio
 async def test_cred_matrix_persistence_in_tui(seeded_store: NotebookStore) -> None:
     """Test that toggling status in CredentialMatrixWidget persists to SQLite."""
-    from cyb0x_s.tui.widgets import CredentialMatrixWidget
+    from glacis.tui.widgets import CredentialMatrixWidget
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
@@ -737,7 +737,7 @@ async def test_cred_matrix_persistence_in_tui(seeded_store: NotebookStore) -> No
 @pytest.mark.asyncio
 async def test_exam_proof_ledger_and_commands(seeded_store: NotebookStore, tmp_path: Path) -> None:
     """Test recording exam proofs via :q command and markdown export."""
-    from cyb0x_s.tui.widgets import LootAndFlagsWidget
+    from glacis.tui.widgets import LootAndFlagsWidget
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
@@ -836,7 +836,7 @@ async def test_persistent_panel_focus_and_selection_memory(seeded_store: Noteboo
 
         # Switch back to Cockpit (Station 1)
         app.action_switch_tab("tab-worksheet")
-        await pilot.pause()
+        await pilot.pause(0.1)
 
         # Services list should retain focus and exact row index
         assert svc_list.has_focus, "Services list should retain keyboard focus on tab return"

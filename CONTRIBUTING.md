@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve CYB0X-S. This is an exam-companion project — keep
+Thanks for helping improve GLACIS. This is an exam-companion project — keep
 changes small, tested, and compliant with [docs/EXAM_COMPLIANCE.md](docs/EXAM_COMPLIANCE.md).
 
 ## Setup

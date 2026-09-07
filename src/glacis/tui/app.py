@@ -1,4 +1,4 @@
-"""Main Textual application for CYB0X-S Worksheet.
+"""Main Textual application for GLACIS Worksheet.
 
 High-efficiency, keyboard-driven terminal field worksheet and offensive cheatsheet station.
 Strictly passive: stores human-discovered data, provides instant offline command references.
@@ -24,9 +24,9 @@ from textual.widgets import (
     Tree,
 )
 
-from cyb0x_s.clipboard import copy_to_clipboard, extract_copy_value
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import (
+from glacis.clipboard import copy_to_clipboard, extract_copy_value
+from glacis.db.store import NotebookStore
+from glacis.models import (
     ChecklistItem,
     ChecklistStatus,
     Credential,
@@ -38,17 +38,17 @@ from cyb0x_s.models import (
     Service,
     Target,
 )
-from cyb0x_s.settings import (
+from glacis.settings import (
     derive_guidance_enabled,
     describe_derive_guidance,
     set_derive_guidance,
 )
-from cyb0x_s.templates import (
+from glacis.templates import (
     apply_template_to_store,
     get_guidance_for_service,
     get_template_guidance_for_title,
 )
-from cyb0x_s.tui.theme import (
+from glacis.tui.theme import (
     APP_CSS,
     PALETTES,
     S,
@@ -58,7 +58,7 @@ from cyb0x_s.tui.theme import (
     save_default_theme,
     set_palette,
 )
-from cyb0x_s.tui.widgets import (
+from glacis.tui.widgets import (
     AddCredentialModal,
     AddFindingModal,
     AddServiceModal,
@@ -85,10 +85,10 @@ from cyb0x_s.tui.widgets import (
 )
 
 
-class CyboxSafeApp(App):
-    """CYB0X-S Terminal Field Worksheet & Playbook Station."""
+class GlacisApp(App):
+    """GLACIS Terminal Field Worksheet & Playbook Station."""
 
-    TITLE = "CYB0X-S Worksheet"
+    TITLE = "GLACIS Worksheet"
     SUB_TITLE = "Field Notes • Methodology Roadmap • Playbook Reference"
 
     # The footer is a quick reminder, not documentation: only the handful of
@@ -138,7 +138,7 @@ class CyboxSafeApp(App):
 
     CSS = APP_CSS
 
-    # Everything in CYB0X-S is passive and human-driven, so the generic
+    # Everything in GLACIS is passive and human-driven, so the generic
     # Textual command palette adds nothing but a confusing ^p entry.
     ENABLE_COMMAND_PALETTE = False
 
@@ -241,7 +241,7 @@ class CyboxSafeApp(App):
         self.refresh_all()
         # Auto-detect local VPN IP (tun0 / wg0) if unset
         if hasattr(self.store, "get_lhost") and not self.store.get_lhost():
-            from cyb0x_s.db.store import detect_local_vpn_ip
+            from glacis.db.store import detect_local_vpn_ip
 
             detected_ip = detect_local_vpn_ip()
             if detected_ip:
@@ -547,7 +547,7 @@ class CyboxSafeApp(App):
 
     def _guidance_for_service(self, svc: Service, target_ip: str) -> None:
         """Push a service's static reference commands/recipes into the console bar."""
-        from cyb0x_s.templates import get_recipes_for_service
+        from glacis.templates import get_recipes_for_service
 
         try:
             guidance_box = self.query_one("#guidance-box", ConsoleBar)
@@ -1075,7 +1075,7 @@ class CyboxSafeApp(App):
                         self.notify(f"Copied Command: {obj.next_action}")
                         return
                     # Only auto-suggest a command for a recorded service when the
-                    # user has opted in; otherwise CYB0X-S stays passive.
+                    # user has opted in; otherwise GLACIS stays passive.
                     if derive_guidance_enabled():
                         svc_guidance = get_guidance_for_service(obj.service, obj.port)
                         if svc_guidance and svc_guidance.get("command"):
@@ -1268,7 +1268,7 @@ class CyboxSafeApp(App):
     def action_toggle_guidance(self) -> None:
         """Switch derived suggestions (access potential / next command) on or off.
 
-        Off is the default and the exam-safe posture: CYB0X-S then only records
+        Off is the default and the exam-safe posture: GLACIS then only records
         what you tell it and looks up references when you ask.
         """
         set_derive_guidance(not derive_guidance_enabled())
@@ -1588,7 +1588,7 @@ class CyboxSafeApp(App):
         if not val:
             return
 
-        from cyb0x_s.tui.commands import execute_command
+        from glacis.tui.commands import execute_command
 
         execute_command(self, val)
 
@@ -1622,4 +1622,8 @@ class CyboxSafeApp(App):
                 self.notify(f"Active workspace: {ws_name}")
 
         self.push_screen(WorkspaceModal(self.store), callback=on_ws_selected)
+
+
+# Backward-compatibility alias
+CyboxSafeApp = GlacisApp
 

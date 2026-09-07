@@ -1,4 +1,4 @@
-"""Standard manual penetration testing methodology templates for CYB0X-S.
+"""Standard manual penetration testing methodology templates for GLACIS.
 
 Provenance & Methodology Sources:
 All checklists and reference commands are compiled exclusively from open, public
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from cyb0x_s.models import ChecklistItem, ChecklistStatus
+from glacis.models import ChecklistItem, ChecklistStatus
 
 STATIC_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "network_assessment": {

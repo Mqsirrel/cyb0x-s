@@ -1,4 +1,4 @@
-"""Offline scan ingestion engine for CYB0X-S (Safe Field Notebook).
+"""Offline scan ingestion engine for GLACIS (Safe Field Notebook).
 
 Strictly passive and exam-safe:
 - Parses local scan output files (Nmap XML, normal text, Gnmap, NetExec).
@@ -16,9 +16,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import Lead, ScanImport, Target
-from cyb0x_s.parsers import parse_nmap_text, parse_scan_file
+from glacis.db.store import NotebookStore
+from glacis.models import Lead, ScanImport, Target
+from glacis.parsers import parse_nmap_text, parse_scan_file
 
 
 def compute_file_hash(file_path: Union[str, Path]) -> str:

@@ -7,16 +7,16 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.tui.app import CyboxSafeApp
-from cyb0x_s.settings import set_derive_guidance
+from glacis.db.store import NotebookStore
+from glacis.tui.app import CyboxSafeApp
+from glacis.settings import set_derive_guidance
 from dev.screenshot import render_strips
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import ListView, Static, Label, Input, TabbedContent, TabPane, Tree
 from rich.text import Text
-from cyb0x_s.tui.theme import APP_CSS, PALETTES, current_palette, set_palette
-from cyb0x_s.tui.widgets import WorksheetHeader, MachineStatusStrip, TargetTreeWidget
+from glacis.tui.theme import APP_CSS, PALETTES, current_palette, set_palette
+from glacis.tui.widgets import WorksheetHeader, MachineStatusStrip, TargetTreeWidget
 
 OUT_DIR = Path("/home/albraa/.gemini/antigravity/brain/88509fef-ff2a-469c-9481-9adbc3fa8f56")
 

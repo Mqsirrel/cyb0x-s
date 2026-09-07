@@ -3,10 +3,10 @@
 import pytest
 from textual.widgets import Input
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ChecklistStatus
-from cyb0x_s.tui.app import CyboxSafeApp
-from cyb0x_s.tui.widgets import SearchModal
+from glacis.db.store import NotebookStore
+from glacis.models import ChecklistStatus
+from glacis.tui.app import CyboxSafeApp
+from glacis.tui.widgets import SearchModal
 
 
 @pytest.mark.asyncio

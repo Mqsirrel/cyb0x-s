@@ -1,4 +1,4 @@
-"""Proof Invariant Completeness Audit Engine for CYB0X-S.
+"""Proof Invariant Completeness Audit Engine for GLACIS.
 
 Verifies the operational proof chain across all assessment targets:
     Host -> Service -> Foothold -> User Proof -> Root Proof
@@ -14,8 +14,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ServiceStatus
+from glacis.db.store import NotebookStore
+from glacis.models import ServiceStatus
 
 
 class AuditStatus(str, Enum):

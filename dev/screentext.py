@@ -1,4 +1,4 @@
-"""Dump the rendered text of CYB0X-S TUI screens for layout review.
+"""Dump the rendered text of GLACIS TUI screens for layout review.
 
 Dev tool: boots the app headless, drives it with keystrokes, and writes the
 compositor output as plain text (one file per screen) plus a report of lines
@@ -21,8 +21,8 @@ sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo  # noqa: E402
 
-from cyb0x_s.db.store import NotebookStore  # noqa: E402
-from cyb0x_s.tui.app import CyboxSafeApp  # noqa: E402
+from glacis.db.store import NotebookStore  # noqa: E402
+from glacis.tui.app import CyboxSafeApp  # noqa: E402
 
 
 def strips_to_lines(strips: Sequence, cols: int) -> list[str]:

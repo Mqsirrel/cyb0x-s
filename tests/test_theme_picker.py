@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 from textual.widgets import ListView
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.settings import derive_guidance_enabled, set_derive_guidance
-from cyb0x_s.tui.app import CyboxSafeApp
-from cyb0x_s.tui.theme import PALETTES
-from cyb0x_s.tui.widgets import (
+from glacis.db.store import NotebookStore
+from glacis.settings import derive_guidance_enabled, set_derive_guidance
+from glacis.tui.app import CyboxSafeApp
+from glacis.tui.theme import PALETTES
+from glacis.tui.widgets import (
     ConsoleBar,
     MachineStatusStrip,
     ThemePickerModal,
@@ -107,7 +107,7 @@ async def test_guidance_gate_console(seeded_store: NotebookStore) -> None:
 
 
 def test_resolve_palette_name_and_aliases() -> None:
-    from cyb0x_s.tui.theme import get_default_theme, resolve_palette_name
+    from glacis.tui.theme import get_default_theme, resolve_palette_name
 
     assert resolve_palette_name("1") == "slate"
     assert resolve_palette_name("2") == "midnight"
@@ -183,7 +183,7 @@ async def test_command_bar_prefix_theme_switch(seeded_store: NotebookStore) -> N
 async def test_set_default_theme_in_picker(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Test pressing 'd' in the theme picker sets the persistent default."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    from cyb0x_s.tui.theme import get_default_theme
+    from glacis.tui.theme import get_default_theme
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
@@ -204,7 +204,7 @@ async def test_set_default_theme_in_picker(seeded_store: NotebookStore, monkeypa
 async def test_command_bar_set_default_theme(seeded_store: NotebookStore, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Test setting default theme via command bar ':theme default sugary'."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    from cyb0x_s.tui.theme import get_default_theme
+    from glacis.tui.theme import get_default_theme
 
     app = CyboxSafeApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:

@@ -2,9 +2,9 @@
 
 import json
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.export import export_json, export_markdown, export_txt, import_json
-from cyb0x_s.models import ChecklistStatus, ServiceStatus
+from glacis.db.store import NotebookStore
+from glacis.export import export_json, export_markdown, export_txt, import_json
+from glacis.models import ChecklistStatus, ServiceStatus
 
 
 def test_export_markdown_format(store: NotebookStore) -> None:
@@ -63,7 +63,7 @@ def test_export_txt(store: NotebookStore) -> None:
     store.add_note("Test TXT note", target_id=t.id)
 
     txt = export_txt(store)
-    assert "CYB0X-S SAFE FIELD NOTEBOOK" in txt
+    assert "GLACIS SAFE FIELD NOTEBOOK" in txt
     assert "TARGET: 10.10.10.20" in txt
     assert "Test TXT note" in txt
 
@@ -80,7 +80,7 @@ def test_json_export_and_import_roundtrip(store: NotebookStore, temp_db_path) ->
     # Export JSON
     json_str = export_json(store)
     data = json.loads(json_str)
-    assert data["format"] == "cyb0x-s-backup"
+    assert data["format"] == "glacis-backup"
     assert len(data["targets"]) == 1
 
     # Import into a new fresh store

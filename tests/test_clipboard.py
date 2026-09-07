@@ -1,7 +1,7 @@
 """Tests for clipboard copying value extraction and escape formatting."""
 
-from cyb0x_s.clipboard import copy_osc52, extract_copy_value
-from cyb0x_s.models import (
+from glacis.clipboard import copy_osc52, extract_copy_value
+from glacis.models import (
     ChecklistItem,
     Credential,
     Evidence,
@@ -61,7 +61,7 @@ def test_osc52_generation() -> None:
 def test_compile_spray_command_shell_quoting() -> None:
     import shlex
 
-    from cyb0x_s.tui.widgets import compile_spray_command
+    from glacis.tui.widgets import compile_spray_command
 
     # Credential with single quote and shell metacharacters
     cmd = compile_spray_command("admin", "p@ss'word$123", "ssh", "10.10.10.20", 22)
@@ -73,7 +73,7 @@ def test_compile_spray_command_shell_quoting() -> None:
 
 
 def test_substitute_command_placeholders_lhost_lport() -> None:
-    from cyb0x_s.tui.widgets import substitute_command_placeholders
+    from glacis.tui.widgets import substitute_command_placeholders
 
     raw_cmd = "nc -lvnp <LPORT> # listen on <LHOST> (<ATTACKER_IP>) against <TARGET_IP> (<TARGET_SUBNET>) with <WORDLIST>"
     subbed = substitute_command_placeholders(
@@ -91,7 +91,7 @@ def test_substitute_command_placeholders_lhost_lport() -> None:
 def test_find_latest_screenshot(tmp_path) -> None:
     import time
 
-    from cyb0x_s.clipboard import find_latest_screenshot
+    from glacis.clipboard import find_latest_screenshot
 
     sc_dir = tmp_path / "Screenshots"
     sc_dir.mkdir(parents=True)
@@ -113,7 +113,7 @@ def test_find_latest_screenshot(tmp_path) -> None:
 
 
 def test_save_clipboard_image_fallback(tmp_path) -> None:
-    from cyb0x_s.clipboard import save_clipboard_image
+    from glacis.clipboard import save_clipboard_image
 
     dest = tmp_path / "clipboard_test.png"
     # When no clipboard tools or no image in clipboard, gracefully returns False

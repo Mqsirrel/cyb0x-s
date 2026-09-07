@@ -1,4 +1,4 @@
-"""Passive Multi-Hop Pivot Route Graph and Network Topology Engine for CYB0X-S.
+"""Passive Multi-Hop Pivot Route Graph and Network Topology Engine for GLACIS.
 
 Models operator-documented network segments, dual-homed jumpboxes,
 and multi-hop routing paths. Generates ProxyChains, Chisel, and SSH configs.
@@ -15,8 +15,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import Target
+from glacis.db.store import NotebookStore
+from glacis.models import Target
 
 
 class RouteHop(BaseModel):
@@ -266,7 +266,7 @@ def generate_proxychains_config(topology: NetworkTopology) -> str:
     """Generate a clean, copy-pasteable proxychains4.conf configuration block."""
     lines = [
         "# =============================================================================",
-        f"# CYB0X-S Generated Proxychains Configuration ({topology.workspace_name})",
+        f"# GLACIS Generated Proxychains Configuration ({topology.workspace_name})",
         "# Multi-Hop Dynamic Proxy Chain for Documented Pivots",
         "# =============================================================================",
         "",

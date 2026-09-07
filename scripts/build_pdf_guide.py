@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build a comprehensive, beautifully styled illustrated PDF Field Guide for CYB0X-S.
+"""Build a comprehensive, beautifully styled illustrated PDF Field Guide for GLACIS.
 
 Targeted for eJPTv2 / eCPPT practical pentesting exams and security assessments.
 Includes high-resolution UI screenshots from docs/screenshots/.
 Outputs to:
-  1. /home/albraa/Desktop/CYB0X-S_Field_Guide.pdf
-  2. /home/albraa/Documents/antigravity/kind-lavoisier/cyb0x-s/docs/CYB0X-S_Field_Guide.pdf
+  1. /home/albraa/Desktop/GLACIS_Field_Guide.pdf
+  2. /home/albraa/Documents/antigravity/kind-lavoisier/glacis/docs/GLACIS_Field_Guide.pdf
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ class NumberedCanvas(canvas.Canvas):
             self.drawString(
                 36,
                 792 - 25,
-                "CYB0X-S · Field Guide & Practical Exam Workflow Reference (eJPTv2 / eCPPT)",
+                "GLACIS · Field Guide & Practical Exam Workflow Reference (eJPTv2 / eCPPT)",
             )
             self.setStrokeColor(colors.HexColor("#CBD5E1"))
             self.setLineWidth(0.5)
@@ -228,7 +228,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     # =========================================================================
     # PAGE 1: TITLE, COMPLIANCE, 4 STATIONS & STATION 1 COCKPIT ANATOMY
     # =========================================================================
-    story.append(Paragraph("CYB0X-S: FIELD GUIDE & PRACTICAL WORKFLOW REFERENCE", title_style))
+    story.append(Paragraph("GLACIS: FIELD GUIDE & PRACTICAL WORKFLOW REFERENCE", title_style))
     story.append(Paragraph("High-Speed Offline Penetration Testing Worksheet · eJPTv2 / eCPPT Practical Companion", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_ACCENT, spaceBefore=0, spaceAfter=4))
 
@@ -236,10 +236,10 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     intro_table_data = [
         [
             Paragraph(
-                "<b>What is CYB0X-S?</b><br/>"
-                "CYB0X-S is a fast, keyboard-driven terminal worksheet and operational cockpit designed to eliminate exam cognitive overload. "
+                "<b>What is GLACIS?</b><br/>"
+                "GLACIS is a fast, keyboard-driven terminal worksheet and operational cockpit designed to eliminate exam cognitive overload. "
                 "It provides an offline state machine for host discovery, port tracking, credential reuse, syntax cheatsheets, and question proofs. "
-                "<b>It does not run autonomous exploits or rely on AI.</b> You retain 100% human control while CYB0X-S manages your operational memory.",
+                "<b>It does not run autonomous exploits or rely on AI.</b> You retain 100% human control while GLACIS manages your operational memory.",
                 callout_text,
             ),
             Paragraph(
@@ -335,7 +335,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     # =========================================================================
     story.append(Paragraph("3. Complete Keyboard Shortcuts Cheatsheet (\"Muscle Memory Map\")", h1_style))
     story.append(Paragraph(
-        "CYB0X-S is 100% operational from the keyboard. Single-letter keys trigger immediate actions unless an input modal is active:",
+        "GLACIS is 100% operational from the keyboard. Single-letter keys trigger immediate actions unless an input modal is active:",
         body_style,
     ))
 
@@ -529,9 +529,9 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph(
                 "<font color='#1D63B8'><b>PHASE 1: SCOPING & HOST DISCOVERY</b></font><br/>"
                 "<b>1. Host Discovery:</b> Identify alive target IPs (<code>nmap -sn 10.10.10.0/24</code> or arp-scan).<br/>"
-                "<b>2. Fast Add to CYB0X-S:</b> Type <code>:t 10.10.10.20</code> into console. Assign subnets: <code>:subnet 10.10.10.20 10.10.10.0/24</code>.<br/>"
+                "<b>2. Fast Add to GLACIS:</b> Type <code>:t 10.10.10.20</code> into console. Assign subnets: <code>:subnet 10.10.10.20 10.10.10.0/24</code>.<br/>"
                 "<b>3. Scope & Routing:</b> Tag dual-homed pivot machines with <code>:pivot 10.10.10.20 172.16.1.0/24</code> for automatic guidance.<br/>"
-                "<b>4. Import XML Option:</b> Mass scans can be imported directly: <code>cyb0x-s import /path/to/scan.xml</code>.",
+                "<b>4. Import XML Option:</b> Mass scans can be imported directly: <code>glacis import /path/to/scan.xml</code>.",
                 table_body_style,
             )
         ],
@@ -686,7 +686,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph(
                 "<b>LATERAL MOVEMENT WORKFLOW SUMMARY:</b><br/>"
                 "1. <b>Harvest:</b> Extract credentials from web app configs (<code>wp-config.php</code>, <code>.env</code>), DB dumps, or SAM registry hive.<br/>"
-                "2. <b>Input:</b> Press <b>[c]</b> in CYB0X-S to add the username and password.<br/>"
+                "2. <b>Input:</b> Press <b>[c]</b> in GLACIS to add the username and password.<br/>"
                 "3. <b>Matrix Spray:</b> Press <b>[3]</b> to open the grid. Highlight the intersection of the new credential with port 445 (SMB) or 22 (SSH).<br/>"
                 "4. <b>Execute:</b> Press <b>[Enter]</b> to copy the pre-built NetExec/SSH command, paste and run in your terminal.<br/>"
                 "5. <b>Record:</b> If admin/pwn3d, press <b>[Space]</b> twice to set <code>[PWN3D]</code>. You now have your next pivot point!",
@@ -788,7 +788,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph(
                 "<b>THE OFFLINE SUBMISSION DOSSIER (<code>:export exam</code>):</b><br/>"
                 "At any time, or before finalizing your exam answers in the INE portal, run <code>:export exam</code> in the bottom console. "
-                "CYB0X-S exports a complete, self-contained Markdown file containing: (1) Target Inventory & Subnet Map, (2) Solved Questions 1–35 with exact evidence strings, "
+                "GLACIS exports a complete, self-contained Markdown file containing: (1) Target Inventory & Subnet Map, (2) Solved Questions 1–35 with exact evidence strings, "
                 "(3) Captured User & Root Flags, (4) Discovered Credentials & Verification States, and (5) Audit Trail of all tested services. "
                 "Keep this document open in your text editor while answering the 35 exam questions to achieve 100% submission confidence.",
                 callout_text,
@@ -859,11 +859,11 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         [
             Paragraph(
                 "<b>EXAM START PROCEDURES:</b><br/>"
-                "1. Open terminal on your host or VM and launch: <code>cyb0x-s</code><br/>"
+                "1. Open terminal on your host or VM and launch: <code>glacis</code><br/>"
                 "2. Pick your visual theme: press <b>[T]</b>, select palette (e.g. <i>Sugary</i>, <i>Midnight</i>, <i>Slate</i>, or <i>Cyber</i>), press <b>[d]</b> to save as default.<br/>"
-                "3. Import initial Nmap scan: run <code>cyb0x-s import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code>.<br/>"
+                "3. Import initial Nmap scan: run <code>glacis import /path/to/scan.xml</code> or fast-add targets with <code>:t &lt;ip&gt;</code>.<br/>"
                 "4. <b>Offline Markdown Submission Bundle:</b> Run <code>:export exam</code> at any time to output a structured markdown report containing all recorded evidence, flags, credentials, and pivot paths.<br/>"
-                "5. <b>Database Safety:</b> Stored in <code>~/.local/share/cyb0x-s/worksheets.db</code>. 100% local, persistent, zero network calls, and fully compliant with INE exam rules.",
+                "5. <b>Database Safety:</b> Stored in <code>~/.local/share/glacis/worksheets.db</code>. 100% local, persistent, zero network calls, and fully compliant with INE exam rules.",
                 callout_text,
             )
         ]
@@ -890,10 +890,10 @@ def main() -> None:
     screenshots_dir = repo_root / "docs" / "screenshots"
 
     target_paths = [
-        Path("/home/albraa/Desktop/CYB0X-S_Field_Guide.pdf"),
-        Path("/home/albraa/Desktop/Documents_and_Media/CYB0X_Security_Docs/CYB0X-S_Operator_Guide.pdf"),
-        repo_root / "docs" / "CYB0X-S_Operator_Guide.pdf",
-        repo_root / "docs" / "CYB0X-S_Field_Guide.pdf",
+        Path("/home/albraa/Desktop/GLACIS_Field_Guide.pdf"),
+        Path("/home/albraa/Desktop/Documents_and_Media/CYB0X_Security_Docs/GLACIS_Operator_Guide.pdf"),
+        repo_root / "docs" / "GLACIS_Operator_Guide.pdf",
+        repo_root / "docs" / "GLACIS_Field_Guide.pdf",
     ]
 
     for p in target_paths:

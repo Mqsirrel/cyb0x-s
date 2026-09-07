@@ -7,7 +7,7 @@ zero background scanners, and zero outbound network/LLM dependencies.
 import ast
 from pathlib import Path
 
-import cyb0x_s
+import glacis
 
 DISALLOWED_IMPORTS = {
     # AI / LLM SDKs
@@ -48,12 +48,12 @@ BANNED_PHRASES = [
 
 def test_default_mode_is_safe() -> None:
     """Verify that CYB0X-S mode is strictly SAFE."""
-    assert cyb0x_s.__mode__ == "SAFE"
+    assert glacis.__mode__ == "SAFE"
 
 
 def test_no_disallowed_imports_in_source_tree() -> None:
-    """AST parse every source file in cyb0x_s and verify no prohibited packages are imported."""
-    src_dir = Path(__file__).resolve().parent.parent / "src" / "cyb0x_s"
+    """AST parse every source file in glacis and verify no prohibited packages are imported."""
+    src_dir = Path(__file__).resolve().parent.parent / "src" / "glacis"
     assert src_dir.is_dir()
 
     for py_file in src_dir.rglob("*.py"):
@@ -77,7 +77,7 @@ def test_no_disallowed_imports_in_source_tree() -> None:
 
 def test_no_banned_ai_marketing_phrases_in_code() -> None:
     """Verify that codebase does not describe itself as an AI assistant, attack planner, etc."""
-    src_dir = Path(__file__).resolve().parent.parent / "src" / "cyb0x_s"
+    src_dir = Path(__file__).resolve().parent.parent / "src" / "glacis"
     for py_file in src_dir.rglob("*.py"):
         content_lower = py_file.read_text(encoding="utf-8").lower()
         for phrase in BANNED_PHRASES:

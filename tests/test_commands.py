@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cyb0x_s.tui.commands import normalize_command
+from glacis.tui.commands import normalize_command
 
 
 def test_normalize_empty_and_whitespace() -> None:
@@ -57,7 +57,7 @@ def test_normalize_wordlist_aliases() -> None:
 
 
 def test_wordlist_aliases_dictionary() -> None:
-    from cyb0x_s.tui.commands import WORDLIST_ALIASES
+    from glacis.tui.commands import WORDLIST_ALIASES
 
     assert "rockyou" in WORDLIST_ALIASES
     assert "common" in WORDLIST_ALIASES
@@ -117,8 +117,8 @@ def test_normalize_export_crack_and_evidence() -> None:
 def test_execute_lhost_lport_and_crack() -> None:
     from unittest.mock import MagicMock
 
-    from cyb0x_s.db.store import NotebookStore
-    from cyb0x_s.tui.commands import execute_command
+    from glacis.db.store import NotebookStore
+    from glacis.tui.commands import execute_command
 
     store = NotebookStore(":memory:")
     t = store.add_target("10.10.10.60")

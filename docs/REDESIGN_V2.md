@@ -1,4 +1,4 @@
-# CYB0X-S UI/UX Redesign v2 — "Mission Deck"
+# GLACIS UI/UX Redesign v2 — "Mission Deck"
 
 Status: proposed · Scope: TUI + CLI polish · Compliance: governed by
 [EXAM_COMPLIANCE.md](EXAM_COMPLIANCE.md) — every rule there applies to this
@@ -37,7 +37,7 @@ Names are cheap; consistent mental slots are not. Digits 1–4 keep working.
 ## 3. Layout
 
 ```
-┌ CYB0X-S · ejpt-lab ───── T+04:12:35 ─ target 10.10.10.5 (web) ─ flags 2/4 ─ [######..] 62% ┐
+┌ GLACIS · ejpt-lab ───── T+04:12:35 ─ target 10.10.10.5 (web) ─ flags 2/4 ─ [######..] 62% ┐
 │                                                                                             │
 │ ┌ TARGETS ──────────┐ ┌ ENGAGE ─────────────────────────────────────────────────────────┐  │
 │ │ 10.10.10.5  ●3    │ │ PORT   SERVICE   STATUS      CRED    NEXT ACTION                │  │
@@ -109,7 +109,7 @@ Keep the current rule — zero literal colours in widget CSS — and extend it:
 ## 6. Motion and feedback
 
 - Transitions ≤ 100 ms, opacity/offset only. No looping animations by
-  default; `CYB0X_REDUCED_MOTION=1` kills all animation.
+  default; `GLACIS_REDUCED_MOTION=1` kills all animation.
 - Copy action: console border flashes `success` for ~120 ms (see preview).
 - Long operations (scan import, export) show an indeterminate bar in the
   StatusStrip, never a modal spinner that blocks keys.
@@ -143,7 +143,7 @@ All of the above lands on `tui/widgets.py` (~88 KB) and `tui/app.py`
 (~60 KB). Before P2, split them — no visual change, pure moves:
 
 ```
-src/cyb0x_s/tui/
+src/glacis/tui/
 ├── app.py            # App shell, bindings, mode routing only
 ├── widgets/
 │   ├── __init__.py

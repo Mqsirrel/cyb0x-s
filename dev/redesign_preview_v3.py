@@ -10,7 +10,7 @@ Fixes demonstrated:
   * Vault gains a lower SPRAY QUEUE pane filling the dead space.
   * Credential scope chip widened so [WEB/SSH] never becomes "[We".
 
-Self-contained mock, no cyb0x_s imports. Run:
+Self-contained mock, no glacis imports. Run:
     uv run python dev/redesign_preview_v3.py
 Keys: 1-4 stations . b rail . : palette . enter copy-flash . q quit
 """
@@ -155,7 +155,7 @@ class MissionDeckV3(App):
     def render_strip(self) -> str:
         t = str(timedelta(seconds=self.elapsed))
         return (
-            f"CYB0X-S > [Lab-Assessment-01]   T+{t}\n"
+            f"GLACIS > [Lab-Assessment-01]   T+{t}\n"
             f"* 10.10.10.20 target.local (Linux) [IN-SCOPE]   "
             f"ports 3  creds 2  vulns 2  flags 2/2 workspace-wide   dead-ends 1"
         )

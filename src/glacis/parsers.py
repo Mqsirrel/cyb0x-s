@@ -1,4 +1,4 @@
-"""Offline scan parsers for CYB0X-S.
+"""Offline scan parsers for GLACIS.
 
 Strictly passive: parses locally saved scan files (Nmap XML, Nmap normal text, Gnmap, NetExec).
 Zero network activity: pure file reader.

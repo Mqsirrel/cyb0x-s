@@ -1,7 +1,7 @@
 """Tests for unified cross-entity SQLite FTS5 search with BM25 ranking."""
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.search import search_notebook
+from glacis.db.store import NotebookStore
+from glacis.search import search_notebook
 
 
 def test_cross_entity_search(store: NotebookStore) -> None:

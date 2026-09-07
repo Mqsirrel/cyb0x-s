@@ -1,4 +1,4 @@
-"""Textual widgets and modal dialogs for CYB0X-S Worksheet."""
+"""Textual widgets and modal dialogs for GLACIS Worksheet."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import DataTable, Input, Label, ListItem, ListView, Static, Tree
 
-from cyb0x_s.clipboard import copy_to_clipboard
-from cyb0x_s.models import (
+from glacis.clipboard import copy_to_clipboard
+from glacis.models import (
     Credential,
     Service,
     Target,
 )
-from cyb0x_s.templates import get_template_guidance_for_title
-from cyb0x_s.tui.theme import (
+from glacis.templates import get_template_guidance_for_title
+from glacis.tui.theme import (
     S,
     current_palette,
     mix,
@@ -230,7 +230,7 @@ class WorksheetHeader(Static):
     def render(self) -> Text:
         P = current_palette()
         t = Text()
-        t.append("CYB0X-S ", style=f"bold {P.accent}")
+        t.append("GLACIS ", style=f"bold {P.accent}")
         t.append("WORKSHEET", style=f"bold {P.text_soft}")
         t.append("  ›  ", style=f"{P.muted}")
         t.append(f"[ {self.workspace_name} ]", style=f"bold {P.accent}")
@@ -736,7 +736,7 @@ class ConsoleBar(Container):
             tip_line.append("Shows all keyboard shortcuts and interactive guide", style=f"{P.muted}")
         elif v.startswith(":q"):
             cmd_line.append("[QUIT] ", style=f"bold {P.warn}")
-            cmd_line.append("Press Enter to exit CYB0X-S", style=f"bold {P.text}")
+            cmd_line.append("Press Enter to exit GLACIS", style=f"bold {P.text}")
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Exits the application", style=f"{P.muted}")
         else:
@@ -1002,7 +1002,7 @@ def clear_badge_caches() -> None:
 # Modal Dialogs & Screens (Extracted to modals.py for clean modularity)
 # -------------------------------------------------------------------------
 
-from cyb0x_s.tui.modals import (  # noqa: E402, F401
+from glacis.tui.modals import (  # noqa: E402, F401
     AddCredentialModal,
     AddFindingModal,
     AddServiceModal,
@@ -1105,7 +1105,7 @@ class PlaybookBrowserWidget(Static):
         self._populate_commands()
 
     def _populate_categories(self) -> None:
-        from cyb0x_s.reference import REFERENCE_PLAYBOOK
+        from glacis.reference import REFERENCE_PLAYBOOK
 
         cat_list = self.query_one("#playbook-cat-list", ListView)
         cat_list.clear()
@@ -1149,7 +1149,7 @@ class PlaybookBrowserWidget(Static):
                 self.app.notify(f"Copied command: {cmd}")
 
     def _populate_commands(self) -> None:
-        from cyb0x_s.reference import search_reference
+        from glacis.reference import search_reference
 
         cmd_list = self.query_one("#playbook-cmd-list", ListView)
         cmd_list.clear()
@@ -1417,7 +1417,7 @@ class LootAndFlagsWidget(Static):
             event.stop()
         elif event.key in ("v", "V"):
             if hasattr(self.app, "execute_command"):
-                from cyb0x_s.tui.commands import execute_command
+                from glacis.tui.commands import execute_command
                 execute_command(self.app, ":paste-ev")
             event.stop()
         elif event.key == "space":
@@ -1427,7 +1427,7 @@ class LootAndFlagsWidget(Static):
                 if item.data_obj and not item.is_placeholder:
                     from pathlib import Path
 
-                    from cyb0x_s.tui.modals import LootPreviewModal
+                    from glacis.tui.modals import LootPreviewModal
                     ws = self.app.store.get_active_workspace()
                     ws_root = Path(ws.root_path).resolve() if ws and ws.root_path else Path.cwd()
                     full_p = ws_root / str(item.data_obj)
@@ -1435,7 +1435,7 @@ class LootAndFlagsWidget(Static):
                     event.stop()
 
     def action_add_proof(self) -> None:
-        from cyb0x_s.tui.modals import AddExamProofModal
+        from glacis.tui.modals import AddExamProofModal
 
         def on_proof_submitted(data: Optional[dict]) -> None:
             if data and hasattr(self.app, "store"):

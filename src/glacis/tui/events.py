@@ -6,7 +6,7 @@ from typing import Optional
 
 from textual.message import Message
 
-from cyb0x_s.models import ChecklistItem, Service, Target
+from glacis.models import ChecklistItem, Service, Target
 
 
 class TargetSelected(Message):

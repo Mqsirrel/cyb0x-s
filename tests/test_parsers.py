@@ -1,6 +1,6 @@
-"""Tests for offline scan parsers in CYB0X-S."""
+"""Tests for offline scan parsers in GLACIS."""
 
-from cyb0x_s.parsers import (
+from glacis.parsers import (
     detect_file_scan_type,
     parse_netexec_output,
     parse_nmap_gnmap,

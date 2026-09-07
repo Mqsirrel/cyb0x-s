@@ -1,7 +1,7 @@
 """Tests for SQLite database store operations."""
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ChecklistStatus, ServiceStatus
+from glacis.db.store import NotebookStore
+from glacis.models import ChecklistStatus, ServiceStatus
 
 
 def test_workspace_crud(store: NotebookStore) -> None:
@@ -199,7 +199,7 @@ def test_get_target_counts(store: NotebookStore) -> None:
     store.add_credential(username="admin", secret="pass", target_id=t.id)
     store.add_finding(title="RCE", target_id=t.id)
     store.add_note("Discovered vhost", target_id=t.id)
-    from cyb0x_s.models import ChecklistStatus
+    from glacis.models import ChecklistStatus
     store.add_checklist_item(title="Task 1", target_id=t.id, status=ChecklistStatus.DEAD_END)
     store.add_failure_log(target_id=t.id, where_stuck="Port 80")
 
@@ -287,7 +287,7 @@ def test_pragma_user_version_migration(temp_db_path) -> None:
     """Verify that user_version is stamped to CURRENT_SCHEMA_VERSION and legacy DB is migrated."""
     import sqlite3
 
-    from cyb0x_s.db.store import CURRENT_SCHEMA_VERSION
+    from glacis.db.store import CURRENT_SCHEMA_VERSION
 
     # 1. New store should have PRAGMA user_version = CURRENT_SCHEMA_VERSION
     store = NotebookStore(db_path=temp_db_path)
@@ -326,7 +326,7 @@ def test_lhost_lport_settings(store: NotebookStore) -> None:
 def test_detect_local_vpn_ip() -> None:
     from unittest.mock import MagicMock, patch
 
-    from cyb0x_s.db.store import detect_local_vpn_ip
+    from glacis.db.store import detect_local_vpn_ip
 
     # 1. Test VPN interface priority (tun0)
     mock_ip_out = (
@@ -399,7 +399,7 @@ def test_workspace_scaffolding_and_root_path(tmp_path) -> None:
 
     assert ws.name == "lab01"
     assert ws.root_path == str(lab_dir.resolve())
-    assert (lab_dir / ".cyb0x-s" / "notebook.db").is_file()
+    assert (lab_dir / ".glacis" / "notebook.db").is_file()
     assert (lab_dir / "scans").is_dir()
     assert (lab_dir / "enum").is_dir()
     assert (lab_dir / "screenshots").is_dir()
@@ -410,7 +410,7 @@ def test_workspace_scaffolding_and_root_path(tmp_path) -> None:
 
 def test_evidence_stores_strictly_relative_paths(tmp_path) -> None:
     lab_dir = tmp_path / "lab02"
-    local_db = lab_dir / ".cyb0x-s" / "notebook.db"
+    local_db = lab_dir / ".glacis" / "notebook.db"
     store = NotebookStore(local_db)
     ws = store.get_active_workspace()
     assert ws.root_path == str(lab_dir.resolve())
@@ -438,7 +438,7 @@ def test_evidence_stores_strictly_relative_paths(tmp_path) -> None:
 def test_portable_lab_directory_relocation(tmp_path) -> None:
     # 1. Initialize lab in dir A
     dir_a = tmp_path / "original_lab"
-    local_db_a = dir_a / ".cyb0x-s" / "notebook.db"
+    local_db_a = dir_a / ".glacis" / "notebook.db"
     store_a = NotebookStore(local_db_a)
 
     proof_file = dir_a / "screenshots" / "proof.png"
@@ -455,7 +455,7 @@ def test_portable_lab_directory_relocation(tmp_path) -> None:
     shutil.move(dir_a, dir_b)
 
     # 3. Open database in new location
-    local_db_b = dir_b / ".cyb0x-s" / "notebook.db"
+    local_db_b = dir_b / ".glacis" / "notebook.db"
     store_b = NotebookStore(local_db_b)
     ws_b = store_b.get_active_workspace()
 
@@ -472,6 +472,17 @@ def test_portable_lab_directory_relocation(tmp_path) -> None:
     assert resolved_b == (dir_b / "screenshots" / "proof.png").resolve()
     assert resolved_b.is_file()
     store_b.close()
+
+
+def test_legacy_cybox_workspace_backward_compatibility(tmp_path) -> None:
+    """Verify that existing labs with .cyb0x-s directory continue to be detected automatically."""
+    legacy_dir = tmp_path / "legacy_lab"
+    legacy_db = legacy_dir / ".cyb0x-s" / "notebook.db"
+    store = NotebookStore(legacy_db)
+    ws = store.get_active_workspace()
+    assert ws.root_path == str(legacy_dir.resolve())
+    assert store.get_workspace_root() == legacy_dir.resolve()
+    store.close()
 
 
 

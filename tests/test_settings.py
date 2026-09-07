@@ -1,8 +1,8 @@
-"""Tests for the derive-guidance runtime gate (`cyb0x_s.settings`)."""
+"""Tests for the derive-guidance runtime gate (`glacis.settings`)."""
 
 import pytest
 
-from cyb0x_s.settings import (
+from glacis.settings import (
     ENV_VAR,
     derive_guidance_enabled,
     describe_derive_guidance,

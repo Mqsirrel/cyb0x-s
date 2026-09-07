@@ -1,4 +1,4 @@
-"""CYB0X-S theming: palettes, design tokens and the application stylesheet.
+"""GLACIS theming: palettes, design tokens and the application stylesheet.
 
 Seven palettes ship with the app:
 
@@ -80,7 +80,7 @@ class Palette:
     def textual_theme(self) -> Theme:
         """Build the Textual theme (and thus all ``$`` tokens) for this palette."""
         return Theme(
-            name=f"cyb0x-{self.name}",
+            name=f"glacis-{self.name}",
             primary=self.accent,
             secondary=self.text_soft,
             accent=self.accent,
@@ -320,13 +320,17 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
 def get_theme_config_path() -> Path:
     """Return path to persistent theme configuration file."""
     config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    theme_dir = config_home / "cyb0x-s"
+    legacy_file = config_home / "cyb0x-s" / "theme"
+    theme_dir = config_home / "glacis"
     theme_dir.mkdir(parents=True, exist_ok=True)
-    return theme_dir / "theme"
+    theme_file = theme_dir / "theme"
+    if not theme_file.exists() and legacy_file.exists():
+        return legacy_file
+    return theme_file
 
 
 def get_saved_default_theme() -> Optional[str]:
-    """Read default theme stored in ~/.config/cyb0x-s/theme."""
+    """Read default theme stored in ~/.config/glacis/theme (or ~/.config/cyb0x-s/theme)."""
     try:
         cfg = get_theme_config_path()
         if cfg.is_file():
@@ -342,7 +346,7 @@ def save_default_theme(name: str, store: Any = None) -> bool:
     resolved = resolve_palette_name(name)
     if not resolved:
         return False
-    # 1. Save to ~/.config/cyb0x-s/theme
+    # 1. Save to ~/.config/glacis/theme
     try:
         cfg = get_theme_config_path()
         cfg.write_text(resolved, encoding="utf-8")
@@ -360,12 +364,17 @@ def save_default_theme(name: str, store: Any = None) -> bool:
 def get_default_theme(store: Any = None) -> str:
     """Read the configured default theme from environment, config file, or settings, fallback to slate."""
     # 1. Explicit environment override
-    env_theme = os.environ.get("CYB0X_THEME") or os.environ.get("CYB0X_PALETTE", "")
+    env_theme = (
+        os.environ.get("GLACIS_THEME")
+        or os.environ.get("GLACIS_PALETTE")
+        or os.environ.get("CYB0X_THEME")
+        or os.environ.get("CYB0X_PALETTE", "")
+    )
     resolved_env = resolve_palette_name(env_theme)
     if resolved_env:
         return resolved_env
 
-    # 2. User config file (~/.config/cyb0x-s/theme)
+    # 2. User config file (~/.config/glacis/theme or ~/.config/cyb0x-s/theme)
     saved_cfg = get_saved_default_theme()
     if saved_cfg:
         return saved_cfg

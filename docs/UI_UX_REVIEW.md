@@ -1,7 +1,7 @@
-# CYB0X-S — TUI/UX Review & Enhancement Backlog
+# GLACIS — TUI/UX Review & Enhancement Backlog
 
-**Reviewed:** 2026-09-01 · **Scope:** `src/cyb0x_s/tui/` (Textual app, widgets, theme) plus the
-README shortcut tables · **Branch:** `arena/01a05e3f-cyb0x-s`
+**Reviewed:** 2026-09-01 · **Scope:** `src/glacis/tui/` (Textual app, widgets, theme) plus the
+README shortcut tables · **Branch:** `arena/01a05e3f-glacis`
 
 > **Follow-up (same branch): the interface has since been redesigned.**
 > The findings below are still the defect record and the backlog, but the
@@ -117,7 +117,7 @@ less finished than it is:
 | M3 | 🟡 Medium | Command bar placeholder is 100+ chars and gets clipped; **no history** | 🗒 Idea |
 | M4 | 🟡 Medium | Header wastes a full row; workspace name never displayed | ✅ Fixed |
 | M5 | 🟡 Medium | Guidance drawer wraps long commands **mid-word** and eats the tip | ✅ Fixed |
-| M6 | 🟡 Medium | Row colours come from the **terminal's ANSI palette**, not the CYB0X-S palette | ✅ Fixed |
+| M6 | 🟡 Medium | Row colours come from the **terminal's ANSI palette**, not the GLACIS palette | ✅ Fixed |
 | L1 | 🟢 Low | No session timer, no undo, no panel filtering, no theme variants | 🗒 Backlog |
 
 All ✅ items are implemented on this branch with regression tests in `tests/test_tui_ui.py`
@@ -242,7 +242,7 @@ generic command palette is disabled — `?` is the real reference.
 
 Stations 2–4 and every dialog looked like a different application. The palette is now
 **registered as a Textual theme** (`CYBOX_WARM_THEME`), so all 168 design tokens
-(`$surface`, `$border`, `$text-muted`, footer/scrollbar colours, …) derive from the CYB0X-S
+(`$surface`, `$border`, `$text-muted`, footer/scrollbar colours, …) derive from the GLACIS
 colours; widget CSS references tokens instead of hex. Row-level colours are built in Python
 with Rich `Text`, so they bypassed CSS entirely — those now use the same palette tokens
 (`OK`, `WARN`, `DANGER`, `INFO`, `NOTE`, `CREAM`) instead of the terminal's ANSI colours.
@@ -294,7 +294,7 @@ Ordered by *value per unit of risk* for a tool used under exam time pressure.
 | **Pivot / network graph station** | Dual-homed hosts and routes are hard to read as a list |
 | **Evidence helper** (copy `cp` / `scp` command for a screenshot path, open in viewer) | Evidence is currently a bare string |
 | **Export preview inside the TUI** | Lets operators sanity-check the report before leaving the tool |
-| **Attach TUI to the same store as a live CLI session** (`cyb0x-s note …` refresh) | Two entry points, one screen — needs file watching or a refresh key |
+| **Attach TUI to the same store as a live CLI session** (`glacis note …` refresh) | Two entry points, one screen — needs file watching or a refresh key |
 | **Mouse affordances** (click tree node → switch target; click column header → sort) | Textual supports it; currently undocumented and untested |
 
 ### Accessibility notes

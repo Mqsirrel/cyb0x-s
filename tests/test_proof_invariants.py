@@ -4,8 +4,8 @@ Verifies the operational proof chain:
     Host -> Service -> Foothold -> User Proof -> Root Proof
 """
 
-from cyb0x_s.audit import AuditStatus, audit_target, audit_workspace
-from cyb0x_s.db.store import NotebookStore
+from glacis.audit import AuditStatus, audit_target, audit_workspace
+from glacis.db.store import NotebookStore
 
 
 def test_empty_target_proof_audit(store: NotebookStore) -> None:

@@ -1,13 +1,13 @@
-"""Tests for CYB0X-S offline scan ingestion, evidence preservation, and deduplication."""
+"""Tests for GLACIS offline scan ingestion, evidence preservation, and deduplication."""
 
 from pathlib import Path
 
 from click.testing import CliRunner
 
-from cyb0x_s.cli import cli
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ServiceStatus
-from cyb0x_s.scan_import import (
+from glacis.cli import cli
+from glacis.db.store import NotebookStore
+from glacis.models import ServiceStatus
+from glacis.scan_import import (
     check_scan_already_imported,
     commit_scan_results,
     commit_web_enum_results,

@@ -1,4 +1,4 @@
-"""Render CYB0X-S TUI screens to PNG images (headless).
+"""Render GLACIS TUI screens to PNG images (headless).
 
 Dev tool: boots the Textual app with seeded demo data, drives it through a
 sequence of keystrokes, and rasterises the compositor output to PNG so the UI
@@ -22,9 +22,9 @@ sys.path.insert(0, str(ROOT / "examples"))
 from demo_seed import seed_demo  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
-from cyb0x_s.db.store import NotebookStore  # noqa: E402
-from cyb0x_s.tui.app import CyboxSafeApp  # noqa: E402
-from cyb0x_s.tui.theme import current_palette  # noqa: E402
+from glacis.db.store import NotebookStore  # noqa: E402
+from glacis.tui.app import CyboxSafeApp  # noqa: E402
+from glacis.tui.theme import current_palette  # noqa: E402
 
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
 FONT_REGULAR = str(FONT_DIR / "DejaVuSansMono.ttf")

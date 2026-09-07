@@ -11,8 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from cyb0x_s.db.schema import SCHEMA_SQL
-from cyb0x_s.models import (
+from glacis.db.schema import SCHEMA_SQL
+from glacis.models import (
     ChecklistItem,
     ChecklistStatus,
     CommandRecord,
@@ -88,24 +88,27 @@ def detect_local_vpn_ip() -> Optional[str]:
 
 def get_default_db_path() -> Path:
     """Determine the database storage location."""
-    env_path = os.environ.get("CYB0X_S_DB")
+    env_path = os.environ.get("GLACIS_DB") or os.environ.get("CYB0X_S_DB") or os.environ.get("CYB0X_DB")
     if env_path:
         return Path(env_path)
 
-    # If local workspace folder exists, use it
-    local_dir = Path(".cyb0x-s")
-    if local_dir.is_dir():
-        return local_dir / "notebook.db"
+    # If local workspace folder exists, use it (.glacis favored, .cyb0x-s fallback)
+    local_glacis = Path(".glacis")
+    if local_glacis.is_dir():
+        return local_glacis / "notebook.db"
+    local_cybox = Path(".cyb0x-s")
+    if local_cybox.is_dir():
+        return local_cybox / "notebook.db"
 
     # Default to user XDG data dir
     data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    base_dir = data_home / "cyb0x-s"
+    base_dir = data_home / "glacis"
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir / "notebook.db"
 
 
 class NotebookStore:
-    """Thread-safe, local SQLite storage engine for CYB0X-S."""
+    """Thread-safe, local SQLite storage engine for GLACIS."""
 
     def __init__(self, db_path: Optional[Union[str, Path]] = None):
         if db_path is None:
@@ -134,9 +137,9 @@ class NotebookStore:
         row = cur.fetchone()
         current_version = row[0] if row else 0
 
-        # Determine lab root path if database is located in a .cyb0x-s directory
+        # Determine lab root path if database is located in a .glacis or .cyb0x-s directory
         lab_root = ""
-        if self.db_path != Path(":memory:") and self.db_path.parent.name == ".cyb0x-s":
+        if self.db_path != Path(":memory:") and self.db_path.parent.name in (".glacis", ".cyb0x-s"):
             lab_root = str(self.db_path.parent.parent.resolve())
 
         is_fresh_db = False
@@ -381,8 +384,8 @@ class NotebookStore:
         return self.get_workspace(workspace_id)
 
     def get_workspace_root(self, workspace: Optional[Workspace] = None) -> Path:
-        """Return the filesystem root for the workspace, favoring local .cyb0x-s parent if active."""
-        if self.db_path != Path(":memory:") and self.db_path.parent.name == ".cyb0x-s":
+        """Return the filesystem root for the workspace, favoring local .glacis/.cyb0x-s parent if active."""
+        if self.db_path != Path(":memory:") and self.db_path.parent.name in (".glacis", ".cyb0x-s"):
             return self.db_path.parent.parent.resolve()
 
         ws = workspace or self.get_active_workspace()
@@ -391,7 +394,7 @@ class NotebookStore:
             if p.exists() or p.is_dir():
                 return p
 
-        if (Path.cwd() / ".cyb0x-s").is_dir():
+        if (Path.cwd() / ".glacis").is_dir() or (Path.cwd() / ".cyb0x-s").is_dir():
             return Path.cwd().resolve()
 
         if ws and ws.root_path:
@@ -459,9 +462,9 @@ class NotebookStore:
             findings_file.write_text(template_text, encoding="utf-8")
 
         if create_local_db:
-            local_cybox_dir = base_path / ".cyb0x-s"
-            local_cybox_dir.mkdir(parents=True, exist_ok=True)
-            local_db_file = local_cybox_dir / "notebook.db"
+            local_glacis_dir = base_path / ".glacis"
+            local_glacis_dir.mkdir(parents=True, exist_ok=True)
+            local_db_file = local_glacis_dir / "notebook.db"
             if not local_db_file.exists():
                 local_store = NotebookStore(local_db_file)
                 ws_local = local_store.get_active_workspace()
@@ -1654,7 +1657,7 @@ class NotebookStore:
         proofs = self.list_exam_proofs()
         lines = [
             "# Assessment Evidence & Submission Ledger",
-            f"Generated: {_iso_now()} (CYB0X-S Offline Safe Notebook)",
+            f"Generated: {_iso_now()} (GLACIS Offline Safe Notebook)",
             "",
             "| Question | Target | Category | Proof / Answer Value | Notes |",
             "|---|---|---|---|---|",

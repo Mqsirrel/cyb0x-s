@@ -1,6 +1,6 @@
 # Exam Compliance Charter
 
-CYB0X-S accompanies certification lab exams such as INE's eJPT. This file is
+GLACIS accompanies certification lab exams such as INE's eJPT. This file is
 the engineering policy that keeps the tool within exam rules. Every
 contribution — human or AI-generated — must respect it.
 

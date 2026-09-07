@@ -1,8 +1,8 @@
-"""Unit tests for CYB0X-S data models."""
+"""Unit tests for GLACIS data models."""
 
 from datetime import datetime
 
-from cyb0x_s.models import (
+from glacis.models import (
     ChecklistStatus,
     CommandRecord,
     Credential,

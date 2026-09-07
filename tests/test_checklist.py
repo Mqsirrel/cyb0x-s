@@ -2,9 +2,9 @@
 
 import pytest
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ChecklistStatus
-from cyb0x_s.templates import (
+from glacis.db.store import NotebookStore
+from glacis.models import ChecklistStatus
+from glacis.templates import (
     apply_template_to_store,
     get_available_templates,
     load_template,

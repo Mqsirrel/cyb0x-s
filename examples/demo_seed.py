@@ -1,4 +1,4 @@
-"""Demo seed script for CYB0X-S.
+"""Demo seed script for GLACIS.
 
 Quickly populates a notebook workspace with sample lab data matching the scenario.
 """
@@ -11,8 +11,8 @@ from pathlib import Path
 # Add src to path if running directly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from cyb0x_s.db.store import NotebookStore
-from cyb0x_s.models import ChecklistStatus, ServiceStatus
+from glacis.db.store import NotebookStore
+from glacis.models import ChecklistStatus, ServiceStatus
 
 
 def seed_demo(store: NotebookStore) -> None:
