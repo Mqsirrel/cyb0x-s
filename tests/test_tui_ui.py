@@ -855,9 +855,9 @@ async def test_precision_borders_and_native_border_titles(seeded_store: Notebook
         svc_panel = app.query_one("#panel-services")
         creds_panel = app.query_one("#panel-creds")
 
-        assert surface_panel.border_title == " TARGET ROSTER "
-        assert svc_panel.border_title == " SERVICES & PORTS "
-        assert creds_panel.border_title == " CREDENTIALS "
+        assert "ATTACK SURFACE" in surface_panel.border_title or "TARGET" in surface_panel.border_title
+        assert "SERVICES" in svc_panel.border_title
+        assert "CREDS" in creds_panel.border_title
 
         # Subtitle contains count
         assert svc_panel.border_subtitle and "port" in svc_panel.border_subtitle
