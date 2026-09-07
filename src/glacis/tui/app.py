@@ -185,31 +185,16 @@ class GlacisApp(App):
                 with Horizontal(id="cockpit"):
                     with Vertical(id="sidebar"):
                         with Vertical(id="panel-surface", classes="panel-box"):
-                            with Horizontal(classes="panel-header-row"):
-                                yield Label("TARGET ROSTER", classes="panel-title")
-                                yield Label("", id="cnt-surface", classes="panel-count")
                             yield TargetTreeWidget(id="target-tree")
                         with Vertical(id="panel-creds", classes="panel-box"):
-                            with Horizontal(classes="panel-header-row"):
-                                yield Label("CREDENTIALS", classes="panel-title")
-                                yield Label("", id="cnt-creds", classes="panel-count")
                             yield ListView(id="list-creds", classes="panel-list")
                     with Vertical(id="workbench"):
                         with Vertical(id="panel-services", classes="panel-box"):
-                            with Horizontal(classes="panel-header-row"):
-                                yield Label("SERVICES & PORTS", classes="panel-title")
-                                yield Label("", id="cnt-services", classes="panel-count")
                             yield ListView(id="list-services", classes="panel-list")
                         with Horizontal(id="lower-band"):
                             with Vertical(id="panel-checklist", classes="panel-box"):
-                                with Horizontal(classes="panel-header-row"):
-                                    yield Label("METHODOLOGY", classes="panel-title")
-                                    yield Label("", id="cnt-checklist", classes="panel-count")
                                 yield ListView(id="list-checklist", classes="panel-list")
                             with Vertical(id="panel-notes", classes="panel-box"):
-                                with Horizontal(classes="panel-header-row"):
-                                    yield Label("NOTES & FINDINGS", classes="panel-title")
-                                    yield Label("", id="cnt-notes", classes="panel-count")
                                 yield ListView(id="list-notes", classes="panel-list")
 
             # Station 2: Playbook & Ready-to-Paste Playbooks
@@ -229,11 +214,11 @@ class GlacisApp(App):
 
     def on_mount(self) -> None:
         try:
-            self.query_one("#panel-surface").border_title = " TARGET ROSTER "
-            self.query_one("#panel-creds").border_title = " CREDENTIALS "
-            self.query_one("#panel-services").border_title = " SERVICES & PORTS "
-            self.query_one("#panel-checklist").border_title = " METHODOLOGY "
-            self.query_one("#panel-notes").border_title = " NOTES & FINDINGS "
+            self.query_one("#panel-surface").border_title = " ★ ATTACK SURFACE TREE "
+            self.query_one("#panel-creds").border_title = " 🔑 QUICK CREDS "
+            self.query_one("#panel-services").border_title = " ⚡ SERVICES & PORTS "
+            self.query_one("#panel-checklist").border_title = " 📋 METHODOLOGY ROADMAP "
+            self.query_one("#panel-notes").border_title = " 📝 FIELD NOTES & FINDINGS "
         except Exception:
             pass
         self.refresh_targets()
@@ -919,7 +904,10 @@ class GlacisApp(App):
                 for s in services:
                     svc_list.append(DataListItem(data_obj=s, display_text=self._format_service_row(s)))
             else:
-                txt = Text("  • No services recorded · Press 's' to add a port or type ':s 80/tcp http'", style="dim italic")
+                P = current_palette()
+                txt = Text()
+                txt.append("  [+ ADD PORT] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" Press 's' or type :s 80/tcp http", style=f"bold {P.text}")
                 svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_svc_idx is not None and len(svc_list.children) > 0:
                 svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
@@ -935,7 +923,10 @@ class GlacisApp(App):
                 for c in creds:
                     c_list.append(DataListItem(data_obj=c, display_text=self._format_credential_row(c)))
             else:
-                txt = Text("  • No credentials saved · Press 'c' to add or type ':c admin:pass'", style="dim italic")
+                P = current_palette()
+                txt = Text()
+                txt.append("  [+ ADD CRED] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" Press 'c' or type :c admin:pass", style=f"bold {P.text}")
                 c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_c_idx is not None and len(c_list.children) > 0:
                 c_list.index = min(saved_c_idx, len(c_list.children) - 1)
@@ -964,7 +955,10 @@ class GlacisApp(App):
                 for item in items:
                     ck_list.append(DataListItem(data_obj=item, display_text=self._format_checklist_row(item)))
             else:
-                txt = Text("  • No methodology loaded · Press 'm' for templates (ejpt, web, smb) or 'K' to add item", style="dim italic")
+                P = current_palette()
+                txt = Text()
+                txt.append("  [+ TEMPLATES] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" Press 'm' to load templates (ejpt, web, smb)", style=f"bold {P.text}")
                 ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_ck_idx is not None and len(ck_list.children) > 0:
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
@@ -1012,7 +1006,12 @@ class GlacisApp(App):
                         txt.append(f"({ld.notes})", style=f"{P.muted}")
                     n_list.append(DataListItem(data_obj=ld, display_text=txt))
             else:
-                txt = Text("  • No notes or findings · Press 'n' for note, 'f' for finding, or type :n <note>", style="dim italic")
+                P = current_palette()
+                txt = Text()
+                txt.append("  [+ NOTE] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" Press 'n' for note, ", style=f"bold {P.text}")
+                txt.append("[+ FINDING] ", style=f"bold {P.bg} on {P.danger}")
+                txt.append(" 'f' for finding", style=f"bold {P.text}")
                 n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_n_idx is not None and len(n_list.children) > 0:
                 n_list.index = min(saved_n_idx, len(n_list.children) - 1)
