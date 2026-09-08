@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
 from glacis.db.store import NotebookStore
-from glacis.tui.app import CyboxSafeApp
+from glacis.tui.app import GlacisApp
 from glacis.settings import set_derive_guidance
 from dev.screenshot import render_strips
 
@@ -21,7 +21,7 @@ async def build_transition_previews():
     store = NotebookStore(":memory:")
     seed_demo(store)
     size = (160, 44)
-    app = CyboxSafeApp(store=store, theme="slate")
+    app = GlacisApp(store=store, theme="slate")
     
     async with app.run_test(size=size) as pilot:
         # Capture Station 1 Cockpit

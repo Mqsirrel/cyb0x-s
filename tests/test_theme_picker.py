@@ -7,7 +7,7 @@ from textual.widgets import ListView
 
 from glacis.db.store import NotebookStore
 from glacis.settings import derive_guidance_enabled, set_derive_guidance
-from glacis.tui.app import CyboxSafeApp
+from glacis.tui.app import GlacisApp
 from glacis.tui.theme import PALETTES
 from glacis.tui.widgets import (
     ConsoleBar,
@@ -69,7 +69,7 @@ async def test_theme_picker_modal_full_workflow(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     from glacis.tui.theme import get_default_theme
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         # 1. 'T' opens picker with all palette swatches
         await pilot.press("T")
@@ -121,7 +121,7 @@ async def test_command_bar_theme_switching(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     from glacis.tui.theme import get_default_theme
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         cmd_input = app.query_one("#cmd-input")
         cmd_input.focus()
@@ -156,7 +156,7 @@ async def test_command_bar_theme_switching(
 @pytest.mark.asyncio
 async def test_every_palette_renders_and_is_accessible(seeded_store: NotebookStore) -> None:
     """Verify live theme switching across all palettes in the TUI."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         for name in PALETTES:
             app.apply_theme(name, quiet=True)
@@ -173,7 +173,7 @@ async def test_every_palette_renders_and_is_accessible(seeded_store: NotebookSto
 @pytest.mark.asyncio
 async def test_guidance_gate_console(seeded_store: NotebookStore) -> None:
     """With guidance off (default) the console proposes no tool for a service."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         assert derive_guidance_enabled() is False
         svc_list = app.query_one("#list-services", ListView)

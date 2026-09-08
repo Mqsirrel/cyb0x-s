@@ -1,4 +1,4 @@
-"""Pytest fixtures for cyb0x-s."""
+"""Pytest fixtures for GLACIS."""
 
 from __future__ import annotations
 
@@ -177,12 +177,12 @@ def session_config_dir(tmp_path_factory: pytest.TempPathFactory) -> Generator[Pa
     """Single session-scoped sandbox directory in RAM tmpfs to avoid 150+ disk directory allocations."""
     shm = Path("/dev/shm")
     if shm.is_dir() and os.access(shm, os.W_OK):
-        d = tempfile.mkdtemp(prefix="cybox_cfg_", dir="/dev/shm")
+        d = tempfile.mkdtemp(prefix="glacis_cfg_", dir="/dev/shm")
         p = Path(d)
         yield p
         shutil.rmtree(p, ignore_errors=True)
     else:
-        yield tmp_path_factory.mktemp("cybox_cfg")
+        yield tmp_path_factory.mktemp("glacis_cfg")
 
 
 @pytest.fixture(autouse=True)
@@ -300,7 +300,7 @@ def _find_git_impacted_tests(repo_root: Path) -> Optional[set[str]]:
     return {p.name for p in impacted_test_files}
 
 
-CACHE_KEY_DURATIONS = "cybox/test_durations_v1"
+CACHE_KEY_DURATIONS = "glacis/test_durations_v1"
 FALLBACK_TUI_DURATION = 3.5
 FALLBACK_FAST_DURATION = 0.02
 _RECORDED_DURATIONS: dict[str, float] = {}

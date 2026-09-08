@@ -5,7 +5,7 @@ from textual.widgets import Input
 
 from glacis.db.store import NotebookStore
 from glacis.models import ChecklistStatus
-from glacis.tui.app import CyboxSafeApp
+from glacis.tui.app import GlacisApp
 from glacis.tui.widgets import SearchModal
 
 
@@ -20,7 +20,7 @@ async def test_tui_lifecycle_and_navigation() -> None:
     store.add_checklist_item(title="SMB null session", target_id=target.id, status=ChecklistStatus.TODO)
     store.add_note("Note 1", target_id=target.id)
 
-    app = CyboxSafeApp(store=store)
+    app = GlacisApp(store=store)
 
     async with app.run_test() as pilot:
         # Check initial UI state

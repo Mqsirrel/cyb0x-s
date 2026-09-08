@@ -1,4 +1,4 @@
-"""Local SQLite repository for CYB0X-S.
+"""Local SQLite repository for GLACIS.
 
 High performance, zero network footprint, fully ACID-compliant.
 """
@@ -92,13 +92,25 @@ def get_default_db_path() -> Path:
     if env_path:
         return Path(env_path)
 
-    # If local workspace folder exists, use it (.glacis favored, .cyb0x-s fallback)
-    local_glacis = Path(".glacis")
-    if local_glacis.is_dir():
-        return local_glacis / "notebook.db"
-    local_cybox = Path(".cyb0x-s")
-    if local_cybox.is_dir():
-        return local_cybox / "notebook.db"
+    # Check current directory and all parent directories upward for local workspace db
+    try:
+        current = Path.cwd().resolve()
+        home = Path.home().resolve()
+        for candidate_dir in [current, *current.parents]:
+            if candidate_dir != current and candidate_dir in (home, Path("/")):
+                break
+            local_glacis = candidate_dir / ".glacis"
+            if (local_glacis / "notebook.db").is_file():
+                return local_glacis / "notebook.db"
+            local_cybox = candidate_dir / ".cyb0x-s"
+            if (local_cybox / "notebook.db").is_file():
+                return local_cybox / "notebook.db"
+            if local_glacis.is_dir():
+                return local_glacis / "notebook.db"
+            if local_cybox.is_dir():
+                return local_cybox / "notebook.db"
+    except Exception:
+        pass
 
     # Default to user XDG data dir
     data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
@@ -429,6 +441,8 @@ class NotebookStore:
         target_dir: Union[str, Path],
         description: str = "",
         create_local_db: bool = True,
+        initial_ip: Optional[str] = None,
+        template_name: Optional[str] = None,
     ) -> tuple[Workspace, Path]:
         """Initialize a dedicated assessment workspace directory with standard folder scaffolding."""
         base_path = Path(target_dir).expanduser().resolve()
@@ -438,9 +452,70 @@ class NotebookStore:
         for sub in subdirs:
             (base_path / sub).mkdir(parents=True, exist_ok=True)
 
+        # target.env shell environment file
+        env_file = base_path / "target.env"
+        if not env_file.exists():
+            ip_val = (initial_ip or "").strip()
+            env_content = (
+                "# GLACIS Target Environment Configuration\n"
+                "# Usage: source target.env\n\n"
+                f'export WORKSPACE="{name}"\n'
+                f'export TARGET="{ip_val}"\n'
+                f'export TARGET_IP="{ip_val}"\n'
+                f'export IP="{ip_val}"\n\n'
+                "# Recommended scan aliases:\n"
+                '# alias nmap-ports="nmap -p- --min-rate 1000 -T4 -oN scans/nmap-all.txt $TARGET"\n'
+                '# alias nmap-svc="nmap -sC -sV -oN scans/nmap-services.txt $TARGET"\n'
+                '# alias enum-web="ffuf -u http://$TARGET/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -o enum/ffuf-dirs.json"\n'
+            )
+            env_file.write_text(env_content, encoding="utf-8")
+
+        # notes/scratchpad.md
+        scratchpad_file = base_path / "notes" / "scratchpad.md"
+        if not scratchpad_file.exists():
+            target_display = initial_ip.strip() if initial_ip else "$TARGET"
+            scratchpad_content = (
+                f"# Assessment Scratchpad: {name}\n\n"
+                f"**Target**: `{target_display}`  \n"
+                f"**Workspace**: `{name}`  \n\n"
+                "## 1. Quick Terminal Commands\n"
+                "```bash\n"
+                "# Source lab environment\n"
+                "source target.env\n\n"
+                "# Fast full-port sweep\n"
+                f"nmap -p- --min-rate 1000 -T4 -oN scans/nmap-all-ports.txt {target_display}\n\n"
+                "# Comprehensive service fingerprinting\n"
+                f"nmap -sC -sV -p <PORTS> -oN scans/nmap-services.txt {target_display}\n\n"
+                "# Web directory fuzzing\n"
+                f"ffuf -u http://{target_display}/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -o enum/ffuf-dirs.json\n"
+                "```\n\n"
+                "## 2. Discovered Open Ports & Services\n"
+                "| Port | Protocol | Service | Version | Immediate Potential Vectors |\n"
+                "|------|----------|---------|---------|-----------------------------|\n\n"
+                "## 3. Discovered Credentials & Hashes\n"
+                "| Service / Context | Username | Password / Hash | Validated? |\n"
+                "|-------------------|----------|-----------------|------------|\n\n"
+                "## 4. Foothold & Exploitation Notes\n"
+                "- **Initial Foothold**:\n"
+                "- **Privilege Escalation**:\n"
+                "- **Proof Flag Locations**:\n"
+            )
+            scratchpad_file.write_text(scratchpad_content, encoding="utf-8")
+
+        # .gitignore
+        gitignore_file = base_path / ".gitignore"
+        if not gitignore_file.exists():
+            gitignore_content = (
+                "# GLACIS portable database lock & temp journal files\n"
+                ".glacis/notebook.db*\n"
+                ".cyb0x-s/notebook.db*\n"
+            )
+            gitignore_file.write_text(gitignore_content, encoding="utf-8")
+
         findings_file = base_path / "findings.md"
         if not findings_file.exists():
             date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            ip_row = f"| {initial_ip.strip()} | {name} | Pending | Pending | Pending | Pending |\n" if initial_ip else ""
             template_text = (
                 f"# Assessment Findings Report: {name}\n\n"
                 f"**Workspace**: {name}  \n"
@@ -450,7 +525,8 @@ class NotebookStore:
                 f"Brief summary of engagement objectives, scope, and key risks identified.\n\n"
                 f"## Scope & Target Overview\n"
                 f"| Target IP | Hostname | OS | Foothold | User Flag | Root Flag |\n"
-                f"|-----------|----------|----|----------|-----------|-----------|\n\n"
+                f"|-----------|----------|----|----------|-----------|-----------|\n"
+                f"{ip_row}\n"
                 f"## High-Risk Findings & Vulnerabilities\n"
                 f"<!-- Document key findings, vulnerabilities, and exploitation paths below -->\n\n"
                 f"## Proof & Evidence Index\n"
@@ -474,10 +550,47 @@ class NotebookStore:
                     description=description,
                     root_path=str(base_path),
                 )
+                seeded_target_id = None
+                if initial_ip:
+                    t_obj = local_store.add_target(
+                        ip=initial_ip.strip(),
+                        hostname=name if name != initial_ip.strip() else "",
+                        in_scope=True,
+                        notes=f"Primary target for {name}",
+                        workspace_id=ws_local.id,
+                    )
+                    seeded_target_id = t_obj.id
+                if template_name:
+                    try:
+                        from glacis.templates import apply_template_to_store
+                        apply_template_to_store(local_store, template_name, target_id=seeded_target_id, workspace_id=ws_local.id)
+                    except Exception:
+                        pass
                 local_store.close()
 
         ws = self.get_or_create_workspace(name=name, description=description, root_path=str(base_path))
         self.set_active_workspace(ws.id)
+
+        # If caller store is in-memory or distinct from local_db_file, record target and template here too
+        if initial_ip:
+            try:
+                existing = [t for t in self.list_targets(workspace_id=ws.id) if t.ip == initial_ip.strip()]
+                target_id = existing[0].id if existing else None
+                if not existing:
+                    t_self = self.add_target(
+                        ip=initial_ip.strip(),
+                        hostname=name if name != initial_ip.strip() else "",
+                        in_scope=True,
+                        notes=f"Primary target for {name}",
+                        workspace_id=ws.id,
+                    )
+                    target_id = t_self.id
+                if template_name:
+                    from glacis.templates import apply_template_to_store
+                    apply_template_to_store(self, template_name, target_id=target_id, workspace_id=ws.id)
+            except Exception:
+                pass
+
         return ws, base_path
 
     def resolve_evidence_path(

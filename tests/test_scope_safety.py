@@ -1,6 +1,6 @@
 """Scope & Safety Verification Audit Test.
 
-Rigorously verifies that CYB0X-S contains ZERO AI, zero autonomous tooling,
+Rigorously verifies that GLACIS contains ZERO AI, zero autonomous tooling,
 zero background scanners, and zero outbound network/LLM dependencies.
 """
 

@@ -23,7 +23,7 @@ from demo_seed import seed_demo  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 from glacis.db.store import NotebookStore  # noqa: E402
-from glacis.tui.app import CyboxSafeApp  # noqa: E402
+from glacis.tui.app import GlacisApp  # noqa: E402
 from glacis.tui.theme import current_palette  # noqa: E402
 
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
@@ -122,7 +122,7 @@ async def capture(
 ) -> None:
     store = NotebookStore(":memory:")
     seed_demo(store)
-    app = CyboxSafeApp(store=store, theme=theme)
+    app = GlacisApp(store=store, theme=theme)
 
     async with app.run_test(size=size) as pilot:
         for name, keys, note in shots:

@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
 from glacis.db.store import NotebookStore
-from glacis.tui.app import CyboxSafeApp
+from glacis.tui.app import GlacisApp
 from glacis.settings import set_derive_guidance
 from dev.screenshot import render_strips
 from textual.widgets import ListView, Static, Label, Input
@@ -21,7 +21,7 @@ async def test_fix():
     set_derive_guidance(True)
     store = NotebookStore(":memory:")
     seed_demo(store)
-    app = CyboxSafeApp(store=store, theme="slate")
+    app = GlacisApp(store=store, theme="slate")
     async with app.run_test(size=(160, 44)) as pilot:
         footer = app.query_one("Footer")
         footer.styles.display = "none"

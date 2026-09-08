@@ -72,6 +72,12 @@ def normalize_command(raw: str) -> str:
         return f":import {val[7:].strip()}"
     elif val in ("import", ":import"):
         return ":import"
+    elif val.startswith(":init "):
+        return val
+    elif val.startswith("init "):
+        return f":init {val[5:].strip()}"
+    elif val in ("init", ":init"):
+        return ":init"
     elif val.startswith(":ws "):
         return val
     elif val.startswith("workspace "):
@@ -154,6 +160,25 @@ def execute_command(app: Any, raw: str) -> None:
         path = val[8:].strip() if len(val) > 7 else ""
         if hasattr(app, "action_import_scan"):
             app.action_import_scan(initial_file=path)
+        return
+
+    # Dedicated :init command (:init [name] [ip])
+    if val == ":init" or val.startswith(":init "):
+        args = val[5:].strip() if len(val) > 4 else ""
+        if not args:
+            if hasattr(app, "action_manage_workspaces"):
+                app.action_manage_workspaces()
+            return
+        parts = args.split(maxsplit=1)
+        name = parts[0]
+        ip = parts[1].strip() if len(parts) > 1 else None
+        from pathlib import Path
+
+        dest = Path.cwd() / name
+        ws, resolved = app.store.init_workspace_directory(name=name, target_dir=dest, initial_ip=ip)
+        app.refresh_all()
+        ip_note = f" (target: {ip})" if ip else ""
+        app.notify(f"Initialized & switched to workspace: {ws.name}{ip_note}")
         return
 
     # Workspace command (:ws [switch|init|name])

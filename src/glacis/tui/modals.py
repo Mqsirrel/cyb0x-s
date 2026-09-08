@@ -1799,16 +1799,16 @@ class WorkspaceModal(ModalScreen[Optional[dict]]):
         padding: 1;
         margin-bottom: 1;
     }
-    #ws-new-row {
+    .ws-input-row {
         height: 3;
         layout: horizontal;
         margin-top: 1;
     }
-    #new-ws-name {
+    #new-ws-name, #new-ws-ip {
         width: 1fr;
         margin-right: 1;
     }
-    #new-ws-path {
+    #new-ws-path, #new-ws-template {
         width: 1fr;
         margin-right: 1;
     }
@@ -1833,11 +1833,14 @@ class WorkspaceModal(ModalScreen[Optional[dict]]):
             yield ListView(id="ws-list")
 
             with Vertical(id="ws-new-section"):
-                yield Label(f"[bold {P.accent}]Scaffold & Create New Lab Workspace:[/]")
-                with Horizontal(id="ws-new-row"):
-                    yield Input(placeholder="Workspace name (e.g. lab01)", id="new-ws-name")
-                    yield Input(placeholder="Directory (optional, e.g. ~/labs/lab01)", id="new-ws-path")
-                    yield Button("Scaffold", variant="success", id="btn-ws-scaffold")
+                yield Label(f"[bold {P.accent}]Scaffold Dedicated Lab Workspace:[/]")
+                with Horizontal(classes="ws-input-row"):
+                    yield Input(placeholder="Workspace name (e.g. victim01)", id="new-ws-name")
+                    yield Input(placeholder="Directory (defaults to ./<name>)", id="new-ws-path")
+                with Horizontal(classes="ws-input-row"):
+                    yield Input(placeholder="Target IP (e.g. 10.10.10.20, optional)", id="new-ws-ip")
+                    yield Input(placeholder="Template (e.g. ejpt, web, privesc)", id="new-ws-template")
+                    yield Button("Scaffold Lab", variant="success", id="btn-ws-scaffold")
 
             with Horizontal(id="ws-btn-bar"):
                 yield Button("Switch Workspace (Enter)", variant="primary", id="btn-ws-switch")

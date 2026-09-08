@@ -11,9 +11,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import ipaddress
+
 import click
 from rich.console import Console
 from rich.markup import escape
+from rich.panel import Panel
 from rich.table import Table
 
 from glacis.clipboard import copy_to_clipboard
@@ -573,16 +576,52 @@ def restore_cmd(ctx: click.Context, file_path: str, name: Optional[str]) -> None
 # Workspace Management
 # -----------------------------------------------------------------------------
 
+def _is_ip_address(val: Optional[str]) -> bool:
+    """Check if a string is a valid IPv4 or IPv6 address."""
+    if not val:
+        return False
+    try:
+        ipaddress.ip_address(val.strip())
+        return True
+    except ValueError:
+        return False
+
+
 @cli.command("init")
-@click.argument("directory", default=".", type=click.Path())
-@click.option("--name", "-n", default=None, help="Workspace name (defaults to folder name)")
+@click.argument("target", default=".", required=False)
+@click.argument("ip_arg", required=False, default=None)
+@click.option("--name", "-n", default=None, help="Workspace name (defaults to target folder name)")
+@click.option("--ip", "-i", default=None, help="Initial target IP address to seed in scope")
+@click.option("--template", "-m", default=None, help="Methodology template to load (ejpt, web, privesc, etc.)")
 @click.option("--desc", "-d", default="", help="Workspace description")
+@click.option("--tui", "-t", is_flag=True, help="Launch GLACIS TUI immediately in the new workspace")
 @click.pass_context
-def init_cmd(ctx: click.Context, directory: str, name: Optional[str], desc: str) -> None:
-    """Initialize a dedicated assessment workspace directory with scaffolded folders."""
+def init_cmd(
+    ctx: click.Context,
+    target: str,
+    ip_arg: Optional[str],
+    name: Optional[str],
+    ip: Optional[str],
+    template: Optional[str],
+    desc: str,
+    tui: bool,
+) -> None:
+    """Initialize a dedicated assessment workspace directory with scaffolded folders and helper tools."""
     store = _get_store(ctx)
-    target_path = Path(directory).expanduser().resolve()
-    ws_name = name.strip() if name else target_path.name
+
+    # Resolve target IP and destination directory
+    effective_ip = (ip or ip_arg or "").strip()
+    target_str = target.strip() if target else "."
+
+    if not effective_ip and _is_ip_address(target_str):
+        # Shorthand: glacis init 10.10.10.20
+        effective_ip = target_str
+        target_dir_name = name.strip() if name else target_str
+    else:
+        target_dir_name = target_str
+
+    target_path = Path(target_dir_name).expanduser().resolve()
+    ws_name = name.strip() if name else (target_str if _is_ip_address(target_str) else target_path.name)
     if not ws_name or ws_name in (".", "/"):
         ws_name = "assessment"
 
@@ -590,12 +629,38 @@ def init_cmd(ctx: click.Context, directory: str, name: Optional[str], desc: str)
         name=ws_name,
         target_dir=target_path,
         description=desc,
+        initial_ip=effective_ip if effective_ip else None,
+        template_name=template,
     )
-    console.print(f"[green]✓ Workspace initialized & selected:[/green] [bold]{ws.name}[/bold]")
-    console.print(f"  [dim]Location:[/dim] {resolved_path}")
-    console.print("  [dim]Local Database:[/dim] .glacis/notebook.db (portable)")
-    console.print("  [dim]Folders created:[/dim] scans/ enum/ screenshots/ notes/ loot/")
-    console.print("  [dim]Scaffolded report:[/dim] findings.md")
+
+    lines = [
+        f"[green]✓ Workspace initialized & selected:[/green] [bold cyan]{ws.name}[/bold cyan]",
+        f"  [dim]Directory:[/dim]      {resolved_path}",
+    ]
+    if effective_ip:
+        lines.append(f"  [dim]Target IP:[/dim]      [bold green]{effective_ip}[/bold green] (seeded in-scope)")
+    if template:
+        lines.append(f"  [dim]Template:[/dim]       [bold yellow]{template}[/bold yellow] (methodology checklist loaded)")
+    lines.extend([
+        "  [dim]Local Database:[/dim] .glacis/notebook.db (portable & auto-discovered)",
+        "  [dim]Scaffolding:[/dim]    scans/  enum/  screenshots/  loot/  notes/",
+        "  [dim]Helper Files:[/dim]   target.env  notes/scratchpad.md  findings.md  .gitignore",
+        "",
+        "  [bold]Quickstart:[/bold]",
+        f"    [dim]$[/dim] cd {resolved_path.name if resolved_path != Path.cwd().resolve() else '.'} && source target.env",
+        "    [dim]$[/dim] glacis tui",
+    ])
+    panel = Panel("\n".join(lines), title="[bold cyan]GLACIS Lab Scaffolding[/bold cyan]", border_style="cyan")
+    console.print(panel)
+
+    if tui:
+        import os
+
+        os.environ["GLACIS_DB"] = str(resolved_path / ".glacis" / "notebook.db")
+        ctx.obj["db_path"] = str(resolved_path / ".glacis" / "notebook.db")
+        if "store" in ctx.obj:
+            del ctx.obj["store"]
+        ctx.invoke(tui_cmd)
 
 
 # -----------------------------------------------------------------------------
@@ -659,17 +724,36 @@ def ws_create(ctx: click.Context, name: str, desc: str, root_path: str) -> None:
 @workspace_group.command("init")
 @click.argument("name")
 @click.option("--path", "target_path", default=None, help="Directory path to scaffold (defaults to ./<name>)")
+@click.option("--ip", "-i", default=None, help="Initial target IP address to seed in scope")
+@click.option("--template", "-m", default=None, help="Methodology template to load (ejpt, web, privesc, etc.)")
 @click.option("--desc", default="", help="Workspace description")
 @click.pass_context
-def ws_init(ctx: click.Context, name: str, target_path: Optional[str], desc: str) -> None:
+def ws_init(
+    ctx: click.Context,
+    name: str,
+    target_path: Optional[str],
+    ip: Optional[str],
+    template: Optional[str],
+    desc: str,
+) -> None:
     """Initialize folder scaffolding for a new assessment workspace."""
     store = _get_store(ctx)
     dest = Path(target_path).expanduser().resolve() if target_path else Path.cwd() / name
-    ws, resolved = store.init_workspace_directory(name=name, target_dir=dest, description=desc)
+    ws, resolved = store.init_workspace_directory(
+        name=name,
+        target_dir=dest,
+        description=desc,
+        initial_ip=ip,
+        template_name=template,
+    )
     console.print(f"[green]✓ Initialized workspace:[/green] [bold]{ws.name}[/bold]")
     console.print(f"  [dim]Directory:[/dim] {resolved}")
+    if ip:
+        console.print(f"  [dim]Target IP:[/dim] [green]{ip}[/green] (seeded)")
+    if template:
+        console.print(f"  [dim]Template:[/dim] [yellow]{template}[/yellow] (loaded)")
     console.print("  [dim]Local Database:[/dim] .glacis/notebook.db (portable)")
-    console.print("  [dim]Scaffolding:[/dim] scans/ enum/ screenshots/ notes/ loot/ findings.md")
+    console.print("  [dim]Scaffolding:[/dim] scans/ enum/ screenshots/ notes/ loot/ findings.md target.env")
 
 
 # -----------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "format": "cyb0x-s-backup",
+  "format": "glacis-backup",
   "exported_at": "2026-09-01T08:00:00Z",
   "workspace": {
     "name": "Lab-Assessment-01",

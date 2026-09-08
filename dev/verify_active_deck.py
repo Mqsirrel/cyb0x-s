@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
 from glacis.db.store import NotebookStore
-from glacis.tui.app import CyboxSafeApp
+from glacis.tui.app import GlacisApp
 from glacis.settings import set_derive_guidance
 from dev.screenshot import render_strips
 from textual.widgets import ListView, Input
@@ -22,7 +22,7 @@ async def capture_views():
     # 1. Slate theme captures
     store = NotebookStore(":memory:")
     seed_demo(store)
-    app = CyboxSafeApp(store=store, theme="slate")
+    app = GlacisApp(store=store, theme="slate")
     size = (160, 44)
     
     async with app.run_test(size=size) as pilot:
@@ -75,7 +75,7 @@ async def capture_views():
     # 2. Sugary theme capture
     store_sugary = NotebookStore(":memory:")
     seed_demo(store_sugary)
-    app_sugary = CyboxSafeApp(store=store_sugary, theme="sugary")
+    app_sugary = GlacisApp(store=store_sugary, theme="sugary")
     async with app_sugary.run_test(size=size) as pilot:
         svc_list = app_sugary.query_one("#list-services", ListView)
         svc_list.focus()

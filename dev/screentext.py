@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "examples"))
 from demo_seed import seed_demo  # noqa: E402
 
 from glacis.db.store import NotebookStore  # noqa: E402
-from glacis.tui.app import CyboxSafeApp  # noqa: E402
+from glacis.tui.app import GlacisApp  # noqa: E402
 
 
 def strips_to_lines(strips: Sequence, cols: int) -> list[str]:
@@ -42,7 +42,7 @@ async def capture(
 ) -> None:
     store = NotebookStore(":memory:")
     seed_demo(store)
-    app = CyboxSafeApp(store=store)
+    app = GlacisApp(store=store)
 
     async with app.run_test(size=size) as pilot:
         for name, keys, note in shots:

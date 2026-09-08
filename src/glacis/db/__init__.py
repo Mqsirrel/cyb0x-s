@@ -1,4 +1,4 @@
-"""Database module for cyb0x-s."""
+"""Database module for GLACIS."""
 
 from glacis.db.schema import SCHEMA_SQL
 from glacis.db.store import NotebookStore

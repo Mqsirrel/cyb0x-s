@@ -14,7 +14,7 @@ from textual.widgets import Input, ListView
 
 from glacis.db.store import NotebookStore
 from glacis.settings import set_derive_guidance
-from glacis.tui.app import CyboxSafeApp
+from glacis.tui.app import GlacisApp
 from glacis.tui.theme import current_palette
 from glacis.tui.widgets import (
     ConfirmModal,
@@ -30,7 +30,7 @@ from glacis.tui.widgets import (
 @pytest.mark.asyncio
 async def test_active_tab_label_is_visible(seeded_store: NotebookStore) -> None:
     """The active station must render its label (it used to collapse to 0px)."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test():
         active_tabs = [t for t in app.query("Tab") if "-active" in t.classes]
         assert active_tabs, "expected exactly one active tab"
@@ -48,7 +48,7 @@ async def test_highlighting_a_service_updates_drawer(seeded_store: NotebookStore
     """Highlighting a service fills the guidance drawer instead of raising."""
     set_derive_guidance(True)
     try:
-        app = CyboxSafeApp(store=seeded_store)
+        app = GlacisApp(store=seeded_store)
         async with app.run_test(size=(160, 44)) as pilot:
             svc_list = app.query_one("#list-services", ListView)
             svc_list.focus()
@@ -65,7 +65,7 @@ async def test_highlighting_a_service_updates_drawer(seeded_store: NotebookStore
 
 @pytest.mark.asyncio
 async def test_tree_navigation_updates_drawer(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test() as pilot:
         tree = app.query_one(TargetTreeWidget)
         tree.focus()
@@ -78,7 +78,7 @@ async def test_tree_navigation_updates_drawer(seeded_store: NotebookStore) -> No
 @pytest.mark.asyncio
 async def test_failure_log_panel_has_height(seeded_store: NotebookStore) -> None:
     """Tab 4's rabbit-hole log must actually occupy screen space."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         app.action_switch_tab("tab-loot")
         await pilot.pause()
@@ -90,7 +90,7 @@ async def test_failure_log_panel_has_height(seeded_store: NotebookStore) -> None
 
 @pytest.mark.asyncio
 async def test_zoom_expands_panel_and_restores(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         panel = app.query_one("#panel-services")
         width_before = panel.size.width
@@ -112,7 +112,7 @@ async def test_zoom_expands_panel_and_restores(seeded_store: NotebookStore) -> N
 
 @pytest.mark.asyncio
 async def test_delete_asks_for_confirmation(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test() as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -133,7 +133,7 @@ async def test_delete_asks_for_confirmation(seeded_store: NotebookStore) -> None
 
 @pytest.mark.asyncio
 async def test_j_and_k_move_the_highlight(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -149,7 +149,7 @@ async def test_j_and_k_move_the_highlight(seeded_store: NotebookStore) -> None:
 
 @pytest.mark.asyncio
 async def test_search_enter_copies_and_closes(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test() as pilot:
         app.action_open_search()
         await pilot.pause()
@@ -168,7 +168,7 @@ async def test_search_enter_copies_and_closes(seeded_store: NotebookStore) -> No
 
 @pytest.mark.asyncio
 async def test_footer_only_shows_core_keys(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test():
         shown = [b for b in app.BINDINGS if b.show]
         assert len(shown) <= 6
@@ -176,7 +176,7 @@ async def test_footer_only_shows_core_keys(seeded_store: NotebookStore) -> None:
 
 @pytest.mark.asyncio
 async def test_header_reports_workspace_and_counts(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)):
         header = app.query_one(WorksheetHeader)
         text = header.render().plain
@@ -187,7 +187,7 @@ async def test_header_reports_workspace_and_counts(seeded_store: NotebookStore) 
 @pytest.mark.asyncio
 async def test_status_strip_shows_machine_and_next_step(seeded_store: NotebookStore) -> None:
     """The exam-speed strip: target, scope, loot and what to do next."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)):
         strip = app.query_one(MachineStatusStrip)
         text = strip.render().plain
@@ -201,7 +201,7 @@ async def test_status_strip_shows_machine_and_next_step(seeded_store: NotebookSt
 @pytest.mark.asyncio
 async def test_command_bar_still_captures_shortcuts(seeded_store: NotebookStore) -> None:
     """Typing in the command bar must not trigger single-letter hotkeys."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test() as pilot:
         cmd = app.query_one("#cmd-input", Input)
         cmd.focus()
@@ -214,7 +214,7 @@ async def test_command_bar_still_captures_shortcuts(seeded_store: NotebookStore)
 @pytest.mark.asyncio
 async def test_console_shows_command_for_highlighted_row(seeded_store: NotebookStore) -> None:
     """The bottom console is the single place commands are previewed."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)) as pilot:
         console = app.query_one("#guidance-box", ConsoleBar)
         # idle state is a hint, never a blank row
@@ -232,7 +232,7 @@ async def test_console_shows_command_for_highlighted_row(seeded_store: NotebookS
 @pytest.mark.asyncio
 async def test_cockpit_panels_are_all_visible(seeded_store: NotebookStore) -> None:
     """Station 1 shows attack surface, services, methodology and notes at once."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(160, 44)):
         for panel in ("#panel-surface", "#panel-creds", "#panel-services", "#panel-checklist", "#panel-notes"):
             widget = app.query_one(panel)
@@ -245,7 +245,7 @@ async def test_cockpit_panels_are_all_visible(seeded_store: NotebookStore) -> No
 
 @pytest.mark.asyncio
 async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         assert app.theme_name == "slate"
         before = current_palette().accent
@@ -273,7 +273,7 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
     """Guard against stylesheet typos in screens the smoke test never opens."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         for key in ("?", "/", "r", "m", "g", "t", "s", "f", "c", "n", "K", "I", "W"):
             await pilot.press(key)
@@ -285,7 +285,7 @@ async def test_every_modal_mounts(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_console_bar_live_hints_and_autocomplete(seeded_store: NotebookStore) -> None:
     """Test live syntax hints and Tab completion on the bottom command bar."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input, Static
 
@@ -317,7 +317,7 @@ async def test_console_bar_live_hints_and_autocomplete(seeded_store: NotebookSto
 @pytest.mark.asyncio
 async def test_natural_language_command_aliases(seeded_store: NotebookStore) -> None:
     """Test command execution without colons (e.g. target, service, help)."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input
 
@@ -343,7 +343,7 @@ async def test_change_methodology_tui(seeded_store: NotebookStore) -> None:
     """Test switching methodology template replaces current items and updates cockpit."""
     from glacis.tui.widgets import TemplateSelectionModal
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         # Press 'm' to open methodology modal
         await pilot.press("m")
@@ -369,7 +369,7 @@ async def test_change_methodology_tui(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_command_bar_methodology_switch(seeded_store: NotebookStore) -> None:
     """Test switching methodology via command bar :m smb."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input
 
@@ -388,7 +388,7 @@ async def test_command_bar_methodology_switch(seeded_store: NotebookStore) -> No
 @pytest.mark.asyncio
 async def test_colon_hotkey_focuses_cmd_input(seeded_store: NotebookStore) -> None:
     """Pressing ':' anywhere in cockpit instantly focuses command input with ':'."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input
 
@@ -409,7 +409,7 @@ async def test_bracket_keys_cycle_targets(seeded_store: NotebookStore) -> None:
     target2 = seeded_store.add_target("10.10.10.30", hostname="web01.local")
     seeded_store.set_active_target(target1.id)
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         assert seeded_store.get_active_target().ip == "10.10.10.20"
 
@@ -423,7 +423,7 @@ async def test_bracket_keys_cycle_targets(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_sidebar_toggle_hotkey(seeded_store: NotebookStore) -> None:
     """Pressing 'b' toggles the sidebar visibility."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         sidebar = app.query_one("#sidebar")
         assert not sidebar.has_class("hidden")
@@ -440,7 +440,7 @@ async def test_service_space_cycles_status(seeded_store: NotebookStore) -> None:
     """Pressing Space on a highlighted service cycles its status."""
     from glacis.models import ServiceStatus
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -471,7 +471,7 @@ async def test_recipe_carousel_cycling(seeded_store: NotebookStore) -> None:
     from glacis.settings import set_derive_guidance
 
     set_derive_guidance(True)
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         svcs = seeded_store.list_services()
         smb_svc = next(s for s in svcs if "smb" in s.service.lower() or s.port == 445)
@@ -498,7 +498,7 @@ async def test_recipe_carousel_cycling(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_panel_navigation_keys(seeded_store: NotebookStore) -> None:
     """Pressing 'w' cycles panels, 'h' focuses left sidebar, 'l' focuses right workbench."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         # Start at services list
         svc_list = app.query_one("#list-services", ListView)
@@ -528,7 +528,7 @@ async def test_service_cross_filtering(seeded_store: NotebookStore) -> None:
     seeded_store.add_checklist_item("Enumerate SMB shares", category="SMB", target_id=target.id)
     seeded_store.add_credential("smbuser", "secret123", service_scope="smb", target_id=target.id)
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -551,7 +551,7 @@ async def test_wordlist_command_execution(seeded_store: NotebookStore, monkeypat
     copied = []
     monkeypatch.setattr("glacis.tui.commands.copy_to_clipboard", lambda text: copied.append(text))
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         inp = app.query_one("#cmd-input", Input)
         inp.focus()
@@ -574,7 +574,7 @@ async def test_credential_matrix_2d_spray(seeded_store: NotebookStore, monkeypat
     copied = []
     monkeypatch.setattr("glacis.tui.widgets.copy_to_clipboard", lambda text: copied.append(text))
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         # Switch to Station 3 (Creds)
         await pilot.press("3")
@@ -599,7 +599,7 @@ async def test_credential_matrix_2d_spray(seeded_store: NotebookStore, monkeypat
 @pytest.mark.asyncio
 async def test_machine_status_strip_small_terminal_no_crash(seeded_store: NotebookStore) -> None:
     """Ensure small terminal sizes (e.g. 76x24 or 72x24) elide cleanly without crashing."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(76, 24)) as pilot:
         await pilot.pause()
         status_strip = app.query_one("#target-info", MachineStatusStrip)
@@ -630,7 +630,7 @@ def test_badge_caches_and_clear() -> None:
 @pytest.mark.asyncio
 async def test_differential_row_in_place_update(seeded_store: NotebookStore) -> None:
     """Test that toggling space updates ListItem in-place without rebuilding list."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         ck_list = app.query_one("#list-checklist", ListView)
         ck_list.focus()
@@ -651,7 +651,7 @@ async def test_differential_row_in_place_update(seeded_store: NotebookStore) -> 
 @pytest.mark.asyncio
 async def test_rapid_scrolling_stability(seeded_store: NotebookStore) -> None:
     """Ensure rapid repeated cursor movement / scrolling does not cascade or drop state."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -683,7 +683,7 @@ async def test_subnet_and_pivot_tree_rendering(seeded_store: NotebookStore) -> N
     t2 = seeded_store.add_target("192.168.1.50", hostname="db-internal")
     seeded_store.update_target_details(t2.id, subnet="192.168.1.0/24")
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)):
         tree = app.query_one("#target-tree", TargetTreeWidget)
         # Should now have 2 subnet branches
@@ -698,7 +698,7 @@ async def test_cred_matrix_persistence_in_tui(seeded_store: NotebookStore) -> No
     """Test that toggling status in CredentialMatrixWidget persists to SQLite."""
     from glacis.tui.widgets import CredentialMatrixWidget
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.press("3")  # switch to Station 3 Credentials
 
@@ -720,7 +720,7 @@ async def test_exam_proof_ledger_and_commands(seeded_store: NotebookStore, tmp_p
     """Test recording exam proofs via :q command and markdown export."""
     from glacis.tui.widgets import LootAndFlagsWidget
 
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         from textual.widgets import Input
 
@@ -753,7 +753,7 @@ async def test_exam_proof_ledger_and_commands(seeded_store: NotebookStore, tmp_p
 @pytest.mark.asyncio
 async def test_cockpit_layout_rebalance_and_console_visibility(seeded_store: NotebookStore) -> None:
     """Notes panel must be wider than checklist; console input row must be visible and accessible."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)):
         checklist = app.query_one("#panel-checklist")
         notes = app.query_one("#panel-notes")
@@ -778,7 +778,7 @@ async def test_cockpit_layout_rebalance_and_console_visibility(seeded_store: Not
 @pytest.mark.asyncio
 async def test_station_indicator_breadcrumb(seeded_store: NotebookStore) -> None:
     """Station indicator breadcrumb updates dynamically in WorksheetHeader on tab switch."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         header = app.query_one(WorksheetHeader)
         assert "[ Cockpit ]" in header.render().plain
@@ -803,7 +803,7 @@ async def test_station_indicator_breadcrumb(seeded_store: NotebookStore) -> None
 @pytest.mark.asyncio
 async def test_persistent_panel_focus_and_selection_memory(seeded_store: NotebookStore) -> None:
     """Exact list indices and focused cockpit widget are preserved across tab switches."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)) as pilot:
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -827,7 +827,7 @@ async def test_persistent_panel_focus_and_selection_memory(seeded_store: Noteboo
 @pytest.mark.asyncio
 async def test_tree_folding_persistence(seeded_store: NotebookStore) -> None:
     """Collapsed tree nodes remain collapsed across populate cycles."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)):
         tree = app.query_one("#target-tree", TargetTreeWidget)
         targets = seeded_store.list_targets()
@@ -849,7 +849,7 @@ async def test_tree_folding_persistence(seeded_store: NotebookStore) -> None:
 @pytest.mark.asyncio
 async def test_precision_borders_and_native_border_titles(seeded_store: NotebookStore) -> None:
     """Panels utilize native border_title and dynamic border_subtitle counters."""
-    app = CyboxSafeApp(store=seeded_store)
+    app = GlacisApp(store=seeded_store)
     async with app.run_test(size=(140, 40)):
         surface_panel = app.query_one("#panel-surface")
         svc_panel = app.query_one("#panel-services")

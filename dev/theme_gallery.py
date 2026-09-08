@@ -26,7 +26,7 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 from screenshot import render_strips  # noqa: E402
 
 from glacis.db.store import NotebookStore  # noqa: E402
-from glacis.tui.app import CyboxSafeApp  # noqa: E402
+from glacis.tui.app import GlacisApp  # noqa: E402
 from glacis.tui.theme import PALETTES  # noqa: E402
 
 SIZE = (150, 34)
@@ -46,7 +46,7 @@ async def _capture_palette(theme: str, out_dir: Path) -> tuple[Image.Image, Imag
     """Render one palette's cockpit, return (img, label_font)."""
     store = NotebookStore(":memory:")
     seed_demo(store)
-    app = CyboxSafeApp(store=store, theme=theme)
+    app = GlacisApp(store=store, theme=theme)
 
     async with app.run_test(size=SIZE) as pilot:
         await pilot.pause()

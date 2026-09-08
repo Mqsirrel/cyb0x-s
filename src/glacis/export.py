@@ -1,4 +1,4 @@
-"""Export and import engines for CYB0X-S.
+"""Export and import engines for GLACIS.
 
 Produces clean, standalone Markdown, JSON backups, and plain text notes.
 Allows lossless round-trip workspace migration.
@@ -21,7 +21,7 @@ def export_markdown(
 ) -> str:
     """Export notebook to human-readable standalone Markdown.
 
-    Designed to be clear and useful without CYB0X-S installed.
+    Designed to be clear and useful without GLACIS installed.
     """
     ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
     if not ws:
