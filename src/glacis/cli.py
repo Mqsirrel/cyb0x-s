@@ -6,12 +6,11 @@ Strictly passive: stores verbatim inputs without classification, parsing, or aut
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import sys
 from pathlib import Path
 from typing import Optional
-
-import ipaddress
 
 import click
 from rich.console import Console

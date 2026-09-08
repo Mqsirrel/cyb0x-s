@@ -2,6 +2,10 @@
 
 User-facing documentation for GLACIS. Keep this directory focused on material that helps someone install, use, or understand the project.
 
+<p align="center">
+  <img src="screenshots/01-worksheet.png" alt="GLACIS Terminal Preview" width="800">
+</p>
+
 ## Guides
 
 - [Field Guide](GLACIS_Field_Guide.pdf) — detailed usage reference

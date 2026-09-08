@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from glacis.tui.commands import normalize_command
 
 
@@ -144,4 +146,31 @@ def test_execute_lhost_lport_and_crack() -> None:
     updated_c = store.get_credential(c.id)
     assert updated_c.secret == "password123"
     assert updated_c.status == "cracked"
+
+
+def test_normalize_init_command() -> None:
+    assert normalize_command("init") == ":init"
+    assert normalize_command(":init") == ":init"
+    assert normalize_command("init lab_box") == ":init lab_box"
+    assert normalize_command(":init lab_box 10.10.10.20") == ":init lab_box 10.10.10.20"
+
+
+def test_execute_init_command(tmp_path: Path, monkeypatch) -> None:
+    from unittest.mock import MagicMock
+
+    from glacis.db.store import NotebookStore
+    from glacis.tui.commands import execute_command
+
+    monkeypatch.chdir(tmp_path)
+    store = NotebookStore(":memory:")
+    app = MagicMock()
+    app.store = store
+    app.refresh_all = MagicMock()
+    app.notify = MagicMock()
+
+    execute_command(app, ":init target_omega 10.10.10.77")
+    app.refresh_all.assert_called()
+    assert (tmp_path / "target_omega" / ".glacis" / "notebook.db").is_file()
+    assert (tmp_path / "target_omega" / "target.env").is_file()
+    assert 'export TARGET="10.10.10.77"' in (tmp_path / "target_omega" / "target.env").read_text(encoding="utf-8")
 

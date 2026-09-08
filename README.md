@@ -2,12 +2,9 @@
 
 **Local, human-controlled terminal field worksheet and offline methodology companion.**
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ GLACIS WORKSHEET                    MODE: MANUAL           │
-│ Local field notebook                 Human-controlled       │
-└─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/screenshots/01-worksheet.png" alt="GLACIS Cockpit Terminal Interface" width="920">
+</p>
 
 GLACIS provides a fast, keyboard-driven terminal field worksheet for recording, structuring, and searching information discovered during cybersecurity labs, CTFs, and practical assessments.
 
@@ -271,8 +268,29 @@ Station 1 answers the four questions you keep asking under time pressure:
 | Services panel | What is exposed on the target? |
 | Bottom console | What syntax can I copy right now — and where do I type new findings? |
 
-The remaining stations are deep dives: **2** offline playbooks, **3** the full
-credential vault, **4** flags / foothold / rabbit-hole log.
+### Station 2: Cognitive Playbooks (`2`)
+
+Full-screen offline methodology playbooks, service inspection flows, and command reference cheatsheets for common services (SSH, SMB, HTTP, MySQL, MSSQL, SNMP, WinRM, RDP, etc.).
+
+<p align="center">
+  <img src="docs/screenshots/02-playbooks.png" alt="Station 2: Playbooks" width="920">
+</p>
+
+### Station 3: Credential Matrix & Spray Tracker (`3`)
+
+Multi-target credential vault and 2D spray matrix tracking username:password pairs across target services (SSH, SMB, HTTP, DB, etc.) with masked values and fast clipboard copying.
+
+<p align="center">
+  <img src="docs/screenshots/03-creds.png" alt="Station 3: Credential Matrix" width="920">
+</p>
+
+### Station 4: Loot, Flags & Exam Proofs (`4`)
+
+Structured ledger for user flags, root flags, exam question proofs, loot paths, and the negative-knowledge rabbit hole failure log to avoid repeating dead ends.
+
+<p align="center">
+  <img src="docs/screenshots/04-loot.png" alt="Station 4: Loot & Flags" width="920">
+</p>
 
 ### Themes
 

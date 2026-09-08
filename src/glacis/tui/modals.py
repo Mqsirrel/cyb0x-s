@@ -1887,11 +1887,19 @@ class WorkspaceModal(ModalScreen[Optional[dict]]):
         elif event.button.id == "btn-ws-scaffold":
             name = self.query_one("#new-ws-name", Input).value.strip()
             path_val = self.query_one("#new-ws-path", Input).value.strip()
+            ip_val = self.query_one("#new-ws-ip", Input).value.strip() or None
+            tmpl_val = self.query_one("#new-ws-template", Input).value.strip() or None
             if not name:
                 return
             from pathlib import Path
+
             dest = Path(path_val).expanduser().resolve() if path_val else Path.cwd() / name
-            ws, resolved = self.store.init_workspace_directory(name=name, target_dir=dest)
+            ws, resolved = self.store.init_workspace_directory(
+                name=name,
+                target_dir=dest,
+                initial_ip=ip_val,
+                template_name=tmpl_val,
+            )
             self.dismiss({"action": "scaffolded", "workspace": ws, "path": resolved})
         elif event.button.id == "btn-ws-cancel":
             self.dismiss(None)

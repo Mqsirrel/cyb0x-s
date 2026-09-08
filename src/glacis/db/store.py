@@ -555,7 +555,6 @@ class NotebookStore:
                     t_obj = local_store.add_target(
                         ip=initial_ip.strip(),
                         hostname=name if name != initial_ip.strip() else "",
-                        in_scope=True,
                         notes=f"Primary target for {name}",
                         workspace_id=ws_local.id,
                     )
@@ -563,7 +562,8 @@ class NotebookStore:
                 if template_name:
                     try:
                         from glacis.templates import apply_template_to_store
-                        apply_template_to_store(local_store, template_name, target_id=seeded_target_id, workspace_id=ws_local.id)
+
+                        apply_template_to_store(local_store, template_name, target_id=seeded_target_id)
                     except Exception:
                         pass
                 local_store.close()
@@ -580,14 +580,14 @@ class NotebookStore:
                     t_self = self.add_target(
                         ip=initial_ip.strip(),
                         hostname=name if name != initial_ip.strip() else "",
-                        in_scope=True,
                         notes=f"Primary target for {name}",
                         workspace_id=ws.id,
                     )
                     target_id = t_self.id
                 if template_name:
                     from glacis.templates import apply_template_to_store
-                    apply_template_to_store(self, template_name, target_id=target_id, workspace_id=ws.id)
+
+                    apply_template_to_store(self, template_name, target_id=target_id)
             except Exception:
                 pass
 
