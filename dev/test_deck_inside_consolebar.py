@@ -1,19 +1,20 @@
 import asyncio
-from pathlib import Path
 import sys
+from pathlib import Path
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
-from glacis.db.store import NotebookStore
-from glacis.tui.app import GlacisApp
-from glacis.settings import set_derive_guidance
-from dev.screenshot import render_strips
-from textual.widgets import ListView, Static, Label, Input
-from textual.containers import Horizontal
 from rich.text import Text
+from textual.widgets import Input, Label, ListView, Static
+
+from dev.screenshot import render_strips
+from glacis.db.store import NotebookStore
+from glacis.settings import set_derive_guidance
+from glacis.tui.app import GlacisApp
 from glacis.tui.theme import current_palette
 
 OUT_DIR = ROOT / ".arena" / "shots"
@@ -28,7 +29,7 @@ async def main():
         svc_list.focus()
         await pilot.press("down")
         await pilot.pause()
-        
+
         P = current_palette()
         cb = app.query_one("#guidance-box")
         cb.styles.height = 5
@@ -36,26 +37,26 @@ async def main():
         cb.styles.border_top = ("solid", P.accent)
         cb.border_title = " ACTION RECIPE & INSPECTOR "
         cb.border_subtitle = " [Enter: Copy] · [. Next (1/3)] "
-        
+
         # Format cmd line with safe glyphs and bold accent
         cmd_text = Text()
         cmd_text.append(" RUN ▸ ", style=f"bold {P.accent}")
         cmd_text.append("ssh <USER>@10.10.10.20", style=f"bold {P.text}")
         cb.query_one("#console-cmd", Static).update(cmd_text)
-        
+
         tip_text = Text()
         tip_text.append(" TIP ▸ ", style=f"bold {P.muted}")
         tip_text.append("Connect using discovered credentials or private key. Check password auth methods.", style=f"{P.text_soft}")
         cb.query_one("#console-tip", Static).update(tip_text)
-        
+
         # Add styled prompt and clean placeholder
         inp = cb.query_one("#cmd-input", Input)
         inp.placeholder = "Type command (:t, :s, :c, :m, :w) or note... (: for menu, Tab to complete)"
-        
+
         prompt = cb.query_one("#console-prompt", Label)
         prompt.styles.width = "auto"
         prompt.update(" [ : ] ❯ ")
-        
+
         await pilot.pause()
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, (160, 44))

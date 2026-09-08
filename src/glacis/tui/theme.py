@@ -1,15 +1,16 @@
 """GLACIS theming: palettes, design tokens and the application stylesheet.
 
-Seven palettes ship with the app:
+Eight palettes ship with the app:
 
-* ``slate``    — cool graphite chrome with cyan/mint data and amber warnings.
-                 Default: tuned for long sessions and at-a-glance state.
-* ``midnight`` — indigo / periwinkle, calm and low-flare for long labs.
-* ``ember``    — amber CRT, warm monochrome-adjacent reading glow.
-* ``moss``     — forest / lime, low-eye-strain green.
-* ``neon``     — magenta / electric, high-energy accent.
-* ``mono``     — luminance only, colour-blind safe (no hue at all).
-* ``warm``     — the original charcoal / terracotta / kraft identity.
+* ``slate``      — cool glacial graphite chrome with cyan/frost mint data and amber warnings.
+                   Default: tuned for long sessions, pristine contrast and at-a-glance state.
+* ``midnight``   — indigo / periwinkle, calm and low-flare for long labs.
+* ``ember``      — amber CRT, warm monochrome-adjacent reading glow.
+* ``cyber``      — tokyo / electric, high-energy cyan and neon accents.
+* ``sugary``     — vanilla cream / espresso ink, warm light mode.
+* ``candy``      — cotton lilac / glaze, soft pastel background with violet highlights.
+* ``caramel``    — toffee / maple sugar, warm parchment with honey and roasted tones.
+* ``catppuccin`` — mocha / sapphire, soothing pastel dark theme.
 
 The stylesheet below deliberately contains **no literal colours**: every rule
 references a Textual design token (``$surface``, ``$accent``, ``$text-muted`` …)
@@ -116,7 +117,7 @@ class Palette:
 
 SLATE = Palette(
     name="slate",
-    label="Slate · cyan / mint",
+    label="Slate · glacial cyan / frost mint",
     bg="#0E1418",
     surface="#151C22",
     raised="#1D262E",
@@ -280,11 +281,13 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
     Examples:
         '1' -> 'slate'
         '4' -> 'cyber'
-        '5' -> 'catppuccin'
+        '5' -> 'sugary'
+        '8' -> 'catppuccin'
         'su' or 'sugary' -> 'sugary'
         'ca' or 'candy' -> 'candy'
         'cat' or 'catppuccin' -> 'catppuccin'
         'sl' or 'slate' -> 'slate'
+        'glacier' or 'frost' -> 'slate'
         'mid' or 'midnight' -> 'midnight'
         'em' or 'ember' -> 'ember'
         'cy' or 'cyber' -> 'cyber'
@@ -310,6 +313,10 @@ def resolve_palette_name(query: Optional[str]) -> Optional[str]:
     alias_map = {
         "sl": "slate",
         "s": "slate",
+        "glacier": "slate",
+        "glacis": "slate",
+        "frost": "slate",
+        "ice": "slate",
         "mid": "midnight",
         "mi": "midnight",
         "em": "ember",

@@ -1,7 +1,8 @@
 import asyncio
-from pathlib import Path
 import sys
-from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
+
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -9,10 +10,11 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
-from glacis.db.store import NotebookStore
-from glacis.tui.app import GlacisApp
-from glacis.settings import set_derive_guidance
+
 from dev.screenshot import render_strips
+from glacis.db.store import NotebookStore
+from glacis.settings import set_derive_guidance
+from glacis.tui.app import GlacisApp
 
 OUT_DIR = ROOT / ".arena" / "shots"
 
@@ -22,13 +24,13 @@ async def build_transition_previews():
     seed_demo(store)
     size = (160, 44)
     app = GlacisApp(store=store, theme="slate")
-    
+
     async with app.run_test(size=size) as pilot:
         # Capture Station 1 Cockpit
         await pilot.pause()
         strips1 = app.screen._compositor.render_strips()
         img_cockpit = render_strips(strips1, size)
-        
+
         # Focus services panel
         from textual.widgets import ListView
         svc = app.query_one("#list-services", ListView)
@@ -37,13 +39,13 @@ async def build_transition_previews():
         await pilot.pause()
         strips_recipe = app.screen._compositor.render_strips()
         img_recipe = render_strips(strips_recipe, size)
-        
+
         # Switch to Station 2 Playbooks
         app.action_switch_tab("tab-playbooks")
         await pilot.pause()
         strips2 = app.screen._compositor.render_strips()
         img_playbooks = render_strips(strips2, size)
-        
+
         # Switch to Help Modal
         app.action_switch_tab("tab-worksheet")
         await pilot.pause()
@@ -51,9 +53,9 @@ async def build_transition_previews():
         await pilot.pause()
         strips_help = app.screen._compositor.render_strips()
         img_help = render_strips(strips_help, size)
-        
+
     print("Base screenshots captured. Now synthesizing animated GIF transitions...")
-    
+
     # 1. Station Crossfade GIF (Cockpit -> Playbooks -> Cockpit)
     # 120ms ease-out cubic crossfade
     frames_crossfade = []
@@ -72,7 +74,7 @@ async def build_transition_previews():
     for a in reversed(alphas):
         blended = Image.blend(img_cockpit, img_playbooks, a)
         frames_crossfade.append(blended)
-        
+
     frames_crossfade[0].save(
         OUT_DIR / "transition_01_station_crossfade.gif",
         save_all=True,
@@ -97,7 +99,7 @@ async def build_transition_previews():
         frames_pulse.append(img_recipe)
     for a in reversed(pulse_alphas):
         frames_pulse.append(Image.blend(img_cockpit, img_recipe, a))
-        
+
     frames_pulse[0].save(
         OUT_DIR / "transition_02_panel_focus_pulse.gif",
         save_all=True,
@@ -109,9 +111,6 @@ async def build_transition_previews():
 
     # 3. Smooth Clipboard Copy Decay (Enter -> Green flash -> Soft glow -> Resting cyan)
     # Let's create the green copied frame
-    img_copied = img_recipe.copy()
-    draw = ImageDraw.Draw(img_copied)
-    # Draw green border and title around guidance box
     # Guidance box is at rows 38-42
     # In 160x44 grid, font height ~19, cell width ~10
     # Let's create an authentic copied frame
@@ -141,7 +140,7 @@ async def build_transition_previews():
         frames_modal.append(img_help)
     for a in reversed(modal_alphas):
         frames_modal.append(Image.blend(img_cockpit, img_help, a))
-        
+
     frames_modal[0].save(
         OUT_DIR / "transition_04_modal_entry.gif",
         save_all=True,

@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
 
+      - name: Lint and code style
+        run: uv run ruff check src/ tests/ scripts/ dev/
+
       - name: Fast tier (pull requests)
         if: github.event_name == 'pull_request'
         run: uv run pytest -m fast -n auto

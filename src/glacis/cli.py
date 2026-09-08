@@ -45,7 +45,7 @@ def _get_store(ctx: click.Context) -> NotebookStore:
 @click.group(invoke_without_command=True)
 @click.option("--db", "db_path", type=click.Path(), default=None, help="Custom SQLite database file path.")
 @click.option("--workspace", "-w", "workspace_name", default=None, help="Assessment workspace name.")
-@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, cyber, sugary, candy, caramel).")
+@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, cyber, sugary, candy, caramel, catppuccin).")
 @click.pass_context
 def cli(ctx: click.Context, db_path: Optional[str], workspace_name: Optional[str], theme_name: Optional[str] = None) -> None:
     """GLACIS — Conservative, passive, human-controlled field notebook."""
@@ -1362,7 +1362,7 @@ def clean_cmd(ctx: click.Context, file_path: Optional[str], copy: bool) -> None:
 # -----------------------------------------------------------------------------
 
 @cli.command("tui")
-@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, cyber, sugary, candy, caramel).")
+@click.option("--theme", "-t", "theme_name", default=None, help="Color palette (slate, midnight, ember, cyber, sugary, candy, caramel, catppuccin).")
 @click.pass_context
 def tui_cmd(ctx: click.Context, theme_name: Optional[str] = None) -> None:
     """Launch the interactive terminal user interface."""

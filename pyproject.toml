@@ -42,6 +42,12 @@ markers = [
     "fast: Fast unit, database, CLI, and model tests",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Mqsirrel/glacis"
+Repository = "https://github.com/Mqsirrel/glacis"
+Documentation = "https://github.com/Mqsirrel/glacis#readme"
+Issues = "https://github.com/Mqsirrel/glacis/issues"
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
@@ -49,4 +55,9 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"dev/*" = ["E402"]
+"scripts/*" = ["E402"]
+
 

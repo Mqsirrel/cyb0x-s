@@ -258,6 +258,10 @@ async def test_theme_switch_is_live(seeded_store: NotebookStore) -> None:
 
         app.action_cycle_theme()
         await pilot.pause(0)
+        assert app.theme_name == "catppuccin"
+
+        app.action_cycle_theme()
+        await pilot.pause(0)
         assert app.theme_name == "slate"
         assert current_palette().accent == before
 

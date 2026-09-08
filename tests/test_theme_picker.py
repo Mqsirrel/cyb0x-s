@@ -35,6 +35,7 @@ def test_resolve_palette_name_and_aliases() -> None:
     assert resolve_palette_name("5") == "sugary"
     assert resolve_palette_name("6") == "candy"
     assert resolve_palette_name("7") == "caramel"
+    assert resolve_palette_name("8") == "catppuccin"
 
     # Prefix and short abbreviations
     assert resolve_palette_name("su") == "sugary"
@@ -43,7 +44,15 @@ def test_resolve_palette_name_and_aliases() -> None:
     assert resolve_palette_name("ca") == "candy"
     assert resolve_palette_name("can") == "candy"
     assert resolve_palette_name("car") == "caramel"
+    assert resolve_palette_name("cat") == "catppuccin"
+    assert resolve_palette_name("catp") == "catppuccin"
+    assert resolve_palette_name("mocha") == "catppuccin"
+    assert resolve_palette_name("catppuccin") == "catppuccin"
     assert resolve_palette_name("sl") == "slate"
+    assert resolve_palette_name("glacier") == "slate"
+    assert resolve_palette_name("frost") == "slate"
+    assert resolve_palette_name("ice") == "slate"
+    assert resolve_palette_name("glacis") == "slate"
     assert resolve_palette_name("mid") == "midnight"
     assert resolve_palette_name("em") == "ember"
     assert resolve_palette_name("cy") == "cyber"
@@ -99,6 +108,11 @@ async def test_theme_picker_modal_full_workflow(
         assert len(app.screen_stack) == 1
 
         await pilot.press("T")
+        await pilot.press("8")  # catppuccin
+        assert app.theme_name == "catppuccin"
+        assert len(app.screen_stack) == 1
+
+        await pilot.press("T")
         await pilot.press("1")  # slate
         assert app.theme_name == "slate"
         assert len(app.screen_stack) == 1
@@ -140,6 +154,16 @@ async def test_command_bar_theme_switching(
         cmd_input.value = ":theme 3"
         await pilot.press("enter")
         assert app.theme_name == "ember"
+
+        # Digit ':theme 8' -> catppuccin
+        cmd_input.value = ":theme 8"
+        await pilot.press("enter")
+        assert app.theme_name == "catppuccin"
+
+        # ':theme' alone cycles to next palette (catppuccin -> slate)
+        cmd_input.value = ":theme"
+        await pilot.press("enter")
+        assert app.theme_name == "slate"
 
         # Persistent default ':theme default sugary'
         cmd_input.value = ":theme default sugary"
@@ -192,5 +216,20 @@ async def test_guidance_gate_console(seeded_store: NotebookStore) -> None:
         cmd_on = console.query_one("#console-cmd").render().plain
         assert "smbmap" in cmd_on
         set_derive_guidance(None)
+
+
+@pytest.mark.asyncio
+async def test_action_cycle_theme_all_palettes(seeded_store: NotebookStore) -> None:
+    """Verify action_cycle_theme cycles through all 8 registered palettes in order and wraps around."""
+    app = GlacisApp(store=seeded_store)
+    async with app.run_test(size=(160, 44)):
+        names = list(PALETTES.keys())
+        # Start at default (slate)
+        assert app.theme_name == names[0]
+        # Cycle through all other palettes
+        for expected in names[1:] + [names[0]]:
+            app.action_cycle_theme()
+            assert app.theme_name == expected
+
 
 

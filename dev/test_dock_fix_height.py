@@ -1,18 +1,20 @@
 import asyncio
-from pathlib import Path
 import sys
+from pathlib import Path
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
-from glacis.db.store import NotebookStore
-from glacis.tui.app import GlacisApp
-from glacis.settings import set_derive_guidance
-from dev.screenshot import render_strips
-from textual.widgets import ListView, Static, Label, Input
 from rich.text import Text
+from textual.widgets import Input, Label, ListView, Static
+
+from dev.screenshot import render_strips
+from glacis.db.store import NotebookStore
+from glacis.settings import set_derive_guidance
+from glacis.tui.app import GlacisApp
 from glacis.tui.theme import current_palette
 
 OUT_DIR = ROOT / ".arena" / "shots"
@@ -25,12 +27,12 @@ async def test_fix():
     async with app.run_test(size=(160, 44)) as pilot:
         footer = app.query_one("Footer")
         footer.styles.display = "none"
-        
+
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
         await pilot.press("down")
         await pilot.pause()
-        
+
         P = current_palette()
         cb = app.query_one("#guidance-box")
         cb.styles.height = 5
@@ -39,7 +41,7 @@ async def test_fix():
         cb.styles.border = ("solid", P.border)
         cb.border_title = " ACTION RECIPE & LIVE GUIDANCE "
         cb.border_subtitle = " [Enter: Copy] · [. Next (1/3)] "
-        
+
         cmd_static = cb.query_one("#console-cmd", Static)
         cmd_static.styles.height = 1
         cmd_static.styles.padding = (0, 1)
@@ -47,7 +49,7 @@ async def test_fix():
         cmd_text.append("RUN ▸ ", style=f"bold {P.accent}")
         cmd_text.append("ssh <USER>@10.10.10.20", style=f"bold {P.text}")
         cmd_static.update(cmd_text)
-        
+
         tip_static = cb.query_one("#console-tip", Static)
         tip_static.styles.height = 1
         tip_static.styles.padding = (0, 1)
@@ -55,16 +57,16 @@ async def test_fix():
         tip_text.append("TIP ▸ ", style=f"bold {P.muted}")
         tip_text.append("Connect using discovered credentials or private key. Check allowed auth methods.", style=f"{P.text_soft}")
         tip_static.update(tip_text)
-        
+
         input_row = cb.query_one("#console-input-row")
         input_row.styles.height = 1
         input_row.styles.padding = (0, 1)
-        
+
         prompt = cb.query_one("#console-prompt", Label)
         prompt.styles.width = "auto"
         prompt.styles.height = 1
         prompt.update(" [ : ] ❯ ")
-        
+
         inp = cb.query_one("#cmd-input", Input)
         inp.placeholder = "Type command (:t, :s, :c, :m, :w) or note... (: for menu, Tab to complete)"
         inp.styles.border = "none"
@@ -72,7 +74,7 @@ async def test_fix():
         inp.styles.height = 1
         inp.styles.padding = (0, 0)
         inp.styles.margin = (0, 0)
-        
+
         hotkeys_text = Text()
         hotkeys_text.append(" [w]", style=f"bold {P.warn}")
         hotkeys_text.append(" panels ", style=f"{P.muted}")
@@ -86,7 +88,7 @@ async def test_fix():
         hotkeys_lbl.styles.width = "auto"
         hotkeys_lbl.styles.height = 1
         input_row.mount(hotkeys_lbl)
-        
+
         await pilot.pause()
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, (160, 44))

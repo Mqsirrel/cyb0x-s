@@ -1237,16 +1237,16 @@ class GlacisApp(App):
 
     def action_cycle_theme(self) -> None:
         """Switch to the next available palette."""
-        names = ["slate", "midnight", "ember", "cyber", "sugary", "candy", "caramel"]
+        names = list(PALETTES.keys())
         current = names.index(self.theme_name) if self.theme_name in names else -1
         self.apply_theme(names[(current + 1) % len(names)])
 
     def apply_theme(self, name: str, quiet: bool = False) -> None:
-        """Activate a palette by name, index (1-7), or alias/prefix, live."""
+        """Activate a palette by name, index (1-8), or alias/prefix, live."""
         resolved = resolve_palette_name(name)
         if not resolved or resolved not in PALETTES:
             self.notify(
-                f"Unknown theme '{name}'. Available: {', '.join(PALETTES)} (or 1-7)",
+                f"Unknown theme '{name}'. Available: {', '.join(PALETTES)} (or 1-{len(PALETTES)})",
                 severity="warning",
             )
             return

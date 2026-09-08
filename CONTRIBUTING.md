@@ -9,6 +9,12 @@ changes small, tested, and compliant with [docs/EXAM_COMPLIANCE.md](docs/EXAM_CO
 uv sync --all-extras
 ```
 
+## Code Quality & Linting
+
+```bash
+uv run ruff check src/ tests/ scripts/ dev/
+```
+
 ## Tests
 
 Two tiers, both parallelized with pytest-xdist:
@@ -19,7 +25,7 @@ uv run pytest -n auto           # full suite, including TUI tests
 ```
 
 Mark new unit tests with `@pytest.mark.fast`; TUI/rendering tests stay in the
-default tier.
+default tier. All code must pass `ruff check src/ tests/ scripts/ dev/` cleanly.
 
 ## TUI changes
 

@@ -1,12 +1,34 @@
-# GLACIS — FIELD WORKSHEET
+<div align="center">
 
-**Local, human-controlled terminal field worksheet and offline methodology companion.**
+```text
+  ██████╗ ██╗      █████╗  ██████╗██╗███████╗
+ ██╔════╝ ██║     ██╔══██╗██╔════╝██║██╔════╝
+ ██║  ███╗██║     ███████║██║     ██║███████╗
+ ██║   ██║██║     ██╔══██║██║     ██║╚════██║
+ ╚██████╔╝███████╗██║  ██║╚██████╗██║███████║
+  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝╚══════╝
+```
 
-<p align="center">
-  <img src="docs/screenshots/01-worksheet.png" alt="GLACIS Cockpit Terminal Interface" width="920">
-</p>
+### **GLACIS: Glacial Assessment & Cybersecurity Inspection Station**
+*The pristine, keyboard-driven terminal field worksheet, cognitive playbook & evidence ledger.*
 
-GLACIS provides a fast, keyboard-driven terminal field worksheet for recording, structuring, and searching information discovered during cybersecurity labs, CTFs, and practical assessments.
+[![CI](https://github.com/Mqsirrel/glacis/actions/workflows/ci.yml/badge.svg)](https://github.com/Mqsirrel/glacis/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-00E5FF.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](https://opensource.org/licenses/MIT)
+[![TUI: Textual](https://img.shields.io/badge/TUI-Textual-4FD6E8.svg)](https://textual.textualize.io/)
+[![Contrast: WCAG AAA](https://img.shields.io/badge/Contrast-WCAG%20AAA%20(≥7:1)-6FE3B0.svg)](#8-themes--glacial-aesthetic)
+[![Certifications Safe](https://img.shields.io/badge/Exam%20Safe-eJPTv2%20•%20eCPPT%20•%20OSCP-00E5FF.svg)](#3-practical-exam--certification-compliance)
+[![Architecture: Local-First](https://img.shields.io/badge/Storage-100%25%20Offline%20SQLite-lightgrey.svg)](#1-core-design-principle)
+
+<br/>
+
+<img src="docs/screenshots/01-worksheet.png" alt="GLACIS Cockpit Terminal Interface" width="940">
+
+</div>
+
+---
+
+**GLACIS** is an ultra-fast, keyboard-driven terminal field worksheet, cognitive methodology copilot, and structured evidence engine. Designed for penetration testers, practical certification candidates (**eJPTv2**, **eCPPT**, **OSCP**, **CPTS**, **PNPT**), and CTF competitors, GLACIS eliminates methodology amnesia, credential sprawl, and report panic under time pressure.
 
 ---
 
@@ -21,7 +43,6 @@ GLACIS is a local, human-controlled field notebook and methodology worksheet. It
 
 ## 2. Operational Posture & Transparency
 
-To maintain total transparency:
 * **Default Mode: Strict Passive Recording**: Out of the box, GLACIS is a pure manual notebook. It stores only what you type, tracks your manual checklist progress, and searches your local records.
 * **Offline Cognitive Playbooks**: Provides pre-compiled, static command syntax reference sheets (like a built-in `man` page or reference manual) so you never need to leave the terminal to look up common utility flags.
 * **Optional Static Guidance (`derive_guidance`)**: GLACIS includes an opt-in static dictionary mapping common port numbers to standard reference commands. **This feature is OFF by default** (`GLACIS_DERIVE_GUIDANCE=0`). When disabled, no ratings or commands are inferred. When explicitly enabled by the user, it acts as a deterministic local dictionary lookup—never a live scanner, and never an autonomous decision-maker.
@@ -36,7 +57,7 @@ To maintain total transparency:
 * **Fast CLI Capture**: Record discoveries in sub-second CLI commands (e.g. `glacis note "..."`, `glacis cred admin:pass`).
 * **Standalone Export**: Export clean, human-readable Markdown notebooks, JSON backups, or plain text summaries.
 * **Fast Search**: Instant keyword search across notes, findings, services, creds, and evidence (`Ctrl+F` or `glacis search`).
-* **Clipboard Integration**: Instant copying of IPs, `IP:port`, credentials, or checklist items directly to your terminal clipboard (`y` key).
+* **Clipboard Integration**: Instant copying of IPs, `IP:port`, credentials, or checklist items directly to your terminal clipboard (`y` key or `Enter`).
 
 ### What It Does NOT Do
 * **NO External Network Calls**: Zero external cloud APIs, zero telemetry, and zero outbound web traffic.
@@ -48,9 +69,9 @@ To maintain total transparency:
 
 ---
 
-## 3. Practical Exam & Certification Compliance (e.g., INE / eJPT)
+## 3. Practical Exam & Certification Compliance
 
-Candidates often ask whether GLACIS is permitted during practical certification exams like the INE eJPT, eWPT, or similar hands-on assessments.
+Candidates frequently inquire whether GLACIS is permitted during practical certification exams like the **INE eJPT / eCPPT**, **OffSec OSCP**, **HackTheBox CPTS**, or **TCM Security PNPT**.
 
 ### How GLACIS Aligns with Certification Policies:
 * **Local & Offline**: Zero cloud dependencies, zero external network traffic, and no telemetry.
@@ -82,40 +103,66 @@ All pre-loaded checklist templates (`ejpt`, `discovery`, `web`, `smb`, `pivoting
 
 ---
 
-## 4. Example Workflow
+## 5. Dual-Terminal Workflow (tmux / Split Screen)
+
+GLACIS is engineered as a zero-friction terminal companion running side-by-side with your active shell. The recommended workflow is a 50/50 horizontal or vertical terminal split (or `tmux` session):
 
 ```
-Run your tools yourself (nmap, burp, terminal)
-               ↓
-     Discover something
-               ↓
-    Record it in GLACIS
-               ↓
-       Continue working
-               ↓
-     Update findings/evidence
-               ↓
-       Export your notes
+┌─────────────────────────────────────────┬─────────────────────────────────────────┐
+│ TERMINAL 1: ACTIVE TOOLS & SHELL        │ TERMINAL 2: GLACIS COCKPIT & WORKSHEET  │
+│                                         │                                         │
+│ $ nmap -sC -sV -p 22,80,445 10.10.10.20 │ ┌─ GLACIS  worksheet · Lab-01 ────────┐ │
+│ PORT    STATE SERVICE     VERSION       │ │ ◆ 10.10.10.20  target.local  Linux  │ │
+│ 22/tcp  open  ssh         OpenSSH 8.2p1 │ │ 1 ⌂ Cockpit  2 ▸ Books  3 ▸ Creds   │ │
+│ 80/tcp  open  http        Apache 2.4.41 │ ├─────────────────────────────────────┤ │
+│ 445/tcp open  smb         Samba 4.3     │ │ ❯ smbmap -H 10.10.10.20 [Enter]=copy│ │
+│                                         │ └─────────────────────────────────────┘ │
+│                                         │                                         │
+│ # Press [Enter] on GLACIS recommendation│ 1. Record targets & services (`s`)      │
+│ # Syntax is already copied to clipboard!│ 2. Advance methodology checklist (`Spc`)│
+│ $ smbmap -H 10.10.10.20 -u guest -p ''  │ 3. Store credentials securely (`c`)     │
+│ [+] Guest access enabled on \backup     │ 4. Track flags, loot & proofs (`g`)     │
+│                                         │ 5. Global instant search (`Ctrl+F`)     │
+└─────────────────────────────────────────┴─────────────────────────────────────────┘
 ```
+
+### The Seamless Friction-Free Cycle
+1. **Explore (Terminal 1)**: Run your port scans, web fuzzers, and scripts in your active shell.
+2. **Record (Terminal 2)**: Add newly found ports, notes, and credentials directly into GLACIS via rapid hotkeys (`s`, `n`, `c`, `f`) or the bottom command bar (`:s 445/tcp smb`).
+3. **Bridge via Clipboard**: Highlight any service or guidance item in GLACIS and press **`Enter`** or **`y`**. GLACIS formats the exact command with target IPs and ports filled in and sends it straight to your clipboard—ready to paste into Terminal 1.
+4. **Export at Submission Time**: One command (`glacis export -f md -o report.md`) generates a pristine, publication-grade Markdown field report ready for exam grading or client delivery.
 
 ---
 
-## 5. Installation
+## 6. Installation & Quickstart
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/glacis.git
+# Clone the official repository
+git clone https://github.com/Mqsirrel/glacis.git
 cd glacis
 
-# Install locally with pip or uv
-pip install -e .
-# or
+# Install locally with uv (recommended) or pip
 uv pip install -e .
+# or
+pip install -e .
+```
+
+### Launch GLACIS
+
+```bash
+# Launch interactive TUI in current folder
+glacis
+# Shorthand alias:
+gls
+
+# Or initialize an isolated lab workspace
+glacis init my-lab && cd my-lab
+glacis
 ```
 
 ---
 
-## 6. Fast Capture CLI
+## 7. Fast Capture CLI
 
 The CLI is engineered for minimal friction. It records verbatim what you supply:
 
@@ -213,7 +260,7 @@ glacis ref mimikatz
 glacis search "backup"
 ```
 
-### Export Notes
+### Export Notes & Deliverables
 ```bash
 # Clean standalone Markdown notebook:
 glacis export --format md -o notes.md
@@ -227,19 +274,13 @@ glacis export --format txt
 
 ---
 
-## 7. Terminal User Interface (TUI)
+## 8. Terminal User Interface (TUI) Architecture
 
-Launch the interactive field worksheet by running:
+GLACIS features 4 dedicated mission stations accessible via digits **`1`**, **`2`**, **`3`**, and **`4`**:
 
-```bash
-glacis
-# or
-glacis tui
-```
+### Station 1: The Cockpit (`1`)
 
-### The cockpit (station 1)
-
-```
+```text
 ┌─ GLACIS  worksheet · Lab-01 ───────────────────────────────────── targets 1 ─┐
 │ ◆ 10.10.10.20  target.local  Linux   [IN-SCOPE]  🏁 —  👑 —   3 ports 1 cred   │
 │ NEXT ▸ SMB null session check   ██████░░░░  50% (2/4)              no blockers │
@@ -261,16 +302,16 @@ glacis tui
 
 Station 1 answers the four questions you keep asking under time pressure:
 
-| Zone | Question |
+| Zone | Mission Question |
 |---|---|
-| Status strip | Which box am I on, and what have I captured? |
-| `NEXT ▸` row | What is my current checklist milestone, and how far through the methodology am I? |
-| Services panel | What is exposed on the target? |
-| Bottom console | What syntax can I copy right now — and where do I type new findings? |
+| **Status Strip** | Which box am I on, and what have I captured? |
+| **`NEXT ▸` Row** | What is my current checklist milestone, and how far through the methodology am I? |
+| **Services Panel** | What is exposed on the target? |
+| **Bottom Console** | What syntax can I copy right now — and where do I type new findings? |
 
 ### Station 2: Cognitive Playbooks (`2`)
 
-Full-screen offline methodology playbooks, service inspection flows, and command reference cheatsheets for common services (SSH, SMB, HTTP, MySQL, MSSQL, SNMP, WinRM, RDP, etc.).
+Full-screen offline methodology playbooks, service inspection flows, and command reference cheatsheets for common services (SSH, SMB, HTTP, MySQL, MSSQL, SNMP, WinRM, RDP, PrivEsc, Pivoting, etc.).
 
 <p align="center">
   <img src="docs/screenshots/02-playbooks.png" alt="Station 2: Playbooks" width="920">
@@ -278,7 +319,7 @@ Full-screen offline methodology playbooks, service inspection flows, and command
 
 ### Station 3: Credential Matrix & Spray Tracker (`3`)
 
-Multi-target credential vault and 2D spray matrix tracking username:password pairs across target services (SSH, SMB, HTTP, DB, etc.) with masked values and fast clipboard copying.
+Multi-target credential vault and 2D spray matrix tracking `username:password` pairs across target services (SSH, SMB, HTTP, DB, WinRM) with masked values and fast clipboard copying.
 
 <p align="center">
   <img src="docs/screenshots/03-creds.png" alt="Station 3: Credential Matrix" width="920">
@@ -292,84 +333,95 @@ Structured ledger for user flags, root flags, exam question proofs, loot paths, 
   <img src="docs/screenshots/04-loot.png" alt="Station 4: Loot & Flags" width="920">
 </p>
 
-### Themes
+---
 
-Seven palettes ship with the app and can be swapped live:
+## 9. Themes & Glacial Aesthetic
 
-| Name | Look | Command |
-|---|---|---|
-| `slate` | default deep cyan / mint, low eye strain | `:theme slate` |
-| `midnight` | indigo / periwinkle, calm low-flare for long labs | `:theme midnight` |
-| `ember` | amber CRT, warm reading glow | `:theme ember` |
-| `cyber` | electric tokyo night / cyan accent | `:theme cyber` |
-| `sugary` | vanilla cream / latte, soft pastry tones & crisp contrast | `:theme sugary` |
-| `candy` | cotton lilac / sweet berry glaze | `:theme candy` |
-| `caramel` | toffee / maple sugar warmth | `:theme caramel` |
+GLACIS ships with **8 carefully crafted palettes** engineered for long-session ergonomics and crystal-clear typography. Every palette strictly maintains **WCAG AAA** contrast (≥7:1) for body text and **WCAG AA** (≥4.5:1) for muted auxiliary text.
 
-* **Interactive Picker**: Press **`T`** anywhere in the Cockpit (`↑`/`↓` or `j`/`k` for live full-screen preview, `1-7` for instant pick, `d` to set as persistent default, `Enter` to keep, `Esc` to cancel).
+| Name | Aesthetic | Style Description | Command |
+|---|---|---|---|
+| `slate` *(default)* | ❄️ **Glacial Cyan / Frost Mint** | Deep arctic graphite chrome with crisp cyan and mint data tokens. | `:theme slate` |
+| `midnight` | 🌌 Indigo / Periwinkle | Calm, deep nocturnal palette with minimal ocular flare. | `:theme midnight` |
+| `ember` | 📟 Amber CRT | Warm monochrome phosphor glow evoking classic terminals. | `:theme ember` |
+| `cyber` | ⚡ Tokyo Electric | Electric cyan and vivid neon accents for high visual contrast. | `:theme cyber` |
+| `sugary` | ☕ Vanilla Cream / Latte | Warm light mode with espresso typography and pastry tones. | `:theme sugary` |
+| `candy` | 🍬 Cotton Lilac / Glaze | Soft pastel background with rich berry and violet highlights. | `:theme candy` |
+| `caramel` | 🍯 Toffee / Maple Sugar | Warm parchment with rich honey and roasted caramel tones. | `:theme caramel` |
+| `catppuccin` | 🍧 Mocha / Sapphire | The beloved soothing pastel theme with cool sapphire accents. | `:theme catppuccin` |
 
-Every palette keeps its body text at WCAG **AAA** (≥7:1) and muted text at
-**AA** (≥4.5:1) against its background.
-Below 110 columns the workbench stacks into a single column so rows stay readable.
+* **Interactive Theme Picker**: Press **`T`** anywhere in the Cockpit (`↑`/`↓` or `j`/`k` for live full-screen preview, `1-8` for instant pick, `d` to set as persistent default, `Enter` to keep, `Esc` to cancel).
+* **Aliases**: `:theme glacier`, `:theme frost`, and `:theme ice` are instant aliases for the default `slate` palette.
 
-To see every palette at once, render the gallery:
+To render and preview every palette simultaneously:
 
 ```bash
-python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png (needs Pillow)
+python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png
 ```
 
-### TUI Keyboard Shortcuts
-
-| Key | Action |
-|---|---|
-| `1` | **Cockpit** — attack surface, services, methodology, notes |
-| `2` | **Playbooks** — full-screen interactive playbook browser |
-| `3` | **Credentials** — full-screen credential vault & spray matrix |
-| `4` | **Loot & Flags** — user/root flags, foothold proof, rabbit-hole log |
-| `Tab` / `Shift+Tab` | Cycle focus between panels |
-| `j` / `k` (or `↑` / `↓`) | Move down / up inside the focused list or tree |
-| `Enter` | **Copy the command** shown in the console for the highlighted row |
-| `y` | Copy the value (IP, `IP:port`, secret, note text) |
-| `Space` | Cycle checklist status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or reveal a credential |
-| `z` | Zoom the focused panel to the whole cockpit (press again to restore) |
-| `g` | Record captured flags (`user.txt`, `root.txt`) |
-| `r` | Quick command reference modal |
-| `o` | Toggle the active target in-scope / out-of-scope |
-| `/` or `Ctrl+F` | Global search (type, `Enter` copies the top hit) |
-| `t` / `s` / `f` / `c` / `n` | Add target / service / finding / credential / note |
-| `K` (`Shift+k`) | Add custom checklist item (`k` is list navigation) |
-| `m` | Methodology template picker |
-| `d` | Delete highlighted item (asks for confirmation) |
-| `T` | Open the theme picker (live preview, Esc restores) |
-| `G` | Toggle derive guidance (auto access-potential / next-step) — **off** by default |
-| `?` | Help and shortcut reference |
-| `q` | Exit GLACIS |
-
-The footer only shows the five keys you need to get going (`q ? / y Space`);
-press `?` for the complete reference.
-
-### Quick Command Bar (Bottom of TUI)
-
-* `:1` … `:4` — instant station switching
-* `:t <ip>` — add a target
-* `:s <port/proto> <service>` — quick service entry (e.g. `:s 445/tcp smb`)
-* `:c <user:pass>` — quick credential entry
-* `:n <text>` — quick field note
-* `:f <text>` — quick finding
-* `:uflag <hash>` / `:rflag <hash>` — save captured exam flags
-* `:foothold <vuln>` — record initial access vulnerability
-* `:privesc <vector>` — record privilege escalation vector
-* `:stuck <why>` — log a rabbit hole dead end
-* `:clue <breakthrough>` — log the breakthrough clue that unlocked progress
-* `:ev <path>` — log evidence
-* `:ref <term>` — pop up the offline command reference (e.g. `:ref winrm`)
-* `:theme <name>` — switch palette (`slate`, `midnight`, `ember`, `moss`, `neon`, `mono`, `warm`); `:theme` alone cycles
-* `:q` — quit
-
-Anything else you type is recorded as a field note, so the bar never blocks you.
+<p align="center">
+  <img src="dev/previews/theme-gallery.png" alt="GLACIS Theme Gallery" width="920">
+</p>
 
 ---
 
-## 8. License
+## 10. TUI Keyboard Shortcuts Matrix
 
-MIT License. Designed and built for ethical security professionals, lab students, and penetration testers who value speed, simplicity, and strict methodology control.
+| Key | Action | Scope |
+|---|---|---|
+| `1` | **Cockpit Station** — attack surface, services, methodology, notes | Global |
+| `2` | **Playbooks Station** — full-screen interactive playbook browser | Global |
+| `3` | **Credentials Station** — credential vault & service spray matrix | Global |
+| `4` | **Loot & Flags Station** — flags, foothold proof, rabbit-hole log | Global |
+| `Tab` / `Shift+Tab` | Cycle focus between visible panels | Cockpit |
+| `j` / `k` (or `↑` / `↓`) | Move down / up inside active list or tree | Lists |
+| `Enter` | **Copy command** from bottom runner to clipboard | Focused item |
+| `y` | Copy raw value (IP, `IP:port`, credential, note text) | Focused item |
+| `Space` | Cycle status (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`) or unmask password | Items |
+| `z` | Zoom focused panel to fill entire screen (press again to restore) | Cockpit |
+| `g` | Record captured flags (`user.txt`, `root.txt`) | Global |
+| `r` | Quick command reference popup modal | Global |
+| `o` | Toggle target in-scope / out-of-scope | Target |
+| `/` or `Ctrl+F` | Global real-time fuzzy search modal | Global |
+| `t` | Add target modal | Global |
+| `s` | Add service modal | Global |
+| `f` | Add finding modal | Global |
+| `c` | Add credential modal | Global |
+| `n` | Add field note modal | Global |
+| `K` (`Shift+k`) | Add custom checklist item | Cockpit |
+| `m` | Methodology template picker modal | Cockpit |
+| `d` | Delete highlighted item (with safety confirmation) | Lists |
+| `T` | Open theme picker modal with live preview | Global |
+| `G` | Toggle static derive guidance on/off | Global |
+| `?` | Interactive help and cheat sheet | Global |
+| `q` | Exit GLACIS | Global |
+
+---
+
+## 11. Quick Command Bar (Bottom of TUI)
+
+Type directly into the bottom console input to execute rapid actions:
+
+* `:1` … `:4` — Instant station switching
+* `:t <ip>` — Quick target addition
+* `:s <port/proto> <service>` — Quick service addition (e.g. `:s 445/tcp smb`)
+* `:c <user:pass>` — Quick credential addition
+* `:n <text>` — Quick field note
+* `:f <text>` — Quick finding
+* `:uflag <hash>` / `:rflag <hash>` — Save captured exam flags
+* `:foothold <vuln>` — Record initial access foothold
+* `:privesc <vector>` — Record privilege escalation vector
+* `:stuck <why>` — Log a rabbit hole dead end
+* `:clue <breakthrough>` — Log the breakthrough clue that unlocked progress
+* `:ev <path>` — Log evidence file path
+* `:ref <term>` — Pop up offline command reference (e.g. `:ref winrm`)
+* `:theme <name>` — Switch palette (`slate`, `midnight`, `ember`, `cyber`, `sugary`, `candy`, `caramel`, `catppuccin`); `:theme` alone cycles
+* `:q` — Quit
+
+*Anything else typed into the command bar without a `:` prefix is automatically recorded as a field note.*
+
+---
+
+## 12. License & Community
+
+Distributed under the **MIT License**. Built for ethical security professionals, lab students, and penetration testers who value speed, simplicity, and strict methodology discipline.

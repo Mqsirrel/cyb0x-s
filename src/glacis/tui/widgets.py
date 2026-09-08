@@ -686,7 +686,7 @@ class ConsoleBar(Container):
             tip_line.append("e.g. :f Anonymous SMB Share Access (press Enter to save)", style=f"{P.muted}")
         elif v.startswith(":th") or v.startswith("theme"):
             cmd_line.append("[THEME / PALETTE] ", style=f"bold {P.warn}")
-            cmd_line.append(":theme <1-7 or slate|midnight|ember|cyber|sugary|candy|caramel>", style=f"bold {P.text}")
+            cmd_line.append(":theme <1-8 or slate|midnight|ember|cyber|sugary|candy|caramel|catppuccin>", style=f"bold {P.text}")
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("e.g. :theme cyber, :theme 3 (ember), or :theme alone to cycle", style=f"{P.muted}")
         elif v.startswith(":u") or v.startswith(":flag user"):

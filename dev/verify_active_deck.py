@@ -1,6 +1,6 @@
 import asyncio
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -8,30 +8,31 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "examples"))
 
 from demo_seed import seed_demo
-from glacis.db.store import NotebookStore
-from glacis.tui.app import GlacisApp
-from glacis.settings import set_derive_guidance
+from textual.widgets import Input, ListView
+
 from dev.screenshot import render_strips
-from textual.widgets import ListView, Input
+from glacis.db.store import NotebookStore
+from glacis.settings import set_derive_guidance
+from glacis.tui.app import GlacisApp
 
 OUT_DIR = ROOT / ".arena" / "shots"
 
 async def capture_views():
     set_derive_guidance(True)
-    
+
     # 1. Slate theme captures
     store = NotebookStore(":memory:")
     seed_demo(store)
     app = GlacisApp(store=store, theme="slate")
     size = (160, 44)
-    
+
     async with app.run_test(size=size) as pilot:
         # Shot 1: Cockpit idle
         await pilot.pause()
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, size)
         img.save(OUT_DIR / "final_deck_01_cockpit_idle_slate.png")
-        
+
         # Shot 2: Cockpit service selected (recipe active)
         svc_list = app.query_one("#list-services", ListView)
         svc_list.focus()
@@ -40,7 +41,7 @@ async def capture_views():
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, size)
         img.save(OUT_DIR / "final_deck_02_cockpit_recipe_slate.png")
-        
+
         # Shot 3: Command typing
         inp = app.query_one("#cmd-input", Input)
         inp.focus()
@@ -49,7 +50,7 @@ async def capture_views():
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, size)
         img.save(OUT_DIR / "final_deck_03_command_runner_slate.png")
-        
+
         # Clear input and switch to Station 2
         inp.value = ""
         app.action_switch_tab("tab-playbooks")
@@ -57,14 +58,14 @@ async def capture_views():
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, size)
         img.save(OUT_DIR / "final_deck_04_playbooks_slate.png")
-        
+
         # Station 3
         app.action_switch_tab("tab-creds")
         await pilot.pause()
         strips = app.screen._compositor.render_strips()
         img = render_strips(strips, size)
         img.save(OUT_DIR / "final_deck_05_creds_slate.png")
-        
+
         # Station 4
         app.action_switch_tab("tab-loot")
         await pilot.pause()
@@ -84,7 +85,7 @@ async def capture_views():
         strips = app_sugary.screen._compositor.render_strips()
         img = render_strips(strips, size)
         img.save(OUT_DIR / "final_deck_07_cockpit_recipe_sugary.png")
-        
+
     print("All screenshots generated successfully!")
 
 if __name__ == "__main__":

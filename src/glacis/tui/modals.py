@@ -228,7 +228,7 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
                 yield Button("Apply (Enter)", variant="primary", classes="primary-btn", id="btn-apply")
                 yield Button("Cancel (Esc)", id="btn-cancel")
             yield Label(
-                "↑↓/j/k: live preview   1-7: pick   d: save default   Enter: apply   Esc: cancel",
+                f"↑↓/j/k: live preview   1-{len(PALETTES)}: pick   d: save default   Enter: apply   Esc: cancel",
                 id="theme-picker-hint",
             )
 
@@ -289,14 +289,14 @@ class ThemePickerModal(ModalScreen[Optional[str]]):
 
     def on_key(self, event: Any) -> None:
         names = list(PALETTES)
-        if event.key in "1234567":
-            event.stop()
+        if event.key.isdigit():
             idx = int(event.key) - 1
             if 0 <= idx < len(names):
+                event.stop()
                 chosen = names[idx]
                 self.app.apply_theme(chosen)  # type: ignore[attr-defined]
                 self.dismiss(chosen)
-            return
+                return
         if event.key in ("d", "D", "s"):
             event.stop()
             chosen = self._selected_theme_name()
