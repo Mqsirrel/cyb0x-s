@@ -14,7 +14,7 @@ from glacis.settings import set_derive_guidance
 from dev.screenshot import render_strips
 from textual.widgets import ListView, Input
 
-OUT_DIR = Path(".arena/shots")
+OUT_DIR = ROOT / ".arena" / "shots"
 
 async def capture_views():
     set_derive_guidance(True)

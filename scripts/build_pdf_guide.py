@@ -4,9 +4,9 @@
 Targeted for practical penetration testing exams (eJPTv2, eCPPTv3, OSCP) and lab assessments.
 Features high-resolution UI screenshots from docs/screenshots/.
 Outputs to:
-  1. ~/Desktop/GLACIS_Field_Guide.pdf
+  1. ~/Desktop/GLACIS_Field_Guide.pdf (if ~/Desktop exists)
   2. ~/Desktop/Documents_and_Media/GLACIS_Security_Docs/GLACIS_Field_Guide.pdf
-  3. ./docs/GLACIS_Field_Guide.pdf
+  3. <repo_root>/docs/GLACIS_Field_Guide.pdf
 """
 
 from __future__ import annotations
@@ -1012,11 +1012,13 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     screenshots_dir = repo_root / "docs" / "screenshots"
 
-    target_paths = [
-        Path("~/Desktop/GLACIS_Field_Guide.pdf"),
-        Path("~/Desktop/Documents_and_Media/GLACIS_Security_Docs/GLACIS_Field_Guide.pdf"),
-        repo_root / "docs" / "GLACIS_Field_Guide.pdf",
-    ]
+    target_paths = [repo_root / "docs" / "GLACIS_Field_Guide.pdf"]
+    desktop = Path.home() / "Desktop"
+    if desktop.is_dir():
+        target_paths.insert(0, desktop / "GLACIS_Field_Guide.pdf")
+        docs_media = desktop / "Documents_and_Media" / "GLACIS_Security_Docs"
+        if docs_media.parent.is_dir():
+            target_paths.insert(1, docs_media / "GLACIS_Field_Guide.pdf")
 
     for p in target_paths:
         p.parent.mkdir(parents=True, exist_ok=True)

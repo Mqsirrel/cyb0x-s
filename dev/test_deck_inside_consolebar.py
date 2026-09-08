@@ -16,7 +16,7 @@ from textual.containers import Horizontal
 from rich.text import Text
 from glacis.tui.theme import current_palette
 
-OUT_DIR = Path(".arena/shots")
+OUT_DIR = ROOT / ".arena" / "shots"
 
 async def main():
     set_derive_guidance(True)

@@ -14,7 +14,7 @@ from glacis.tui.app import GlacisApp
 from glacis.settings import set_derive_guidance
 from dev.screenshot import render_strips
 
-OUT_DIR = Path(".arena/shots")
+OUT_DIR = ROOT / ".arena" / "shots"
 
 async def build_transition_previews():
     set_derive_guidance(True)

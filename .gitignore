@@ -28,11 +28,31 @@ ENV/
 .coverage
 htmlcov/
 
-# Local databases
+# Local databases and workspaces
 *.db
 *.sqlite
 *.sqlite3
+.glacis/
 .cyb0x-s/
+
+# Environment files and credentials
+*.env
+.env*
+target.env
+
+# Assessment logs and local runs
+*.log
+scans/
+loot/
+
+# Editor and OS scratch
+.DS_Store
+*.swp
+*.swo
+*~
+*.bak
+.idea/
+.vscode/
 
 # Arena agent scratch (screenshots, screen dumps)
 .arena/

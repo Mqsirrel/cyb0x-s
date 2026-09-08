@@ -818,6 +818,7 @@ async def test_persistent_panel_focus_and_selection_memory(seeded_store: Noteboo
         # Switch back to Cockpit (Station 1)
         app.action_switch_tab("tab-worksheet")
         await pilot.pause(0.1)
+        await pilot.pause()
 
         # Services list should retain focus and exact row index
         assert svc_list.has_focus, "Services list should retain keyboard focus on tab return"

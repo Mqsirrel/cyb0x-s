@@ -15,7 +15,7 @@ from textual.widgets import ListView, Static, Label, Input
 from rich.text import Text
 from glacis.tui.theme import current_palette
 
-OUT_DIR = Path(".arena/shots")
+OUT_DIR = ROOT / ".arena" / "shots"
 
 async def test_theme(theme_name: str, filename: str):
     set_derive_guidance(True)

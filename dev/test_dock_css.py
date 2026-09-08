@@ -15,7 +15,7 @@ from textual.widgets import ListView, Static, Label, Input
 from rich.text import Text
 from glacis.tui.theme import APP_CSS, current_palette
 
-OUT_DIR = Path(".arena/shots")
+OUT_DIR = ROOT / ".arena" / "shots"
 
 class CustomApp(GlacisApp):
     CSS = APP_CSS + """
