@@ -139,6 +139,9 @@ def execute_command(app: Any, raw: str) -> None:
     if val == ":1":
         app.action_switch_tab("tab-worksheet")
         return
+    elif val == ":0":
+        app.action_switch_tab("tab-pulse")
+        return
     elif val == ":2":
         app.action_switch_tab("tab-playbooks")
         return

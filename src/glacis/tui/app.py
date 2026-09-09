@@ -71,6 +71,7 @@ from glacis.tui.widgets import (
     LootAndFlagsWidget,
     MachineStatusStrip,
     PlaybookBrowserWidget,
+    PulseWidget,
     ReferenceModal,
     ScanImportModal,
     SearchModal,
@@ -103,6 +104,7 @@ class GlacisApp(App):
         Binding("g", "record_flags", "Flags", show=False),
         Binding("r", "show_reference", "Reference", show=False),
         Binding("o", "toggle_scope", "Scope", show=False),
+        Binding("0", "switch_tab('tab-pulse')", "Pulse", show=False),
         Binding("1", "switch_tab('tab-worksheet')", "Worksheet", show=False),
         Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
         Binding("3", "switch_tab('tab-creds')", "Creds", show=False),
@@ -180,6 +182,10 @@ class GlacisApp(App):
         yield MachineStatusStrip(id="target-info")
 
         with TabbedContent(initial="tab-worksheet", id="tabs"):
+            # Station 0 — the pulse: live engagement dashboard.
+            with TabPane("0 ◉ Pulse", id="tab-pulse"):
+                yield PulseWidget(id="pulse-view")
+
             # Station 1 — cockpit: everything needed for the next five minutes.
             with TabPane("1 ⌂ Cockpit", id="tab-worksheet"):
                 with Horizontal(id="cockpit"):
@@ -430,6 +436,7 @@ class GlacisApp(App):
         target_ip = active.ip if active else ""
 
         station_titles = {
+            "tab-pulse": "Pulse",
             "tab-worksheet": "Cockpit",
             "tab-playbooks": "Playbooks",
             "tab-creds": "Credentials",
@@ -470,10 +477,19 @@ class GlacisApp(App):
                 self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
             except Exception:
                 pass
+        elif tab_id == "tab-pulse":
+            self.refresh_pulse_widget()
         elif tab_id == "tab-creds":
             self.refresh_cred_matrix()
         elif tab_id == "tab-loot":
             self.refresh_loot_widget(active)
+
+    def refresh_pulse_widget(self) -> None:
+        """Update Station 0 Pulse dashboard on demand."""
+        try:
+            self.query_one("#pulse-view", PulseWidget).refresh_pulse()
+        except Exception:
+            pass
 
     def refresh_cred_matrix(self) -> None:
         """Update Station 3 Credential Vault & Matrix on demand."""
@@ -935,6 +951,10 @@ class GlacisApp(App):
             # Tab 3 Credential Matrix: only update if user is looking at Tab 3
             if active_tab == "tab-creds":
                 self.refresh_cred_matrix()
+
+            # Station 0 Pulse: only recompute when the user is looking at it.
+            if active_tab == "tab-pulse":
+                self.refresh_pulse_widget()
 
             # 3. Checklist & Progress Bar
             ck_list = self.query_one("#list-checklist", ListView)

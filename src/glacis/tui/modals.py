@@ -1020,6 +1020,7 @@ The human decides and performs the security-testing actions. GLACIS records and 
 Pure passive recording • Local-first SQLite store • Standalone offline operation.
 
 [bold]Stations:[/bold]
+  [{P.accent}]0[/]  Pulse         live dashboard: momentum, coverage, scorecards, next actions
   [{P.accent}]1[/]  Cockpit       attack surface, services, methodology, notes — one screen
   [{P.accent}]2[/]  Playbooks     offline command reference (Enter copies)
   [{P.accent}]3[/]  Credentials   full vault, reveal / copy, spray targets
@@ -1065,7 +1066,7 @@ Pure passive recording • Local-first SQLite store • Standalone offline opera
   :uflag <hash>           record user flag
   :rflag <hash>           record root flag
   :stuck <why> / :clue    log a rabbit hole or the breakthrough clue
-  :ref <term>             offline reference         :1 :2 :3 :4  stations
+  :ref <term>             offline reference         :0 :1 :2 :3 :4  stations
 
 [bold]Shell equivalents:[/bold]
   glacis target 10.10.10.20

@@ -16,11 +16,20 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from glacis.backup import create_snapshot, list_snapshots
 from glacis.clipboard import copy_to_clipboard
 from glacis.db.store import NotebookStore
 from glacis.export import export_json, export_markdown, export_txt, import_json
 from glacis.extractor import CandidateType, extract_candidates, stage_and_commit_candidate
 from glacis.models import ChecklistStatus
+from glacis.pulse import (
+    build_timeline,
+    compute_next_actions,
+    compute_target_scorecards,
+    compute_workspace_pulse,
+    progress_bar,
+)
+from glacis.report import build_html_report
 from glacis.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
 from glacis.scan_import import check_scan_already_imported, commit_scan_results, inspect_scan_file
 from glacis.search import search_notebook
@@ -531,18 +540,21 @@ def search_cmd(ctx: click.Context, query: str) -> None:
 # -----------------------------------------------------------------------------
 
 @cli.command("export")
-@click.option("--format", "-f", "fmt", type=click.Choice(["md", "json", "txt"]), default="md", help="Export format")
+@click.option("--format", "-f", "fmt", type=click.Choice(["md", "json", "txt", "html"]), default="md", help="Export format")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Save to file (prints to stdout if omitted)")
 @click.option("--reveal-creds", is_flag=True, help="Include unmasked passwords in export")
+@click.option("--palette", "-p", "palette_name", default=None, help="Theme for HTML report (default: slate)")
 @click.pass_context
-def export_cmd(ctx: click.Context, fmt: str, output: Optional[str], reveal_creds: bool) -> None:
-    """Export the workspace to standalone Markdown, JSON, or TXT."""
+def export_cmd(ctx: click.Context, fmt: str, output: Optional[str], reveal_creds: bool, palette_name: Optional[str]) -> None:
+    """Export the workspace to standalone Markdown, JSON, TXT, or HTML."""
     store = _get_store(ctx)
 
     if fmt == "md":
         content = export_markdown(store, reveal_creds=reveal_creds)
     elif fmt == "json":
         content = export_json(store)
+    elif fmt == "html":
+        content = build_html_report(store, reveal_creds=reveal_creds, palette_name=palette_name or "slate")
     else:
         content = export_txt(store)
 
@@ -567,6 +579,133 @@ def restore_cmd(ctx: click.Context, file_path: str, name: Optional[str]) -> None
     content = Path(file_path).read_text(encoding="utf-8")
     ws = import_json(store, content, workspace_name=name)
     console.print(f"[green]✓ Successfully imported workspace:[/green] [bold]{ws.name}[/bold]")
+
+
+# -----------------------------------------------------------------------------
+# Pulse — offline engagement intelligence (stats, timeline, triage)
+# -----------------------------------------------------------------------------
+
+@cli.command("stats")
+@click.pass_context
+def stats_cmd(ctx: click.Context) -> None:
+    """Workspace pulse: coverage, momentum, target scorecards, next actions."""
+    store = _get_store(ctx)
+    pulse = compute_workspace_pulse(store)
+
+    if not pulse.workspace_id:
+        console.print("[dim]No active workspace — create a target first.[/dim]")
+        return
+
+    console.print(f"\n[bold cyan]◉ PULSE[/bold cyan] [dim]workspace[/dim] [bold]{pulse.workspace_name}[/bold]\n")
+
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(style="dim", justify="right")
+    grid.add_column()
+    grid.add_row("targets", f"[bold]{pulse.targets}[/bold] [dim]({pulse.in_scope_targets} in scope)[/dim]")
+    grid.add_row("services", f"[bold]{pulse.services}[/bold] [dim]— {pulse.coverage_pct}% tested, {pulse.services_dead_ends} dead-ends[/dim]")
+    sev = pulse.severity_counts
+    sev_str = "  ".join(
+        f"[{'red' if s in ('CRITICAL', 'HIGH') else 'yellow' if s == 'MEDIUM' else 'cyan' if s == 'LOW' else 'dim'}]{s} {n}[/]"
+        for s, n in sev.items() if n
+    ) or "[dim]none recorded[/dim]"
+    grid.add_row("findings", f"[bold]{pulse.findings}[/bold]  {sev_str}")
+    grid.add_row("credentials", f"[bold]{pulse.credentials}[/bold]  [dim]· {pulse.evidence} evidence · {pulse.notes} notes[/dim]")
+    grid.add_row("methodology", f"{progress_bar(pulse.checklist_pct)} [bold]{pulse.checklist_pct}%[/bold] [dim]({pulse.checklist_checked}/{pulse.checklist_total})[/dim]")
+    grid.add_row("momentum", f"[bold]{pulse.momentum_24h}[/bold] today · [bold]{pulse.momentum_7d}[/bold] this week")
+    console.print(grid)
+    console.print(f"  [dim]14d[/dim] [cyan]{pulse.sparkline_blocks}[/cyan]\n")
+
+    cards = compute_target_scorecards(store)
+    if cards:
+        table = Table(title="Target Scorecards", title_style="bold")
+        table.add_column("Target", style="cyan")
+        table.add_column("OS", style="dim")
+        table.add_column("Grade", justify="center", style="bold")
+        table.add_column("Coverage", justify="right")
+        table.add_column("Method", justify="right")
+        table.add_column("Svc", justify="right")
+        table.add_column("Find", justify="right")
+        table.add_column("Flags", justify="right", style="yellow")
+        for c in cards:
+            table.add_row(
+                c.label, c.os, c.grade,
+                f"{c.coverage_pct}% {progress_bar(c.coverage_pct, 8)}",
+                f"{c.checklist_pct}% {progress_bar(c.checklist_pct, 8)}",
+                str(c.services), str(c.findings), str(c.flags_captured),
+            )
+        console.print(table)
+
+    actions = compute_next_actions(store, limit=8)
+    if actions:
+        console.print("[bold]▲ Next actions[/bold] [dim](from your own open items)[/dim]")
+        for a in actions:
+            color = {"now": "red", "next": "yellow", "later": "dim"}.get(a.priority.value, "dim")
+            loc = f" [magenta]{a.target_ip}[/magenta]" if a.target_ip else ""
+            console.print(f"  [{color}]{a.priority.value.upper():<5}[/] {escape(a.title)}{loc}  [dim]{escape(a.reason)}[/dim]")
+    else:
+        console.print("[dim]Triage queue is clear.[/dim]\n")
+
+
+@cli.command("timeline")
+@click.option("--limit", "-n", default=40, help="Maximum events to show")
+@click.pass_context
+def timeline_cmd(ctx: click.Context, limit: int) -> None:
+    """Unified chronological journal of everything recorded."""
+    store = _get_store(ctx)
+    events = build_timeline(store, limit=limit)
+    if not events:
+        console.print("[dim]Timeline is empty — record a target or note first.[/dim]")
+        return
+
+    table = Table(title=f"Timeline · last {len(events)} events (newest first)", title_style="bold")
+    table.add_column("When", style="dim", width=17)
+    table.add_column("", width=2)
+    table.add_column("Event", style="bold")
+    table.add_column("Target", style="magenta", width=16)
+    table.add_column("Detail", style="dim")
+
+    for e in events:
+        table.add_row(
+            e.when.strftime("%Y-%m-%d %H:%M"),
+            e.icon,
+            escape(e.label),
+            e.target_ip or "—",
+            escape(e.detail),
+        )
+    console.print(table)
+
+
+@cli.command("backup")
+@click.option("--label", "-l", default="", help="Optional label embedded in the snapshot filename")
+@click.option("--keep", "-k", default=20, help="Keep the newest N snapshots")
+@click.pass_context
+def backup_cmd(ctx: click.Context, label: str, keep: int) -> None:
+    """Create a JSON snapshot of the active workspace (rotates old ones)."""
+    store = _get_store(ctx)
+    snap = create_snapshot(store, label=label, keep=keep)
+    size_kb = snap.size_bytes / 1024
+    console.print(f"[green]✓ Snapshot saved:[/green] [bold]{snap.path}[/bold] [dim]({size_kb:.1f} KB)[/dim]")
+
+
+@cli.command("backups")
+@click.pass_context
+def backups_cmd(ctx: click.Context) -> None:
+    """List local workspace snapshots (newest first)."""
+    store = _get_store(ctx)
+    snaps = list_snapshots(store)
+    if not snaps:
+        console.print("[dim]No snapshots yet — run [bold]glacis backup[/bold] to create one.[/dim]")
+        return
+
+    table = Table(title=f"Snapshots ({len(snaps)})", title_style="bold")
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Snapshot", style="cyan")
+    table.add_column("Created", style="dim")
+    table.add_column("Size", justify="right")
+    for i, s in enumerate(snaps, 1):
+        table.add_row(str(i), s.name, s.created_at.strftime("%Y-%m-%d %H:%M UTC"), f"{s.size_bytes / 1024:.1f} KB")
+    console.print(table)
+    console.print("[dim]Restore with:[/] glacis restore <file> [dim](restores as a new workspace — never overwrites)[/dim]")
 
 
 # -----------------------------------------------------------------------------

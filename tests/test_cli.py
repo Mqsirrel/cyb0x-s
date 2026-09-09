@@ -206,3 +206,62 @@ def test_cli_theme_option(cli_runner: CliRunner) -> None:
 
 
 
+
+
+# -----------------------------------------------------------------------------
+# Pulse & safety-net commands (v0.2.0)
+# -----------------------------------------------------------------------------
+
+def test_cli_stats_command(cli_runner: CliRunner, temp_db_path: Path) -> None:
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.20", "--hostname", "dc01"])
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "service", "10.10.10.20", "445/tcp", "SMB"])
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "finding", "anon smb", "--severity", "HIGH", "--target", "10.10.10.20"])
+
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "stats"], env={"COLUMNS": "220", "LINES": "60"})
+    assert res.exit_code == 0
+    assert "PULSE" in res.output
+    assert "Target Scorecards" in res.output
+    assert "HIGH" in res.output
+
+
+def test_cli_timeline_command(cli_runner: CliRunner, temp_db_path: Path) -> None:
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.20"])
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "note", "first contact", "--target", "10.10.10.20"])
+
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "timeline"], env={"COLUMNS": "220", "LINES": "60"})
+    assert res.exit_code == 0
+    assert "Timeline" in res.output
+    assert "Note" in res.output
+    assert "10.10.10.20" in res.output
+
+
+def test_cli_backup_and_backups_commands(cli_runner: CliRunner, temp_db_path: Path, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.20"])
+
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "backup", "--label", "test"])
+    assert res.exit_code == 0
+    assert "Snapshot saved" in res.output
+
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "backups"])
+    assert res.exit_code == 0
+    assert "glacis-snapshot-" in res.output
+
+    # Restore from the snapshot file listed
+    snapshot = next(iter(tmp_path.rglob("glacis-snapshot-*test*.json")))
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "restore", str(snapshot)])
+    assert res.exit_code == 0
+    assert "imported workspace" in res.output
+
+
+def test_cli_export_html(cli_runner: CliRunner, temp_db_path: Path, tmp_path: Path) -> None:
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "target", "10.10.10.20", "--hostname", "dc01"])
+    cli_runner.invoke(cli, ["--db", str(temp_db_path), "cred", "admin:secret123", "--target", "10.10.10.20"])
+
+    out = tmp_path / "report.html"
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "export", "--format", "html", "-o", str(out)])
+    assert res.exit_code == 0
+    html = out.read_text(encoding="utf-8")
+    assert html.startswith("<!doctype html>")
+    assert "secret123" not in html          # masked by default
+    assert "https://" not in html           # fully offline asset-free
