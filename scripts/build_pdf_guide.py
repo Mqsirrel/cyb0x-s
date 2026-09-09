@@ -846,8 +846,16 @@ def build_pdf(dest_path: Path, screens: Path) -> None:
 def main() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     screens = repo_root / "docs" / "screenshots"
-    for name in ("CYB0X-S_Field_Guide.pdf", "CYB0X-S_Operator_Guide.pdf"):
-        build_pdf(repo_root / "docs" / name, screens)
+    # Build once, ship twice: both guide filenames carry identical content
+    # (byte-for-byte), so they can never drift apart.
+    primary = repo_root / "docs" / "CYB0X-S_Field_Guide.pdf"
+    build_pdf(primary, screens)
+    import shutil
+
+    twin = repo_root / "docs" / "CYB0X-S_Operator_Guide.pdf"
+    twin.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(primary, twin)
+    print(f"wrote {twin} (copy of {primary.name})")
 
 
 if __name__ == "__main__":

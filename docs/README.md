@@ -4,7 +4,7 @@ User-facing documentation for CYB0X-S. Keep this directory focused on material t
 
 ## Guides
 
-- [Operator Guide](CYB0X-S_Operator_Guide.pdf) — detailed usage reference
+- [Field Guide](CYB0X-S_Field_Guide.pdf) — illustrated quick start, keyboard/console reference and five ready-made workflows (the Operator Guide is the same document)
 - [Workflow](WORKFLOW.md) — a practical lab workflow
 - [eJPT Methodology Templates](EJPT_METHODOLOGY_TEMPLATES.md) — bundled static checklists
 - [Exam Compliance](EXAM_COMPLIANCE.md) — intended exam-safe usage and scope
