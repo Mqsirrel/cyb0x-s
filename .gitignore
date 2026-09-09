@@ -37,3 +37,7 @@ htmlcov/
 # Arena agent scratch (screenshots, screen dumps)
 .arena/
 .temp_shots/
+
+# Local snapshots (glacis backup)
+backups/
+.glacis/
