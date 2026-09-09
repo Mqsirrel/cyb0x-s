@@ -46,6 +46,22 @@ All notable changes to GLACIS are documented here. The format follows
 * **Self-explanatory empty states**: every empty panel, the target tree and
   the Pulse dashboard now say which key fills them; the cockpit console tip
   points at the first action for brand-new workspaces.
+* **Exam Mode for AI-proctored exams** (press `E` or `:exam on` in the TUI):
+  a persistent `EXAM MODE · OFFLINE NOTES` badge in the header (persisted
+  across sessions) plus an `[E]` console-bar key — built for INE's
+  AI-proctored eJPT v2 where a reviewer may watch your screen. The posture
+  rules are documented in `docs/EXAM_COMPLIANCE.md` and
+  `docs/INE_EJPT_GUIDE.md`.
+* **`glacis exam-check`** — a self-audit subcommand that scans GLACIS's own
+  sources for network imports and prints a PASS/FAIL exam-safety report.
+* **Socket-free by construction**: the only socket use (lhost auto-detection
+  fallback) was replaced with a local interface-table lookup — GLACIS now
+  contains zero networking code paths.
+* **Performance**: workspace Pulse computations are fingerprint-cached (only
+  rebuild when recorded data changes), roster refreshes diff-append instead
+  of rebuilding lists (scroll/selection preserved), station switches get a
+  light stepped fade, and per-list composite indexes keep queries fast on
+  large worksheets (WAL auto-checkpoint tuned to avoid write stalls).
 * 30 new tests (212 total, up from 182) covering the pulse layer, HTML
   report (self-containment, masking, XSS escaping, theming), snapshot
   lifecycle, new CLI commands, and the Pulse TUI station.

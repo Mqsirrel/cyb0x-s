@@ -8,6 +8,7 @@ User-facing documentation for CYB0X-S. Keep this directory focused on material t
 - [Workflow](WORKFLOW.md) — a practical lab workflow
 - [eJPT Methodology Templates](EJPT_METHODOLOGY_TEMPLATES.md) — bundled static checklists
 - [Exam Compliance](EXAM_COMPLIANCE.md) — intended exam-safe usage and scope
+- [INE eJPT v2 Guide](INE_EJPT_GUIDE.md) — using GLACIS under AI proctoring + the exam workflow
 
 ## Project documentation
 

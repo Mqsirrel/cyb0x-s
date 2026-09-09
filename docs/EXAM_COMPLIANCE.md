@@ -38,6 +38,34 @@ contribution — human or AI-generated — must respect it.
    candidate agreement before exam day. This file is project policy, not
    legal advice.
 
+## AI-proctored exams (eJPT v2 and similar)
+
+Newer INE practical exams may be monitored by an AI proctoring system that
+watches the candidate's screen and running applications for rule-breaking
+ behaviour (unauthorized assistance, communication tools, AI assistants,
+cloud services). GLACIS is built to be unambiguous under that scrutiny:
+
+| Proctor-visible signal | GLACIS behaviour |
+|---|---|
+| "Is an AI/LLM assisting?" | **No.** GLACIS ships no AI features, calls no models, and derives nothing in its default posture. Every suggestion in `Playbooks`/`Reference` is a static, bundled text lookup. |
+| "Is anything sent over the network?" | **No.** Zero network code paths (see PR checklist). The only "transfer" is your own clipboard to your own terminal. |
+| "Is it talking to another person/machine?" | **No.** No chat, sync, telemetry, update checks, or APIs. One local SQLite file. |
+| "Is it doing the exam for you?" | **No.** GLACIS cannot execute anything. Commands are copied; the candidate types/runs them and makes every decision. |
+| "Is it exam content?" | **No.** Templates/reference are generic public methodology (PTES, OWASP, NIST). No exam answers, flags, or vendor material. |
+
+### Recommended exam posture
+
+1. Launch with **Exam Mode**: press **`E`** (or `:exam on`) — the header shows
+   a persistent `[ EXAM MODE · OFFLINE NOTES ]` badge so a reviewer can see at
+   a glance the window is a personal-notes worksheet.
+2. Keep the posture stock: `derive_guidance` **off** (default), no mods, no
+   plugins (GLACIS has none to install).
+3. Treat it exactly like the permitted notes file it replaces: it holds only
+   what *you* typed and generic references.
+4. If a proctor or rules text is ever stricter than this file, follow the
+   rules — close the tool or ask the vendor. The candidate is always
+   responsible for compliance (Rule 6).
+
 ## PR checklist
 
 - [ ] No new network calls (grep the diff for `requests`, `httpx`, `urllib`,

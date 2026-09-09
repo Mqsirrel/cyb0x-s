@@ -353,7 +353,6 @@ def build_story(screens: Path) -> list:
         [[Paragraph(f"<b>{n}</b>", S["tocb"]), Paragraph(t, S["toc"]), Paragraph(f"<b>{p}</b>", S["tocb"])] for n, t, p in toc_rows],
         colWidths=[24, CONTENT_W - 54, 30],
     )
-    toc_style_leading = 13.6
     toc.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LINEBELOW", (0, 0), (-1, -2), 0.4, colors.HexColor("#E3EAF2")),
@@ -474,6 +473,7 @@ def build_story(screens: Path) -> list:
             [K("Enter"), P("Copy the highlighted command / value (matrix: compiled spray command).", "cell")],
             [K("Space"), P("Cycle triage status; in station 3 cycle UNTESTED \u2192 VALID \u2192 PWN3D \u2192 INVALID; in station 4 preview loot.", "cell")],
             [K("y"), P("Quick-copy the row\u2019s core value (IP, IP:port, secret, note text).", "cell")],
+            [K("E"), P("Exam Mode \u2014 persistent EXAM MODE \u00b7 OFFLINE NOTES badge in the header (proctored exams).", "cell")],
             [K("/ or Ctrl+F"), P("Global search across everything; Enter copies the top hit.", "cell")],
             [K("?"), P("Full help &amp; shortcut reference.", "cell")],
             [K("q"), P("Quit (your data is already saved).", "cell")],
@@ -788,7 +788,8 @@ def build_story(screens: Path) -> list:
         [
             Paragraph(
                 "1. Launch <font face='Courier-Bold' color='#1D63B8'>glacis</font>, pick theme (T, d).<br/>"
-                "2. <font face='Courier-Bold' color='#1D63B8'>:ws init exam</font> \u2014 clean workspace.<br/>"
+                "2. Press <font face='Courier-Bold' color='#1D63B8'>E</font> \u2014 Exam Mode badge (see below).<br/>"
+                "3. <font face='Courier-Bold' color='#1D63B8'>:ws init exam</font> \u2014 clean workspace.<br/>"
                 "3. Import the scope/first scan (I).<br/>"
                 "4. <font face='Courier-Bold' color='#1D63B8'>:lhost auto</font> \u00b7 <font face='Courier-Bold' color='#1D63B8'>:lport 4444</font>.<br/>"
                 "5. <font face='Courier-Bold' color='#1D63B8'>:m ejpt</font> on the first target.<br/>"
@@ -817,6 +818,23 @@ def build_story(screens: Path) -> list:
     ]))
     story.append(two)
     story.append(Spacer(1, 8))
+
+    story.append(subsection("AI-proctored exams (eJPT v2) \u2014 why this notebook is safe"))
+    story.append(P(
+        "Newer INE practicals are watched by an AI proctor looking for unauthorized help: AI assistants, "
+        "chat, cloud services, anything leaving the exam environment. GLACIS is a personal notes file, "
+        "and it stays provably on the right side of the line:", "cell"))
+    story.append(data_table(
+        ["What the proctor sees", "What GLACIS actually does"],
+        [
+            [P("\u201cIs an AI assisting you?\u201d", "cell"), P("No AI features exist. Playbooks and :ref are static text bundled with the app \u2014 a man page, not an advisor. Derived guidance ships off; leave it off.", "cell")],
+            [P("\u201cIs anything sent to the network?\u201d", "cell"), P("Zero network code paths. No telemetry, updates, sync, or sockets. Run <font face='Courier-Bold' color='#1D63B8'>glacis exam-check</font> to audit the installed build yourself.", "cell")],
+            [P("\u201cIs it doing the exam for you?\u201d", "cell"), P("It cannot execute anything. It shows a command; you copy it and run it in your own terminal \u2014 same as your own cheat sheet.", "cell")],
+            [P("\u201cWhat is this window?\u201d", "cell"), P("Press <font face='Courier-Bold' color='#1D63B8'>E</font>: the header shows a persistent EXAM MODE \u00b7 OFFLINE NOTES badge \u2014 the window explains itself.", "cell")],
+        ],
+        [CONTENT_W * 0.32, CONTENT_W * 0.68],
+    ))
+    story.append(Spacer(1, 6))
     story.append(callout(
         "ok", "Where your data lives",
         "One SQLite file (default <font face='Courier'>~/.local/share/glacis/notebook.db</font>, or <font face='Courier'>.glacis/</font> beside an initialised workspace) "
