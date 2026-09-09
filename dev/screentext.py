@@ -61,6 +61,7 @@ async def capture(
 
 
 SHOTS = [
+    ("00-pulse", ["0"], "station 0 pulse dashboard"),
     ("01-worksheet", [], "tab 1 default view"),
     ("02-playbooks", ["2"], "tab 2 playbooks"),
     ("03-creds", ["3"], "tab 3 credential matrix"),

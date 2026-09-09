@@ -1,6 +1,6 @@
 """GLACIS — Conservative, passive, human-controlled pentesting and lab field notebook."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __mode__ = "MANUAL"
 
 from glacis.db.store import NotebookStore

@@ -20,6 +20,13 @@ GLACIS provides a fast, keyboard-driven terminal field worksheet for recording, 
 
 GLACIS is a local, human-controlled field notebook and methodology worksheet. It operates strictly on local SQLite storage, with zero network connections, zero external web APIs, and zero background scanners.
 
+> [!NOTE]
+> **AI-Assisted Release**: version 0.2.0 ("Pulse") was planned, designed and
+> implemented with the help of **GPT-6 Astra (medium)** via Arena.ai's Agent
+> Mode, then validated by the project's test suite (212 tests). The tool's
+> guarantees — offline-only, passive, human-controlled — were treated as hard
+> constraints throughout and are unchanged.
+
 ---
 
 ## 2. Operational Posture & Transparency
@@ -37,7 +44,9 @@ To maintain total transparency:
 * **Tracks Methodology Checklist**: Manually toggled status (`TODO`, `CHECKED`, `DEFERRED`, `DEAD-END`) with static open-source methodology templates.
 * **Captures Evidence**: Logs references and paths to screenshots, flag hashes, and command outputs without automatic collection.
 * **Fast CLI Capture**: Record discoveries in sub-second CLI commands (e.g. `glacis note "..."`, `glacis cred admin:pass`).
-* **Standalone Export**: Export clean, human-readable Markdown notebooks, JSON backups, or plain text summaries.
+* **Standalone Export**: Export clean, human-readable Markdown notebooks, lossless JSON backups, plain text summaries — or a gorgeous **standalone HTML report** that renders anywhere, fully offline.
+* **Pulse Dashboard**: A live engagement dashboard (momentum sparkline, per-target scorecards with A–F grades, next-action triage queue, unified timeline) — pure read-only math over your own records, still 100% offline.
+* **Snapshot Safety Net**: `glacis backup` takes timestamped JSON snapshots with automatic rotation; restore never overwrites existing data.
 * **Fast Search**: Instant keyword search across notes, findings, services, creds, and evidence (`Ctrl+F` or `glacis search`).
 * **Clipboard Integration**: Instant copying of IPs, `IP:port`, credentials, or checklist items directly to your terminal clipboard (`y` key).
 
@@ -48,6 +57,7 @@ To maintain total transparency:
 * **NO Multi-User Sync**: Strictly a private, single-user local SQLite database.
 * **NO Automatic Vulnerability Classification**: Does not parse live banners to infer CVEs or probe targets.
 * **NO Heuristic Attack Derivation**: Access-potential ratings and command recommendations are not derived by parsers. Strict scanner facts are emitted.
+* **NO Guesswork In Pulse Either**: The Pulse dashboard and triage queue only count, sort, and timestamp what *you* recorded. Grades measure *your progress*, never a target's vulnerability.
 
 ---
 
@@ -216,7 +226,7 @@ glacis ref mimikatz
 glacis search "backup"
 ```
 
-### Export Notes
+### Export Notes & Reports
 ```bash
 # Clean standalone Markdown notebook:
 glacis export --format md -o notes.md
@@ -226,7 +236,32 @@ glacis export --format json -o workspace_backup.json
 
 # Plain text:
 glacis export --format txt
+
+# Gorgeous self-contained HTML report (zero external assets, print-ready):
+glacis export --format html -o report.html          # creds masked
+glacis export --format html -o report.html --reveal-creds
+glacis export --format html -o report.html --palette ember
 ```
+
+### Pulse — Offline Engagement Intelligence
+
+```bash
+# Headline stats, target scorecards, next-action triage:
+glacis stats
+
+# Unified chronological journal of everything recorded:
+glacis timeline --limit 40
+
+# Snapshot safety net:
+glacis backup --label pre-enum     # timestamped JSON snapshot (auto-rotates, keeps 20)
+glacis backups                     # list snapshots
+glacis restore <snapshot.json>     # restores as a NEW workspace — never overwrites
+```
+
+Pulse is strictly read-only arithmetic over records you captured: coverage
+percentages, momentum, grades and a triage queue assembled from your own open
+items. Same offline, deterministic, human-controlled posture as the rest of
+GLACIS — it never probes, infers risk, or suggests exploits.
 
 ---
 
@@ -239,6 +274,18 @@ glacis
 # or
 glacis tui
 ```
+
+The five stations:
+
+| Station | Key | Purpose |
+|---|---|---|
+| **0 ◉ Pulse** | `0` | Live dashboard: momentum sparkline, scorecards, next actions, timeline |
+| **1 ⌂ Cockpit** | `1` | Attack surface, services, methodology, notes — one screen |
+| **2 ▸ Playbooks** | `2` | Offline command reference browser |
+| **3 ▸ Credentials** | `3` | Full credential vault & spray matrix |
+| **4 ▸ Loot & Flags** | `4` | User/root flags, foothold proof, rabbit-hole log |
+
+![Pulse dashboard — station 0](docs/screenshots/00-pulse.png)
 
 ### The cockpit (station 1)
 
@@ -304,6 +351,7 @@ python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png (needs Pi
 
 | Key | Action |
 |---|---|
+| `0` | **Pulse** — live dashboard: momentum, scorecards, next actions, timeline |
 | `1` | **Cockpit** — attack surface, services, methodology, notes |
 | `2` | **Playbooks** — full-screen interactive playbook browser |
 | `3` | **Credentials** — full-screen credential vault & spray matrix |

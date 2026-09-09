@@ -1,6 +1,6 @@
 [project]
 name = "glacis"
-version = "0.1.0"
+version = "0.2.0"
 description = "GLACIS — Conservative, passive, human-controlled pentesting and lab field worksheet"
 readme = "README.md"
 authors = [
