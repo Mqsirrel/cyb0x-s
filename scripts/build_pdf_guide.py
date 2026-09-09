@@ -316,7 +316,7 @@ def build_story(screens: Path) -> list:
             Paragraph(
                 "\u2022 <b>100% offline</b> \u2014 local SQLite, zero network calls, zero telemetry.<br/>"
                 "\u2022 <b>Zero autonomous action</b> \u2014 GLACIS copies commands; you execute them.<br/>"
-                "\u2022 <b>No AI / cloud assistance</b> \u2014 nothing that violates exam rules.<br/>"
+                "\u2022 <b>No cloud assistance</b> \u2014 nothing that violates exam rules.<br/>"
                 "\u2022 Equivalent to permitted personal notes (Obsidian / CherryTree), just faster.",
                 S["cell"]),
         ]],
@@ -363,8 +363,6 @@ def build_story(screens: Path) -> list:
     ]))
     story.append(toc)
     story.append(Spacer(1, 12))
-    story.append(P("This guide was refreshed for v0.2.0 with documentation assistance from <b>GPT-6 Astra (medium)</b>; "
-                   "every command shown was verified against the v0.2.0 source.", "small"))
 
     story.append(PageBreak())
 
@@ -372,7 +370,10 @@ def build_story(screens: Path) -> list:
     # 1 — START IN 10 MINUTES  +  2 — FIVE STATIONS
     # =====================================================================
     story.append(section("1", "Start in 10 minutes"))
-    story.append(P("Do this once per lab. Every step is optional except 1\u20133 \u2014 GLACIS never forces ceremony."))
+    story.append(P(
+        "Do this once per lab. The first launch opens a three-step quick-start card \u2014 press any key to dive in, "
+        "and <font face='Courier-Bold' color='#1D63B8'>:welcome</font> brings it back anytime. "
+        "Empty panels always tell you which key fills them, so you can explore without this guide in hand."))
 
     steps = [
         (CB("1"), P("<b>Install &amp; launch</b>", "cell"), [C("pip install -e .   # inside the repo"), C("glacis                 # opens the TUI")]),

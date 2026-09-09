@@ -5,10 +5,6 @@ All notable changes to GLACIS are documented here. The format follows
 
 ## [0.2.0] — 2026-09-09 — "Pulse"
 
-This release was designed and implemented with AI coding assistance
-(**GPT-6 Astra (medium)** via Arena.ai Agent Mode); every change is
-deterministic, offline, covered by tests, and reviewed against GLACIS's
-passive, human-controlled design principles.
 
 ### Added
 
@@ -45,6 +41,11 @@ passive, human-controlled design principles.
   * `glacis backups` — list snapshots newest-first.
   * `glacis restore <file>` (existing command) now pairs with snapshots;
     restores always create a *new* workspace and never overwrite data.
+* **Guided first run**: a quick-start welcome card (three steps) opens
+  automatically on first launch of an empty workspace; `:welcome` reopens it.
+* **Self-explanatory empty states**: every empty panel, the target tree and
+  the Pulse dashboard now say which key fills them; the cockpit console tip
+  points at the first action for brand-new workspaces.
 * 30 new tests (212 total, up from 182) covering the pulse layer, HTML
   report (self-containment, masking, XSS escaping, theming), snapshot
   lifecycle, new CLI commands, and the Pulse TUI station.

@@ -20,12 +20,6 @@ GLACIS provides a fast, keyboard-driven terminal field worksheet for recording, 
 
 GLACIS is a local, human-controlled field notebook and methodology worksheet. It operates strictly on local SQLite storage, with zero network connections, zero external web APIs, and zero background scanners.
 
-> [!NOTE]
-> **AI-Assisted Release**: version 0.2.0 ("Pulse") was planned, designed and
-> implemented with the help of **GPT-6 Astra (medium)** via Arena.ai's Agent
-> Mode, then validated by the project's test suite (212 tests). The tool's
-> guarantees — offline-only, passive, human-controlled — were treated as hard
-> constraints throughout and are unchanged.
 
 ---
 
