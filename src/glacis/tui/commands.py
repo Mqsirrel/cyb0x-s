@@ -151,6 +151,10 @@ def execute_command(app: Any, raw: str) -> None:
     elif val == ":4":
         app.action_switch_tab("tab-loot")
         return
+    elif val in (":welcome", ":start", ":onboarding"):
+        if hasattr(app, "action_show_welcome"):
+            app.action_show_welcome()
+        return
 
     # Import command (:import [file])
     if val == ":import" or val.startswith(":import "):

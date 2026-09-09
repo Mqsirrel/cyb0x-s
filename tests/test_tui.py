@@ -1,12 +1,12 @@
 """Interactive TUI automated testing using Textual test pilot."""
 
 import pytest
-from textual.widgets import Input, TabbedContent
+from textual.widgets import Input, ListView, TabbedContent
 
 from glacis.db.store import NotebookStore
 from glacis.models import ChecklistStatus
 from glacis.tui.app import CyboxSafeApp
-from glacis.tui.widgets import PulseWidget, SearchModal, WorksheetHeader
+from glacis.tui.widgets import PulseWidget, SearchModal, WelcomeModal, WorksheetHeader
 
 
 @pytest.mark.asyncio
@@ -148,3 +148,82 @@ async def test_tui_pulse_station_empty_workspace() -> None:
         await pilot.pause()
         rendered = _pulse_text(app)
         assert "PULSE" in rendered  # empty workspace must not crash the station
+
+
+# -----------------------------------------------------------------------------
+# First-run onboarding (welcome card) & self-explanatory empty states
+# -----------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_tui_welcome_shows_once_and_dismisses() -> None:
+    store = NotebookStore(":memory:")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(120, 34)) as pilot:
+        await pilot.pause()
+        assert any(isinstance(s, WelcomeModal) for s in app.screen_stack), \
+            "welcome card should auto-open for a brand-new empty workspace"
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not any(isinstance(s, WelcomeModal) for s in app.screen_stack)
+        assert store.get_setting("welcome_seen") == "1"
+
+        # A second pass must NOT greet again (setting persisted).
+        app._maybe_show_welcome()
+        await pilot.pause()
+        assert not any(isinstance(s, WelcomeModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_tui_welcome_not_shown_when_targets_exist() -> None:
+    store = NotebookStore(":memory:")
+    store.add_target("10.10.10.20")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(120, 34)) as pilot:
+        await pilot.pause()
+        assert not any(isinstance(s, WelcomeModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_tui_welcome_reopen_command() -> None:
+    store = NotebookStore(":memory:")
+    store.set_setting("welcome_seen", "1")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(120, 34)) as pilot:
+        await pilot.pause()
+        from glacis.tui.commands import execute_command
+
+        execute_command(app, ":welcome")
+        await pilot.pause()
+        assert any(isinstance(s, WelcomeModal) for s in app.screen_stack)
+        await pilot.press("q")  # any key dismisses
+        await pilot.pause()
+        assert not any(isinstance(s, WelcomeModal) for s in app.screen_stack)
+
+
+@pytest.mark.asyncio
+async def test_tui_empty_states_are_self_explanatory() -> None:
+    store = NotebookStore(":memory:")
+    store.set_setting("welcome_seen", "1")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(120, 34)) as pilot:
+        await pilot.pause()
+        from glacis.tui.widgets import TargetTreeWidget
+
+        tree = app.query_one("#target-tree", TargetTreeWidget)
+        assert "press t" in str(tree.root.label)
+
+        # Every empty cockpit panel advertises its fill key.
+        for list_id, key_hint in (("#list-services", "press s"), ("#list-creds", "press c"),
+                                  ("#list-checklist", "press m"), ("#list-notes", "n note")):
+            lst = app.query_one(list_id, ListView)
+            texts = []
+            for child in lst.children:
+                hint = getattr(child, "display_text", None)
+                texts.append(hint.plain if hint is not None else str(child))
+            rendered = " ".join(texts)
+            assert key_hint in rendered, f"{list_id} hint should mention '{key_hint}', got: {rendered}"

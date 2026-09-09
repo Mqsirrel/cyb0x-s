@@ -78,6 +78,7 @@ from glacis.tui.widgets import (
     TargetTreeWidget,
     TemplateSelectionModal,
     ThemePickerModal,
+    WelcomeModal,
     WorksheetHeader,
     WorkspaceModal,
     clear_badge_caches,
@@ -239,6 +240,8 @@ class GlacisApp(App):
 
         self._apply_responsive_layout()
         self._sync_station_tab("tab-worksheet")
+        # First-run onboarding: greet brand-new workspaces once.
+        self.call_after_refresh(self._maybe_show_welcome)
 
     def on_resize(self, event: Any) -> None:
         """Switch to a stacked, single-column workbench on narrow terminals."""
@@ -483,6 +486,22 @@ class GlacisApp(App):
             self.refresh_cred_matrix()
         elif tab_id == "tab-loot":
             self.refresh_loot_widget(active)
+
+    def _maybe_show_welcome(self) -> None:
+        """Show the quick-start card once, for brand-new workspaces only."""
+        try:
+            if self.store.get_setting("welcome_seen") == "1":
+                return
+            if self.store.list_targets():
+                self.store.set_setting("welcome_seen", "1")
+                return
+            self.push_screen(WelcomeModal(), callback=lambda _r: self.store.set_setting("welcome_seen", "1"))
+        except Exception:
+            pass
+
+    def action_show_welcome(self) -> None:
+        """Reopen the quick-start card (:welcome)."""
+        self.push_screen(WelcomeModal(), callback=lambda _r: self.store.set_setting("welcome_seen", "1"))
 
     def refresh_pulse_widget(self) -> None:
         """Update Station 0 Pulse dashboard on demand."""
@@ -922,8 +941,8 @@ class GlacisApp(App):
             else:
                 P = current_palette()
                 txt = Text()
-                txt.append("  [+ ADD PORT] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 's' or type :s 80/tcp http", style=f"bold {P.text}")
+                txt.append("  [+ PORT] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" none yet — press s to add · I imports an nmap scan", style=f"bold {P.text}")
                 svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_svc_idx is not None and len(svc_list.children) > 0:
                 svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
@@ -941,8 +960,8 @@ class GlacisApp(App):
             else:
                 P = current_palette()
                 txt = Text()
-                txt.append("  [+ ADD CRED] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 'c' or type :c admin:pass", style=f"bold {P.text}")
+                txt.append("  [+ CRED] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" none yet — press c · try them all from station 3", style=f"bold {P.text}")
                 c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_c_idx is not None and len(c_list.children) > 0:
                 c_list.index = min(saved_c_idx, len(c_list.children) - 1)
@@ -977,8 +996,8 @@ class GlacisApp(App):
             else:
                 P = current_palette()
                 txt = Text()
-                txt.append("  [+ TEMPLATES] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 'm' to load templates (ejpt, web, smb)", style=f"bold {P.text}")
+                txt.append("  [+ METHOD] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" none loaded — press m and pick a template (ejpt = exam spine)", style=f"bold {P.text}")
                 ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_ck_idx is not None and len(ck_list.children) > 0:
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
@@ -1028,10 +1047,8 @@ class GlacisApp(App):
             else:
                 P = current_palette()
                 txt = Text()
-                txt.append("  [+ NOTE] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 'n' for note, ", style=f"bold {P.text}")
-                txt.append("[+ FINDING] ", style=f"bold {P.bg} on {P.danger}")
-                txt.append(" 'f' for finding", style=f"bold {P.text}")
+                txt.append("  [+ LOG] ", style=f"bold {P.bg} on {P.accent}")
+                txt.append(" nothing yet — n note · f finding · v paste screenshot", style=f"bold {P.text}")
                 n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
             if saved_n_idx is not None and len(n_list.children) > 0:
                 n_list.index = min(saved_n_idx, len(n_list.children) - 1)

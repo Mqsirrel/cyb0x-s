@@ -104,6 +104,14 @@ class TargetTreeWidget(Tree):
 
         P = current_palette()
 
+        if not targets:
+            # Self-explanatory empty state: the first thing a new user sees.
+            self.show_root = True
+            root.label = f"[bold {P.muted}]no targets yet — press [bold {P.accent}]t[/bold {P.accent}] to add one[/bold {P.muted}]"
+            root.expand = True
+            return
+        self.show_root = False
+
         def _get_subnet(t: Target) -> str:
             if t.subnet:
                 return t.subnet
@@ -590,7 +598,7 @@ class ConsoleBar(Container):
         t = Text()
         t.append(" [w]", style=f"bold {P.warn}")
         t.append(" panels ", style=f"{P.muted}")
-        t.append(" [1-4]", style=f"bold {P.warn}")
+        t.append(" [0-4]", style=f"bold {P.warn}")
         t.append(" stations ", style=f"{P.muted}")
         t.append(" [?]", style=f"bold {P.warn}")
         t.append(" help ", style=f"{P.muted}")
@@ -622,7 +630,7 @@ class ConsoleBar(Container):
         with Horizontal(id="console-input-row"):
             yield Label(" [ : ] ❯ ", id="console-prompt")
             yield Input(
-                placeholder="Type command (:t, :s, :c, :m, :w) or note... (: for menu, Tab to complete)",
+                placeholder="Type a command — :t target · :s port · :c cred · :n note  (: menu · Tab completes)",
                 id="cmd-input",
             )
             yield Label(self._build_hotkey_text(), id="console-hotkeys")
@@ -646,7 +654,7 @@ class ConsoleBar(Container):
 
         if v == ":":
             cmd_line.append("[COMMAND MENU] ", style=f"bold {P.warn}")
-            cmd_line.append(":t target  :s svc  :c cred  :m tmpl  :w wordlist  :n note  :f finding  :theme  :1-:4  ? help", style=f"bold {P.text}")
+            cmd_line.append(":t target  :s svc  :c cred  :m tmpl  :w wordlist  :n note  :f finding  :theme  :0-:4  :welcome  ? help", style=f"bold {P.text}")
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
             tip_line.append("Press Tab to autocomplete or type a command name", style=f"{P.muted}")
         elif v.startswith(":w") or v.startswith("wordlist "):
@@ -904,7 +912,15 @@ class ConsoleBar(Container):
                 self.border_title = " CONTEXT GUIDANCE "
                 self.border_subtitle = " [w: Cycle Panels] · [0-4: Stations] "
                 cmd_line.append("COCKPIT ▸ ", style=f"bold {P.accent}")
-                cmd_line.append("Highlight a service or checklist step to preview & copy commands", style=f"bold {P.text}")
+                # First-run cockpit: point at the very first action instead of the loop.
+                try:
+                    has_targets = bool(self.app.store.list_targets())
+                except Exception:
+                    has_targets = True
+                if not has_targets:
+                    cmd_line.append("Start here: press t to add your first target · ? for the 3-step guide", style=f"bold {P.text}")
+                else:
+                    cmd_line.append("Highlight a service or checklist step to preview & copy commands", style=f"bold {P.text}")
 
         if self.tip:
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
@@ -1023,6 +1039,7 @@ from glacis.tui.modals import (  # noqa: E402, F401
     TemplateSelectionModal,
     ThemePickerModal,
     ThemeSwatch,
+    WelcomeModal,
     WorkspaceModal,
 )
 
@@ -2016,6 +2033,14 @@ class PulseWidget(Static):
         score_table.add_column("svc", justify="right", style=P.text_soft)
         score_table.add_column("find", justify="right", style=P.text_soft)
         score_table.add_column("flags", justify="right", style=P.warn)
+        if not cards:
+            empty_row = RichText()
+            empty_row.append("no targets yet — press ", style=P.muted)
+            empty_row.append("t", style=f"bold {P.accent}")
+            empty_row.append(" or type ", style=P.muted)
+            empty_row.append(":t 10.10.10.20", style=f"bold {P.accent}")
+            empty_row.append(" to start your first machine", style=P.muted)
+            score_table.add_row(empty_row)
         if cards:
             for c in cards:
                 grade_style = {"A": P.ok, "B": P.ok, "C": P.warn, "D": P.warn}.get(c.grade, P.danger)
@@ -2026,8 +2051,7 @@ class PulseWidget(Static):
                     f"{c.checklist_pct}% {progress_bar(c.checklist_pct, 8)}",
                     str(c.services), str(c.findings), str(c.flags_captured),
                 )
-        else:
-            score_table.add_row(*[RichText("—", style=P.muted)] * 8)
+
 
         # ---- next actions
         queue = RichText()
@@ -2040,7 +2064,7 @@ class PulseWidget(Static):
                     queue.append(f" · {a.target_ip}", style=P.text_soft)
                 queue.append(f"  {a.reason}", style=P.muted)
         else:
-            queue.append("\n  queue clear — everything recorded is resolved", style=P.muted)
+            queue.append("\n  queue clear — record a target (t) and Pulse will line up your next steps", style=P.muted)
 
         # ---- recent timeline
         timeline = RichText()
