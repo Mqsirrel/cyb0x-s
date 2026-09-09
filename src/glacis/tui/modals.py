@@ -1944,13 +1944,13 @@ class WelcomeModal(ModalScreen):
         align: center middle;
     }
     #welcome-box {
-        width: 78%;
-        max-width: 96;
+        width: 88%;
+        max-width: 100;
         height: auto;
         max-height: 80%;
         border: round $accent;
         background: $surface;
-        padding: 1 3;
+        padding: 1 2;
     }
     #welcome-title {
         width: 1fr;
@@ -1986,19 +1986,19 @@ class WelcomeModal(ModalScreen):
                 classes="step",
             )
             yield Label(
-                f"[bold {P.ok}] 2[/]  [bold {P.text}]Work the loop[/] [{P.muted}]highlight with[/] [bold {P.accent}]j / k[/]"
-                f" [{P.muted}]·[/] [bold {P.accent}]Enter[/] [{P.muted}]copies the command[/] [{P.muted}]·[/] [bold {P.accent}]Space[/] [{P.muted}]marks it done[/]",
+                f"[bold {P.ok}] 2[/]  [bold {P.text}]Work the loop[/] [{P.muted}]highlight[/] [bold {P.accent}]j/k[/]"
+                f" [{P.muted}]·[/] [bold {P.accent}]Enter[/] [{P.muted}]copies[/] [{P.muted}]·[/] [bold {P.accent}]Space[/] [{P.muted}]marks[/]",
                 classes="step",
             )
             yield Label(
-                f"[bold {P.ok}] 3[/]  [bold {P.text}]Record what you find[/] [{P.muted}]creds[/] [bold {P.accent}]c[/]"
+                f"[bold {P.ok}] 3[/]  [bold {P.text}]Record everything[/] [{P.muted}]creds[/] [bold {P.accent}]c[/]"
                 f" [{P.muted}]· notes[/] [bold {P.accent}]n[/] [{P.muted}]· flags[/] [bold {P.accent}]g[/]"
                 f" [{P.muted}]· findings[/] [bold {P.accent}]f[/]",
                 classes="step",
             )
             yield Label(
-                f"[bold {P.ok}] +[/]  [bold {P.text}]Bringing an nmap scan?[/] [{P.muted}]press[/] [bold {P.accent}]I[/]"
-                f" [{P.muted}]to import it · need syntax?[/] [bold {P.accent}]r[/]",
+                f"[bold {P.ok}] +[/]  [bold {P.text}]Have an nmap scan?[/] [{P.muted}]press[/] [bold {P.accent}]I[/]"
+                f" [{P.muted}]to import · syntax lookup:[/] [bold {P.accent}]r[/]",
                 classes="step",
             )
             yield Label(
