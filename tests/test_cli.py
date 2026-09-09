@@ -265,3 +265,20 @@ def test_cli_export_html(cli_runner: CliRunner, temp_db_path: Path, tmp_path: Pa
     assert html.startswith("<!doctype html>")
     assert "secret123" not in html          # masked by default
     assert "https://" not in html           # fully offline asset-free
+
+
+def test_cli_exam_check(cli_runner: CliRunner, temp_db_path: Path) -> None:
+    res = cli_runner.invoke(cli, ["--db", str(temp_db_path), "exam-check"])
+    assert res.exit_code == 0
+    assert "EXAM-SAFETY AUDIT" in res.output
+    assert "PASS" in res.output
+    assert "FAIL" not in res.output, "glacis's own code must have zero network imports"
+    assert "zero network imports" in res.output
+
+
+def test_audit_network_isolation_function() -> None:
+    from glacis.audit import audit_network_isolation
+
+    ok, detail = audit_network_isolation()
+    assert ok, detail
+    assert "zero network imports" in detail

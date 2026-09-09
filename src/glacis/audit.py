@@ -303,3 +303,43 @@ def audit_workspace(store: NotebookStore, workspace_id: Optional[int] = None) ->
         complete_targets=complete_targets,
         overall_readiness_pct=overall_pct,
     )
+
+
+# ---------------------------------------------------------------------------
+# Exam-safety self-audit
+# ---------------------------------------------------------------------------
+
+def audit_network_isolation() -> tuple[bool, str]:
+    """Static check that GLACIS's own code never imports network libraries.
+
+    Scans every ``glacis.*`` module source currently loadable from the
+    installed package for imports of known network libraries. Dependencies
+    (Textual, Click, ...) may use sockets internally for their own purposes —
+    the audited claim is that *GLACIS* contains no network code path, so the
+    result is based solely on GLACIS's own sources.
+
+    A transparency aid for proctored exams, not a sandbox guarantee.
+    """
+    import re as _re
+    from pathlib import Path as _Path
+
+    pattern = _re.compile(
+        r"^\s*(?:import|from)\s+(socket|ssl|http|urllib|httpx|aiohttp|ftplib|smtplib|telnetlib)\b",
+        _re.MULTILINE,
+    )
+    package_dir = _Path(__file__).resolve().parent
+    offenders: list[str] = []
+    scanned = 0
+    for source in sorted(package_dir.rglob("*.py")):
+        try:
+            text = source.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        scanned += 1
+        rel = source.relative_to(package_dir.parent)
+        for match in pattern.finditer(text):
+            offenders.append(f"{rel}: {match.group(0).strip()}")
+
+    if offenders:
+        return False, "network imports found: " + "; ".join(offenders[:3])
+    return True, f"{scanned} glacis modules scanned, zero network imports"

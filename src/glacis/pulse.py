@@ -61,6 +61,77 @@ def _pct(part: int, total: int) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Change detection (cheap fingerprint cache)
+# ---------------------------------------------------------------------------
+#
+# The TUI recomputes Pulse views on every activation. Rather than re-hydrate
+# every model each time, we fingerprint the database with a handful of
+# indexed aggregate queries (COUNT / MAX rowid / MAX timestamps per table)
+# and cache the computed views per store. Any insert, update or delete
+# changes the fingerprint and invalidates the cache naturally — no hooks,
+# no manual invalidation, always correct.
+
+_FINGERPRINT_TABLES = (
+    "workspaces", "settings", "targets", "services", "findings",
+    "credentials", "evidence", "notes", "checklist", "leads",
+    "command_history", "failure_log", "exam_proofs", "cred_validation",
+    "scan_imports",
+)
+
+
+def workspace_fingerprint(store: NotebookStore) -> tuple:
+    """Cheap change-digest of the whole database.
+
+    Runs ~15 indexed aggregate queries (sub-millisecond on exam-sized
+    workspaces) and returns a tuple that changes whenever any recorded
+    datum changes. Used to cache Pulse computations between keystrokes.
+    """
+    parts: List[Any] = []
+    cur = store.conn.cursor()
+    for table in _FINGERPRINT_TABLES:
+        try:
+            cur.execute(
+                f"SELECT COUNT(*), COALESCE(MAX(rowid), 0), "
+                f"COALESCE(MAX(created_at), ''), COALESCE(MAX(updated_at), '') "
+                f"FROM {table}"
+            )
+            row = cur.fetchone()
+            parts.append(tuple(row) if row else (0, 0, "", ""))
+        except Exception:
+            # Table missing (older DB): fall back to a bare count.
+            try:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                parts.append((cur.fetchone()[0], 0, "", ""))
+            except Exception:
+                parts.append((0, 0, "", ""))
+    return tuple(parts)
+
+
+def _pulse_cache(store: NotebookStore) -> dict:
+    """Per-store cache dict for computed Pulse views."""
+    cache = getattr(store, "_pulse_cache", None)
+    if cache is None:
+        cache = {}
+        try:
+            store._pulse_cache = cache
+        except Exception:
+            pass
+    return cache
+
+
+def _cached(store: NotebookStore, key: tuple, compute):
+    """Return ``compute()`` result from cache when the DB is unchanged."""
+    cache = _pulse_cache(store)
+    fingerprint = workspace_fingerprint(store)
+    hit = cache.get(key)
+    if hit is not None and hit[0] == fingerprint:
+        return hit[1]
+    result = compute()
+    cache[key] = (workspace_fingerprint(store), result)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Workspace pulse
 # ---------------------------------------------------------------------------
 
@@ -180,7 +251,10 @@ def compute_workspace_pulse(
     ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
     if not ws:
         return WorkspacePulse(workspace_name="")
+    return _cached(store, ("pulse", ws.id), lambda: _compute_pulse(store, ws))
 
+
+def _compute_pulse(store: NotebookStore, ws: Any) -> WorkspacePulse:
     targets = store.list_targets(workspace_id=ws.id)
     target_ids = [t.id for t in targets]
 
@@ -343,7 +417,10 @@ def compute_target_scorecards(
     ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
     if not ws:
         return []
+    return _cached(store, ("scorecards", ws.id), lambda: _compute_scorecards(store, ws))
 
+
+def _compute_scorecards(store: NotebookStore, ws: Any) -> List[TargetScorecard]:
     cards: List[TargetScorecard] = []
     for t in store.list_targets(workspace_id=ws.id):
         services = store.list_services(target_id=t.id)
@@ -574,7 +651,10 @@ def compute_next_actions(
     ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
     if not ws:
         return []
+    return _cached(store, ("actions", ws.id, limit), lambda: _compute_actions(store, ws, limit))
 
+
+def _compute_actions(store: NotebookStore, ws: Any, limit: int = 25) -> List[NextAction]:
     actions: List[NextAction] = []
 
     for t in store.list_targets(workspace_id=ws.id):

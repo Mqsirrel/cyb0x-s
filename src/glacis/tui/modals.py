@@ -1032,6 +1032,10 @@ Pure passive recording • Local-first SQLite store • Standalone offline opera
   [{P.accent}]3[/]  Credentials   full vault, reveal / copy, spray targets
   [{P.accent}]4[/]  Loot & Flags  user/root flags, foothold, rabbit holes
 
+[bold]Proctored exams (INE eJPT etc.):[/bold]
+  Press [{P.accent}]E[/] for Exam Mode — a visible [{P.accent}]EXAM MODE · OFFLINE NOTES[/] badge in the header.
+  GLACIS is 100% local (no network, no AI): exactly like a permitted personal notes file.
+
 [bold]Cockpit layout:[/bold]
   The status strip under the header answers the four assessment questions at a glance:
   which box, what is captured, what to do next, what is blocking me.

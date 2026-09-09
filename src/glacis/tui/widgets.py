@@ -216,6 +216,7 @@ class WorksheetHeader(Static):
         super().__init__(**kwargs)
         self.workspace_name = workspace_name
         self.active_station = active_station
+        self.exam_mode = False
         self.counts: dict[str, int] = {}
         self.active_ip: str = ""
 
@@ -225,6 +226,7 @@ class WorksheetHeader(Static):
         counts: Optional[dict[str, int]] = None,
         active_ip: str = "",
         active_station: str = "",
+        exam_mode: Optional[bool] = None,
     ) -> None:
         """Refresh the header meta information (workspace, counters, target, station)."""
         if workspace_name:
@@ -235,6 +237,8 @@ class WorksheetHeader(Static):
             self.active_ip = active_ip
         if active_station:
             self.active_station = active_station
+        if exam_mode is not None:
+            self.exam_mode = bool(exam_mode)
         self.refresh()
 
     def render(self) -> Text:
@@ -247,6 +251,9 @@ class WorksheetHeader(Static):
         if self.active_station:
             t.append("  ›  ", style=f"{P.muted}")
             t.append(f"[ {self.active_station} ]", style=f"bold {P.text}")
+        if self.exam_mode:
+            t.append("  ›  ", style=f"{P.muted}")
+            t.append("[ EXAM MODE · OFFLINE NOTES ]", style=f"bold {P.warn}")
 
         if not (self.counts or self.active_ip):
             return t
@@ -592,10 +599,13 @@ class ConsoleBar(Container):
         self.recipe_index: int = 0
         self.recipe_target_ip: str = ""
         self.active_station: str = "tab-worksheet"
+        self.exam_mode: bool = False
 
     def _build_hotkey_text(self) -> Text:
         P = current_palette()
         t = Text()
+        if self.exam_mode:
+            t.append(" [E] exam ", style=f"bold {P.warn}")
         t.append(" [w]", style=f"bold {P.warn}")
         t.append(" panels ", style=f"{P.muted}")
         t.append(" [0-4]", style=f"bold {P.warn}")

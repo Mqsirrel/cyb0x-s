@@ -16,6 +16,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from glacis.audit import audit_network_isolation
 from glacis.backup import create_snapshot, list_snapshots
 from glacis.clipboard import copy_to_clipboard
 from glacis.db.store import NotebookStore
@@ -33,6 +34,7 @@ from glacis.report import build_html_report
 from glacis.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
 from glacis.scan_import import check_scan_already_imported, commit_scan_results, inspect_scan_file
 from glacis.search import search_notebook
+from glacis.settings import derive_guidance_enabled
 from glacis.templates import apply_template_to_store
 
 console = Console()
@@ -673,6 +675,34 @@ def timeline_cmd(ctx: click.Context, limit: int) -> None:
             escape(e.detail),
         )
     console.print(table)
+
+
+@cli.command("exam-check")
+@click.pass_context
+def exam_check_cmd(ctx: click.Context) -> None:
+    """Audit this installation for exam safety (network/AI/telemetry)."""
+    import glacis
+
+    console.print("[bold cyan]EXAM-SAFETY AUDIT[/bold cyan]\n")
+
+    def row(label: str, ok: bool, detail: str) -> None:
+        mark = "[green]PASS[/green]" if ok else "[red]FAIL[/red]"
+        console.print(f"  {mark}  [bold]{label}[/bold]  [dim]{detail}[/dim]")
+
+    network_ok, network_detail = audit_network_isolation()
+    row("No network capability", network_ok, network_detail)
+
+    derived = derive_guidance_enabled()
+    row("Derived guidance off (default posture)", not derived, ":G toggles in TUI" if derived else "guidance-free")
+
+    db_path = NotebookStore().db_path if ctx.obj is None else _get_store(ctx).db_path
+    row("Local SQLite storage only", True, str(db_path))
+
+    console.print(
+        "\n  [dim]No AI features, no telemetry, no update checks, no sync —\n"
+        "  GLACIS records and references; the candidate runs every command.[/dim]"
+    )
+    console.print(f"  [dim]glacis {glacis.__version__} · run ':exam on' in the TUI for the on-screen badge[/dim]\n")
 
 
 @cli.command("backup")

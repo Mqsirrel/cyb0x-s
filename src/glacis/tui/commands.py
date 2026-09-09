@@ -151,6 +151,18 @@ def execute_command(app: Any, raw: str) -> None:
     elif val == ":4":
         app.action_switch_tab("tab-loot")
         return
+    elif val == ":exam on":
+        if hasattr(app, "set_exam_mode"):
+            app.set_exam_mode(True)
+        return
+    elif val == ":exam off":
+        if hasattr(app, "set_exam_mode"):
+            app.set_exam_mode(False)
+        return
+    elif val == ":exam":
+        if hasattr(app, "set_exam_mode"):
+            app.set_exam_mode(not getattr(app, "exam_mode", False))
+        return
     elif val in (":welcome", ":start", ":onboarding"):
         if hasattr(app, "action_show_welcome"):
             app.action_show_welcome()

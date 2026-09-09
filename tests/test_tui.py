@@ -227,3 +227,73 @@ async def test_tui_empty_states_are_self_explanatory() -> None:
                 texts.append(hint.plain if hint is not None else str(child))
             rendered = " ".join(texts)
             assert key_hint in rendered, f"{list_id} hint should mention '{key_hint}', got: {rendered}"
+
+
+# -----------------------------------------------------------------------------
+# Performance: roster diff-refresh keeps scroll & appends in O(change)
+# -----------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_tui_roster_append_fast_path_preserves_list_item() -> None:
+    store = NotebookStore(":memory:")
+    target = store.add_target("10.10.10.20", hostname="box")
+    store.add_service(target_id=target.id, port=22, service="SSH")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+
+        lv = app.query_one("#list-services", ListView)
+        before = list(lv.children)
+        assert len(before) == 1
+
+        # Append-only change: existing widget objects should be kept.
+        store.add_service(target_id=target.id, port=80, service="HTTP")
+        app.refresh_all()
+        await pilot.pause()
+
+        after = list(lv.children)
+        assert len(after) == 2
+        assert after[0] is before[0], "append fast path must not rebuild existing rows"
+        assert not after[0].is_placeholder
+
+        # Deletion path still stays correct (full rebuild).
+        store.delete_service(after[1].data_obj.id)
+        app.refresh_all()
+        await pilot.pause()
+        assert len(app.query_one("#list-services", ListView).children) == 1
+
+
+# -----------------------------------------------------------------------------
+# Exam Mode: visible badge for proctored exams
+# -----------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_tui_exam_mode_badge_and_persistence() -> None:
+    store = NotebookStore(":memory:")
+    store.set_setting("welcome_seen", "1")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        header = app.query_one(WorksheetHeader)
+
+        assert header.exam_mode is False
+        app.action_toggle_exam_mode()
+        await pilot.pause()
+        assert app.exam_mode is True
+        assert header.exam_mode is True
+        assert store.get_setting("exam_mode") == "1"
+        header_render = header.render().plain
+        assert "EXAM MODE" in header_render
+
+        # Restores across "restarts" (new app, same store).
+        app2 = CyboxSafeApp(store=store)
+        async with app2.run_test(size=(140, 40)) as pilot2:
+            await pilot2.pause()
+            assert app2.exam_mode is True
+            assert "EXAM MODE" in app2.query_one(WorksheetHeader).render().plain
+            app2.set_exam_mode(False)
+            await pilot2.pause()
+            assert store.get_setting("exam_mode") == "0"
+            assert "EXAM MODE" not in app2.query_one(WorksheetHeader).render().plain

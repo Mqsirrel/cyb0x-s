@@ -70,16 +70,21 @@ def detect_local_vpn_ip() -> Optional[str]:
     except Exception:
         pass
 
-    # Fallback to UDP socket trick
+    # Fallback: query local interface addresses only. `hostname -I` reads the
+    # interface table without creating any socket or touching the network
+    # stack — important for exam-proctored environments where even a
+    # loopback-free socket syscall looks suspicious.
     try:
-        import socket
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("10.255.255.255", 1))
-        ip = s.getsockname()[0]
-        s.close()
-        if ip and not ip.startswith("127."):
-            return ip
+        res = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if res.returncode == 0:
+            for ip in res.stdout.split():
+                if ip and not ip.startswith("127."):
+                    return ip.strip()
     except Exception:
         pass
 
@@ -126,9 +131,44 @@ class NotebookStore:
         try:
             self.conn.execute("PRAGMA journal_mode = WAL;")
             self.conn.execute("PRAGMA synchronous = NORMAL;")
+            # TUI smoothness on modest hardware: WAL auto-checkpoints keep
+            # write stalls bounded (no multi-hundred-ms hitches when the
+            # candidate captures a burst of notes), and a decent page cache
+            # keeps repeated list queries hot in memory.
+            self.conn.execute("PRAGMA wal_autocheckpoint = 512;")
+            self.conn.execute("PRAGMA cache_size = -8000;")  # ~8 MB
         except Exception:
             pass  # :memory: and some filesystems cannot do WAL
         self.init_schema()
+        try:
+            self._ensure_list_indexes()
+        except Exception:
+            pass  # indexes are an optimisation; never block startup
+
+    # Index maintenance is deliberately outside SCHEMA_SQL so fresh and
+    # legacy databases converge on the same optimised shape at startup.
+    _LIST_INDEX_SQL = (
+        # Roster fast paths: ORDER BY id ASC scans per target/workspace.
+        "CREATE INDEX IF NOT EXISTS idx_services_target_id_id ON services(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_findings_target_id_id ON findings(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_credentials_target_id_id ON credentials(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_leads_target_id_id ON leads(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_evidence_target_id_id ON evidence(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_notes_target_id_id ON notes(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_checklist_target_id_id ON checklist(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_failures_target_id_id ON failure_log(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_proofs_target_id_id ON exam_proofs(target_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_commands_target_id_id ON command_history(target_id, id)",
+        # Pulse fingerprints & workspace filters.
+        "CREATE INDEX IF NOT EXISTS idx_targets_workspace_id_id ON targets(workspace_id, id)",
+    )
+
+    def _ensure_list_indexes(self) -> None:
+        """Create/refresh the per-list composite indexes (idempotent)."""
+        cur = self.conn.cursor()
+        for stmt in self._LIST_INDEX_SQL:
+            cur.execute(stmt)
+        self.conn.commit()
 
     def init_schema(self) -> None:
         """Run initial DDL script, migrations, and ensure a default workspace exists."""

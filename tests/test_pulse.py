@@ -15,6 +15,7 @@ from glacis.pulse import (
     compute_workspace_pulse,
     progress_bar,
     render_sparkline,
+    workspace_fingerprint,
 )
 
 
@@ -225,3 +226,47 @@ def test_stale_target_detection(store: NotebookStore) -> None:
     pulse = compute_workspace_pulse(store)
     assert pulse.stalest_target == "10.10.10.20"
     assert pulse.stale_days >= 29
+
+
+# -----------------------------------------------------------------------------
+# Fingerprint cache (perf): correctness first, speed second
+# -----------------------------------------------------------------------------
+
+def test_pulse_cache_hits_and_invalidation(store: NotebookStore) -> None:
+    _seed_rich_workspace(store)
+
+    first = compute_workspace_pulse(store)
+    cards_first = compute_target_scorecards(store)
+    actions_first = compute_next_actions(store)
+
+    # Cache must be warm: mutating nothing returns identical snapshots and
+    # the fingerprint should be stable.
+    fp1 = workspace_fingerprint(store)
+    fp2 = workspace_fingerprint(store)
+    assert fp1 == fp2
+
+    second = compute_workspace_pulse(store)
+    assert second == first
+    assert compute_target_scorecards(store) == cards_first
+    assert compute_next_actions(store) == actions_first
+
+    # Any recorded change must invalidate: add a service -> coverage changes.
+    t1 = store.get_target_by_ip("10.10.10.20")
+    store.add_service(target_id=t1.id, port=9999, service=" sneak", status=ServiceStatus.UNTESTED)
+
+    assert workspace_fingerprint(store) != fp1
+    third = compute_workspace_pulse(store)
+    assert third.services == first.services + 1
+    assert third.coverage_pct < first.coverage_pct
+
+    # Status change also invalidates (updated_at + service row changed).
+    svc = [s for s in store.list_services(target_id=t1.id) if s.port == 9999][0]
+    store.update_service_status(svc.id, ServiceStatus.DEAD_END)
+    fourth = compute_workspace_pulse(store)
+    assert fourth.services_tested == third.services_tested + 1
+
+
+def test_fingerprint_covers_settings_too(store: NotebookStore) -> None:
+    fp_a = workspace_fingerprint(store)
+    store.set_setting("welcome_seen", "1")
+    assert workspace_fingerprint(store) != fp_a

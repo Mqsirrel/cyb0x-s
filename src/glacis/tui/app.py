@@ -136,6 +136,7 @@ class GlacisApp(App):
         Binding("l", "focus_right", "Right Column", show=False),
         Binding("I", "import_scan", "Import Scan", show=False),
         Binding("W", "manage_workspaces", "Workspaces", show=False),
+        Binding("E", "toggle_exam_mode", "Exam mode", show=False),
     ]
 
     CSS = APP_CSS
@@ -160,6 +161,9 @@ class GlacisApp(App):
         set_palette(self.theme_name)
         self.theme = PALETTES[self.theme_name].textual_theme().name
         self.revealed_creds: Set[int] = set()
+        # Exam mode: persistent on-screen badge declaring the offline,
+        # personal-notes posture — transparency for proctored exams.
+        self.exam_mode: bool = False
         self.is_zoomed: bool = False
         self.zoomed_widget: Optional[Vertical] = None
         self.hidden_by_zoom: List[Any] = []
@@ -240,6 +244,15 @@ class GlacisApp(App):
 
         self._apply_responsive_layout()
         self._sync_station_tab("tab-worksheet")
+        # Restore exam mode across sessions (persisted preference).
+        try:
+            self.exam_mode = self.store.get_setting("exam_mode") == "1"
+        except Exception:
+            self.exam_mode = False
+        try:
+            self.query_one(ConsoleBar).exam_mode = self.exam_mode
+        except Exception:
+            pass
         # First-run onboarding: greet brand-new workspaces once.
         self.call_after_refresh(self._maybe_show_welcome)
 
@@ -435,6 +448,7 @@ class GlacisApp(App):
 
     def _sync_station_tab(self, tab_id: str) -> None:
         """Synchronize station widgets, breadcrumb, and contextual console guide when station changes."""
+        self._fade_in_station(tab_id)
         active = self.store.get_active_target()
         target_ip = active.ip if active else ""
 
@@ -452,6 +466,7 @@ class GlacisApp(App):
             self.query_one(WorksheetHeader).update_status(
                 workspace_name=ws_name,
                 active_station=active_title,
+                exam_mode=getattr(self, "exam_mode", False),
             )
         except Exception:
             pass
@@ -499,9 +514,75 @@ class GlacisApp(App):
         except Exception:
             pass
 
+    def action_toggle_exam_mode(self) -> None:
+        """Flip Exam Mode and persist the choice."""
+        self.set_exam_mode(not self.exam_mode)
+
+    def set_exam_mode(self, on: bool) -> None:
+        """Show/hide the EXAM MODE badge (visible proctor transparency)."""
+        self.exam_mode = bool(on)
+        try:
+            self.store.set_setting("exam_mode", "1" if on else "0")
+        except Exception:
+            pass
+        try:
+            self.query_one(WorksheetHeader).update_status(exam_mode=self.exam_mode)
+        except Exception:
+            pass
+        try:
+            console = self.query_one(ConsoleBar)
+            console.exam_mode = self.exam_mode
+            console._paint()
+        except Exception:
+            pass
+        if on:
+            self.notify(
+                "EXAM MODE on — the header now shows the offline-notes badge. "
+                "GLACIS stays 100% local: no network, no AI, nothing leaves this machine.",
+                title="Exam mode",
+            )
+        else:
+            self.notify("Exam mode off.", title="Exam mode")
+
     def action_show_welcome(self) -> None:
         """Reopen the quick-start card (:welcome)."""
         self.push_screen(WelcomeModal(), callback=lambda _r: self.store.set_setting("welcome_seen", "1"))
+
+    # Opacity ramp for station fades: 4 steps, ~105 ms total. Deliberately
+    # stepped via styles (not the animator): Textual containers expose
+    # opacity through styles only, and a handful of single-property writes
+    # costs far less than an animation timeline per frame.
+    _FADE_STEPS = (0.62, 0.78, 0.9, 1.0)
+    _FADE_STEP_MS = 35
+
+    def _fade_in_station(self, tab_id: str) -> None:
+        """Brief, cheap fade on station switches for visual continuity.
+
+        Only the newly-visible pane animates, and only its opacity style is
+        touched — a few single-property writes on one region, comfortably
+        inside the frame budget even on modest terminals. Silently skipped
+        where opacity blending is unavailable.
+        """
+        try:
+            pane = self.query_one(f"#{tab_id}", TabPane)
+            content = pane.children[0] if pane.children else None
+            if content is None:
+                return
+            content.styles.opacity = self._FADE_STEPS[0]
+            for i, value in enumerate(self._FADE_STEPS[1:], start=1):
+                self.set_timer(
+                    self._FADE_STEP_MS * i / 1000.0,
+                    lambda w=content, v=value: self._set_opacity(w, v),
+                )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _set_opacity(widget: Any, value: float) -> None:
+        try:
+            widget.styles.opacity = value
+        except Exception:
+            pass  # widget went away mid-fade or opacity unsupported
 
     def refresh_pulse_widget(self) -> None:
         """Update Station 0 Pulse dashboard on demand."""
@@ -688,6 +769,7 @@ class GlacisApp(App):
                 workspace_name=workspace.name if workspace else "default",
                 counts={"targets": len(targets)},
                 active_ip=active.ip if active else "",
+                exam_mode=getattr(self, "exam_mode", False),
             )
         except Exception:
             pass
@@ -916,6 +998,61 @@ class GlacisApp(App):
         except Exception:
             pass
 
+    @staticmethod
+    def _row_signature(obj: Any) -> tuple:
+        """Identity of a record for diffing (id + last modification)."""
+        return (getattr(obj, "id", None), str(getattr(obj, "updated_at", "")))
+
+    def _sync_roster_list(
+        self,
+        list_id: str,
+        new_objs: List[Any],
+        format_row,
+        empty_badge: str,
+        empty_hint: str,
+    ) -> None:
+        """Refresh one cockpit roster ListView with an O(change) fast path.
+
+        Common case while working: rows only get *appended* (you add a port,
+        a cred, a checklist item). When the existing rows are a strict prefix
+        of the new rows (same id + updated_at), we append just the tail
+        instead of clearing and rebuilding the whole list — no flicker, no
+        lost scroll position, and far fewer widgets constructed per frame.
+        Anything else (deletions, reorderings) falls back to a full rebuild,
+        so correctness never depends on the optimisation.
+        """
+        from glacis.tui.widgets import DataListItem
+
+        P = current_palette()
+        lv = self.query_one(list_id, ListView)
+        old_items = [
+            it for it in lv.children
+            if isinstance(it, DataListItem) and not it.is_placeholder and it.data_obj is not None
+        ]
+
+        if not new_objs:
+            lv.clear()
+            txt = Text()
+            txt.append(f"  {empty_badge} ", style=f"bold {P.bg} on {P.accent}")
+            txt.append(f" {empty_hint}", style=f"bold {P.text}")
+            lv.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            return
+
+        if old_items and len(new_objs) > len(old_items):
+            # a is the widget — signature its underlying record, not the widget.
+            prefix_ok = all(
+                self._row_signature(a.data_obj) == self._row_signature(b)
+                for a, b in zip(old_items, new_objs[: len(old_items)])
+            )
+            if prefix_ok:
+                for o in new_objs[len(old_items):]:
+                    lv.append(DataListItem(data_obj=o, display_text=format_row(o)))
+                return  # nothing else moved — keep scroll & selection exactly
+
+        lv.clear()
+        for o in new_objs:
+            lv.append(DataListItem(data_obj=o, display_text=format_row(o)))
+
     def refresh_all(self) -> None:
         """Refresh all data lists from the database."""
         with self.batch_update():
@@ -930,39 +1067,27 @@ class GlacisApp(App):
                 active_tab = "tab-worksheet"
 
             # 1. Services & Ports (Notion 01 format with Potential and Command Recipe)
-            svc_list = self.query_one("#list-services", ListView)
-            saved_svc_idx = svc_list.index if svc_list.index is not None else self._saved_list_indices.get("#list-services")
-            svc_list.clear()
             services = self.store.list_services(target_id=target_id) if target_id else []
             self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
-            if services:
-                for s in services:
-                    svc_list.append(DataListItem(data_obj=s, display_text=self._format_service_row(s)))
-            else:
-                P = current_palette()
-                txt = Text()
-                txt.append("  [+ PORT] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" none yet — press s to add · I imports an nmap scan", style=f"bold {P.text}")
-                svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            self._sync_roster_list(
+                "#list-services", services, self._format_service_row,
+                "[+ PORT]", "none yet — press s to add · I imports an nmap scan",
+            )
+            svc_list = self.query_one("#list-services", ListView)
+            saved_svc_idx = svc_list.index if svc_list.index is not None else self._saved_list_indices.get("#list-services")
             if saved_svc_idx is not None and len(svc_list.children) > 0:
                 svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
                 self._saved_list_indices["#list-services"] = svc_list.index
 
             # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
-            c_list = self.query_one("#list-creds", ListView)
-            saved_c_idx = c_list.index if c_list.index is not None else self._saved_list_indices.get("#list-creds")
-            c_list.clear()
             creds = self.store.list_credentials(target_id=target_id)
             self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
-            if creds:
-                for c in creds:
-                    c_list.append(DataListItem(data_obj=c, display_text=self._format_credential_row(c)))
-            else:
-                P = current_palette()
-                txt = Text()
-                txt.append("  [+ CRED] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" none yet — press c · try them all from station 3", style=f"bold {P.text}")
-                c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            self._sync_roster_list(
+                "#list-creds", creds, self._format_credential_row,
+                "[+ CRED]", "none yet — press c · try them all from station 3",
+            )
+            c_list = self.query_one("#list-creds", ListView)
+            saved_c_idx = c_list.index if c_list.index is not None else self._saved_list_indices.get("#list-creds")
             if saved_c_idx is not None and len(c_list.children) > 0:
                 c_list.index = min(saved_c_idx, len(c_list.children) - 1)
                 self._saved_list_indices["#list-creds"] = c_list.index
@@ -976,9 +1101,7 @@ class GlacisApp(App):
                 self.refresh_pulse_widget()
 
             # 3. Checklist & Progress Bar
-            ck_list = self.query_one("#list-checklist", ListView)
-            saved_ck_idx = ck_list.index if ck_list.index is not None else self._saved_list_indices.get("#list-checklist")
-            ck_list.clear()
+            saved_ck_idx = None
             items = self.store.list_checklist_items(target_id=target_id)
             checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
             total_items = len(items)
@@ -990,15 +1113,11 @@ class GlacisApp(App):
             hdr_txt = f"{bar_str} {pct:>3d}% {checked_count}/{total_items}" if total_items else "—"
             self._set_count("cnt-checklist", hdr_txt)
 
-            if items:
-                for item in items:
-                    ck_list.append(DataListItem(data_obj=item, display_text=self._format_checklist_row(item)))
-            else:
-                P = current_palette()
-                txt = Text()
-                txt.append("  [+ METHOD] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" none loaded — press m and pick a template (ejpt = exam spine)", style=f"bold {P.text}")
-                ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            self._sync_roster_list(
+                "#list-checklist", items, self._format_checklist_row,
+                "[+ METHOD]", "none loaded — press m and pick a template (ejpt = exam spine)",
+            )
+            ck_list = self.query_one("#list-checklist", ListView)
             if saved_ck_idx is not None and len(ck_list.children) > 0:
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
                 self._saved_list_indices["#list-checklist"] = ck_list.index
