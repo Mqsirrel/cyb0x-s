@@ -58,10 +58,15 @@ All notable changes to GLACIS are documented here. The format follows
   fallback) was replaced with a local interface-table lookup — GLACIS now
   contains zero networking code paths.
 * **Performance**: workspace Pulse computations are fingerprint-cached (only
-  rebuild when recorded data changes), roster refreshes diff-append instead
-  of rebuilding lists (scroll/selection preserved), station switches get a
-  light stepped fade, and per-list composite indexes keep queries fast on
-  large worksheets (WAL auto-checkpoint tuned to avoid write stalls).
+  rebuild when recorded data changes — ~0.2 ms warm on a 600-row worksheet),
+  the timeline is cached the same way, all cockpit rosters (services, creds,
+  checklist, and the combined notes/evidence/findings panel) diff-append
+  instead of rebuilding lists (scroll/selection preserved, O(changes) cost),
+  Station 0 skips repaints entirely unless data, palette or size changed,
+  station switches fade at one opacity write per frame (~60 fps, 8-step
+  out-cubic ramp, generation-guarded so fast flipping never stacks fades),
+  and per-list composite indexes keep queries fast on large worksheets (WAL
+  auto-checkpoint tuned to avoid write stalls).
 * 30 new tests (212 total, up from 182) covering the pulse layer, HTML
   report (self-containment, masking, XSS escaping, theming), snapshot
   lifecycle, new CLI commands, and the Pulse TUI station.

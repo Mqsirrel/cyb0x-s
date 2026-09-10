@@ -1,7 +1,7 @@
 """Interactive TUI automated testing using Textual test pilot."""
 
 import pytest
-from textual.widgets import Input, ListView, TabbedContent
+from textual.widgets import Input, ListView, TabbedContent, TabPane
 
 from glacis.db.store import NotebookStore
 from glacis.models import ChecklistStatus
@@ -297,3 +297,125 @@ async def test_tui_exam_mode_badge_and_persistence() -> None:
             await pilot2.pause()
             assert store.get_setting("exam_mode") == "0"
             assert "EXAM MODE" not in app2.query_one(WorksheetHeader).render().plain
+
+
+# -----------------------------------------------------------------------------
+# Performance round 2: 60fps fades, notes fast path, pulse paint-skip
+# -----------------------------------------------------------------------------
+
+def test_fade_ramp_is_60fps_out_cubic() -> None:
+    app_cls = CyboxSafeApp
+    steps = app_cls._FADE_STEPS
+    assert len(steps) == 8, "one step per animation frame (~60fps)"
+    assert steps[-1] == 1.0
+    assert steps == tuple(sorted(steps))
+    assert all(0.0 <= v <= 1.0 for v in steps)
+    assert app_cls._FADE_STEP_MS <= 17, "at most one step per frame"
+
+
+@pytest.mark.asyncio
+async def test_fade_runs_and_generation_guard_supersedes() -> None:
+    store = NotebookStore(":memory:")
+    store.set_setting("welcome_seen", "1")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        import asyncio as _asyncio
+
+        app._fade_in_station("tab-worksheet")
+        pane_content = app.query_one("#tab-worksheet", TabPane).children[0]
+        # Poll with a generous deadline: under parallel test load the 16 ms
+        # frame timers fire late, but they always fire.
+        loop = _asyncio.get_running_loop()
+        deadline = loop.time() + 5.0
+        while pane_content.styles.opacity != 1.0 and loop.time() < deadline:
+            await _asyncio.sleep(0.02)
+        assert pane_content.styles.opacity == 1.0, "fade must land fully opaque"
+
+        # The generation guard: a frame scheduled by an older fade must be a
+        # no-op once a newer fade started (rapid station flipping never lets
+        # an old fade fight the new one).
+        g_now = app._fade_gen
+        app._fade_frame(g_now - 1, pane_content, 0.5)
+        assert pane_content.styles.opacity != 0.5, "stale-generation frame must be cancelled"
+        app._fade_frame(g_now, pane_content, 0.5)
+        assert pane_content.styles.opacity == 0.5, "current-generation frame must apply"
+
+
+@pytest.mark.asyncio
+async def test_notes_panel_append_fast_path_preserves_rows() -> None:
+    store = NotebookStore(":memory:")
+    target = store.add_target("10.10.10.30", hostname="web")
+    store.add_note(target_id=target.id, content="first note")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+
+        lv = app.query_one("#list-notes", ListView)
+        before = list(lv.children)
+        assert len(before) == 1 and not before[0].is_placeholder
+
+        # Appending a second note extends the notes segment -> fast path
+        # keeps the existing row widget alive.
+        store.add_note(target_id=target.id, content="second note")
+        app.refresh_all()
+        await pilot.pause()
+
+        after = list(lv.children)
+        assert len(after) == 2
+        assert after[0] is before[0], "notes fast path must not rebuild existing rows"
+        texts = [c.display_text.plain for c in after]
+        assert "[NOTE]" in texts[0] and "[NOTE]" in texts[1]
+
+        # A finding sorts BEFORE notes (prepend) -> correct full rebuild.
+        store.add_finding(target_id=target.id, title="anon SMB", severity="HIGH")
+        app.refresh_all()
+        await pilot.pause()
+        lv2 = app.query_one("#list-notes", ListView)
+        assert len(lv2.children) == 3
+        assert "[VULN]" in lv2.children[0].display_text.plain
+        assert "[NOTE]" in lv2.children[1].display_text.plain
+        assert "first note" in lv2.children[1].display_text.plain
+
+        # Deletions still fall back to a correct full rebuild.
+        store.delete_note(before[0].data_obj.id)
+        app.refresh_all()
+        await pilot.pause()
+        lv3 = app.query_one("#list-notes", ListView)
+        assert len(lv3.children) == 2
+        assert "[VULN]" in lv3.children[0].display_text.plain
+
+
+@pytest.mark.asyncio
+async def test_pulse_widget_skips_noop_repaints() -> None:
+    store = NotebookStore(":memory:")
+    store.set_setting("welcome_seen", "1")
+    target = store.add_target("10.10.10.40")
+    app = CyboxSafeApp(store=store)
+
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.press("0")  # station 0 renders Pulse once
+        await pilot.pause()
+        pw = app.query_one("#pulse-view", PulseWidget)
+        assert getattr(pw, "_last_paint_key", None) is not None, "first paint recorded"
+
+        calls = {"n": 0}
+        original = pw._render_dashboard
+
+        def counting(store_arg):
+            calls["n"] += 1
+            return original(store_arg)
+
+        pw._render_dashboard = counting
+
+        pw.refresh_pulse()  # warm-up: settle layout size after the patch
+        calls["n"] = 0
+        pw.refresh_pulse()  # nothing changed -> skip
+        pw.refresh_pulse()
+        assert calls["n"] == 0, "identical fingerprint+palette+size must skip repaint"
+
+        store.add_note(target_id=target.id, content="new data changes the fingerprint")
+        pw.refresh_pulse()
+        assert calls["n"] == 1, "changed data must repaint"

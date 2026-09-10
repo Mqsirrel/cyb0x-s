@@ -532,12 +532,16 @@ def build_timeline(
     """Merge every record type into one chronological journal (newest first).
 
     Includes records regardless of which target they hang off so the journal
-    reads like a session log of the whole engagement.
+    reads like a session log of the whole engagement. Cached against the
+    workspace fingerprint like every other Pulse view.
     """
     ws = store.get_workspace(workspace_id) if workspace_id else store.get_active_workspace()
     if not ws:
         return []
+    return _cached(store, ("timeline", ws.id, limit), lambda: _build_timeline(store, ws, limit))
 
+
+def _build_timeline(store: NotebookStore, ws: Any, limit: int) -> List[TimelineEvent]:
     targets = {t.id: t for t in store.list_targets(workspace_id=ws.id)}
     events: List[TimelineEvent] = []
 

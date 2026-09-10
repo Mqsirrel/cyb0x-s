@@ -1968,12 +1968,31 @@ class PulseWidget(Static):
         self.refresh_pulse()
 
     def refresh_pulse(self) -> None:
-        """Recompute and repaint the dashboard from the store."""
+        """Recompute and repaint the dashboard from the store.
+
+        Paint-skipping: the dashboard is a pure function of the workspace
+        fingerprint, the active palette and the widget size. When none of
+        those changed, the rebuild is skipped entirely — station 0 costs
+        zero repaints while you work elsewhere (no flicker, no wasted
+        frames). Palette is part of the key so a theme switch always
+        repaints, even though it never touches the data.
+        """
         store = getattr(self.app, "store", None)
         if store is None:
             return
         try:
+            from glacis.pulse import workspace_fingerprint
+
+            fp = workspace_fingerprint(store)
+        except Exception:
+            fp = None
+        palette_name = getattr(current_palette(), "name", "")
+        key = (fp, palette_name, self.size.width, self.size.height)
+        if fp is not None and getattr(self, "_last_paint_key", None) == key:
+            return
+        try:
             self.update(self._render_dashboard(store))
+            self._last_paint_key = key
         except Exception:
             pass
 

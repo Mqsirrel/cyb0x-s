@@ -548,34 +548,45 @@ class GlacisApp(App):
         """Reopen the quick-start card (:welcome)."""
         self.push_screen(WelcomeModal(), callback=lambda _r: self.store.set_setting("welcome_seen", "1"))
 
-    # Opacity ramp for station fades: 4 steps, ~105 ms total. Deliberately
-    # stepped via styles (not the animator): Textual containers expose
-    # opacity through styles only, and a handful of single-property writes
-    # costs far less than an animation timeline per frame.
-    _FADE_STEPS = (0.62, 0.78, 0.9, 1.0)
-    _FADE_STEP_MS = 35
+    # Opacity ramp for station fades: 8 out-cubic steps, one write per
+    # animation frame (~16 ms ≈ 60 fps, ~130 ms total). Deliberately stepped
+    # via styles (not the animator): Textual containers expose opacity
+    # through styles only, and 8 single-property writes on one region cost
+    # less than an animation timeline per frame.
+    _FADE_STEPS = (0.33, 0.578, 0.756, 0.875, 0.947, 0.984, 0.998, 1.0)
+    _FADE_STEP_MS = 16
 
     def _fade_in_station(self, tab_id: str) -> None:
-        """Brief, cheap fade on station switches for visual continuity.
+        """Smooth 60fps fade on station switches for visual continuity.
 
         Only the newly-visible pane animates, and only its opacity style is
-        touched — a few single-property writes on one region, comfortably
-        inside the frame budget even on modest terminals. Silently skipped
-        where opacity blending is unavailable.
+        touched — one property write per frame on one region, comfortably
+        inside the frame budget even on modest terminals. A generation
+        counter cancels the previous fade's pending frames when you flip
+        between stations quickly, so fades never stack or fight. Silently
+        skipped where opacity blending is unavailable.
         """
         try:
             pane = self.query_one(f"#{tab_id}", TabPane)
             content = pane.children[0] if pane.children else None
             if content is None:
                 return
+            self._fade_gen = getattr(self, "_fade_gen", 0) + 1
+            gen = self._fade_gen
             content.styles.opacity = self._FADE_STEPS[0]
             for i, value in enumerate(self._FADE_STEPS[1:], start=1):
                 self.set_timer(
                     self._FADE_STEP_MS * i / 1000.0,
-                    lambda w=content, v=value: self._set_opacity(w, v),
+                    lambda w=content, v=value, g=gen: self._fade_frame(g, w, v),
                 )
         except Exception:
             pass
+
+    def _fade_frame(self, gen: int, widget: Any, value: float) -> None:
+        """Apply one fade frame unless a newer fade superseded it."""
+        if gen != getattr(self, "_fade_gen", 0):
+            return
+        self._set_opacity(widget, value)
 
     @staticmethod
     def _set_opacity(widget: Any, value: float) -> None:
@@ -1122,53 +1133,56 @@ class GlacisApp(App):
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
                 self._saved_list_indices["#list-checklist"] = ck_list.index
 
-            # 4. Combined Field Notes, Evidence & Findings
-            n_list = self.query_one("#list-notes", ListView)
-            saved_n_idx = n_list.index if n_list.index is not None else self._saved_list_indices.get("#list-notes")
-            n_list.clear()
+            # 4. Combined Field Notes, Evidence & Findings — diff-append sync:
+            # rows only get appended while working, so existing widgets are
+            # reused and scroll/selection survive every refresh.
             notes = self.store.list_notes(target_id=target_id)
             findings = self.store.list_findings(target_id=target_id)
             evidences = self.store.list_evidence(target_id=target_id)
             leads = self.store.list_leads(target_id=target_id)
-            total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
+            merged_log = [*findings, *notes, *evidences, *leads]
+            total_notes_ev = len(merged_log)
             self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
-            if notes or findings or evidences or leads:
-                P = current_palette()
-                for f in findings:
-                    txt = Text()
-                    txt.append("[VULN] ", style=f"bold {P.bg} on {P.danger}")
-                    if f.severity:
-                        sev_style = f"bold {P.bg} on {P.danger}" if f.severity.upper() in ("HIGH", "CRITICAL") else f"bold {P.bg} on {P.warn}"
-                        txt.append(f"[{f.severity}] ", style=sev_style)
-                    txt.append(f"{f.title} ", style=f"bold {P.text}")
-                    if f.description:
-                        txt.append(f"— {f.description}", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=f, display_text=txt))
-                for n in notes:
-                    txt = Text()
-                    txt.append("[NOTE] ", style=f"bold {P.bg} on {P.warn}")
-                    txt.append(f"{n.content}", style=f"{P.text}")
-                    n_list.append(DataListItem(data_obj=n, display_text=txt))
-                for ev in evidences:
-                    txt = Text()
-                    txt.append("[EVID] ", style=f"bold {P.bg} on {P.accent}")
-                    txt.append(f"{ev.path_or_ref} ", style=f"bold {P.text}")
-                    if ev.description:
-                        txt.append(f"— {ev.description}", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=ev, display_text=txt))
-                for ld in leads:
-                    txt = Text()
-                    txt.append("[LEAD] ", style=f"bold {P.bg} on {P.ok}")
-                    txt.append(f"{ld.title} ", style=f"bold {P.text}")
-                    if ld.notes:
-                        txt.append(f"({ld.notes})", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=ld, display_text=txt))
-            else:
+
+            def _format_log_row(o: Any) -> Text:
                 P = current_palette()
                 txt = Text()
-                txt.append("  [+ LOG] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" nothing yet — n note · f finding · v paste screenshot", style=f"bold {P.text}")
-                n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+                if hasattr(o, "severity"):  # finding
+                    txt.append("[VULN] ", style=f"bold {P.bg} on {P.danger}")
+                    if o.severity:
+                        sev_style = (
+                            f"bold {P.bg} on {P.danger}"
+                            if o.severity.upper() in ("HIGH", "CRITICAL")
+                            else f"bold {P.bg} on {P.warn}"
+                        )
+                        txt.append(f"[{o.severity}] ", style=sev_style)
+                    txt.append(f"{o.title} ", style=f"bold {P.text}")
+                    if o.description:
+                        txt.append(f"— {o.description}", style=f"{P.muted}")
+                elif hasattr(o, "content"):  # note
+                    txt.append("[NOTE] ", style=f"bold {P.bg} on {P.warn}")
+                    txt.append(f"{o.content}", style=f"{P.text}")
+                elif hasattr(o, "path_or_ref"):  # evidence
+                    txt.append("[EVID] ", style=f"bold {P.bg} on {P.accent}")
+                    txt.append(f"{o.path_or_ref} ", style=f"bold {P.text}")
+                    if o.description:
+                        txt.append(f"— {o.description}", style=f"{P.muted}")
+                else:  # lead
+                    txt.append("[LEAD] ", style=f"bold {P.bg} on {P.ok}")
+                    txt.append(f"{o.title} ", style=f"bold {P.text}")
+                    if o.notes:
+                        txt.append(f"({o.notes})", style=f"{P.muted}")
+                return txt
+
+            self._sync_roster_list(
+                "#list-notes",
+                merged_log,
+                _format_log_row,
+                "[+ LOG]",
+                "nothing yet — n note · f finding · v paste screenshot",
+            )
+            n_list = self.query_one("#list-notes", ListView)
+            saved_n_idx = n_list.index if n_list.index is not None else self._saved_list_indices.get("#list-notes")
             if saved_n_idx is not None and len(n_list.children) > 0:
                 n_list.index = min(saved_n_idx, len(n_list.children) - 1)
                 self._saved_list_indices["#list-notes"] = n_list.index

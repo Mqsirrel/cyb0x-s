@@ -270,3 +270,18 @@ def test_fingerprint_covers_settings_too(store: NotebookStore) -> None:
     fp_a = workspace_fingerprint(store)
     store.set_setting("welcome_seen", "1")
     assert workspace_fingerprint(store) != fp_a
+
+
+def test_timeline_is_fingerprint_cached(store: NotebookStore) -> None:
+    _seed_rich_workspace(store)
+
+    tl1 = build_timeline(store, limit=50)
+    tl2 = build_timeline(store, limit=50)
+    assert tl1 == tl2
+    assert tl1[0] is tl2[0], "repeat calls must reuse the cached event objects"
+
+    # Any recorded write shifts the fingerprint -> timeline recomputes.
+    t1 = store.get_target_by_ip("10.10.10.20")
+    store.add_note(target_id=t1.id, content="post-cache note")
+    tl3 = build_timeline(store, limit=50)
+    assert any("post-cache note" in (e.detail or "") or "post-cache note" in (e.label or "") for e in tl3)
