@@ -17,8 +17,9 @@ from textual.widgets import ListView, Static
 
 from glacis.routes import build_network_topology, generate_proxychains_config
 from glacis.tui import widgets as _pkg
-from glacis.tui.theme import current_palette
-from glacis.tui.widgets.lists import DataListItem, sync_data_list
+from glacis.tui.theme import GLYPHS, current_palette
+from glacis.tui.widgets.chrome import set_border_text
+from glacis.tui.widgets.lists import DataListItem, elide, sync_data_list
 
 
 class ActionSpec(NamedTuple):
@@ -89,15 +90,30 @@ class NetworkStation(Static):
             with Vertical(id="network-map-panel"):
                 with VerticalScroll():
                     yield Static(id="network-map")
+                yield Static(id="network-map-legend", classes="panel-legend")
             with Vertical(id="network-actions-panel"):
                 yield ListView(id="network-actions", classes="panel-list")
 
     def on_mount(self) -> None:
+        P = current_palette()
         try:
-            self.query_one("#network-map-panel").border_title = " DOCUMENTED NETWORK TOPOLOGY "
+            set_border_text(
+                self.query_one("#network-map-panel"), title=" DOCUMENTED NETWORK TOPOLOGY "
+            )
             panel = self.query_one("#network-actions-panel")
-            panel.border_title = " TUNNEL & ROUTE ACTIONS "
-            panel.border_subtitle = " [Enter: Copy] "
+            set_border_text(panel, title=" TUNNEL & ROUTE ACTIONS ", subtitle=" [Enter: Copy] ")
+            self.query_one("#network-map-legend", Static).update(
+                Text.assemble(
+                    (f"{GLYPHS['pivot']} ", "bold " + P.warn),
+                    ("dual-homed pivot  ·  ", P.muted),
+                    ("one box per documented subnet  ·  ", P.muted),
+                    ("drawn only from targets you recorded (:t)", P.muted),
+                    ("\n", ""),
+                    (f"{GLYPHS['next']} ", "bold " + P.accent),
+                    ("Enter copies the highlighted tunnel command — GLACIS sends nothing itself",
+                     P.muted),
+                )
+            )
         except Exception:
             pass
 
@@ -116,6 +132,16 @@ class NetworkStation(Static):
                 style=f"bold {P.text}",
             )
         self.query_one("#network-map", Static).update(map_txt)
+        try:
+            set_border_text(
+                self.query_one("#network-map-panel"),
+                subtitle=(
+                    f" {len(topo.subnets)} subnet(s) · {len(topo.pivots)} pivot(s) "
+                    f"· {sum(len(v) for v in topo.subnets.values())} host(s) "
+                ),
+            )
+        except Exception:
+            pass
 
         actions: List[ActionSpec] = []
 
@@ -170,14 +196,16 @@ class NetworkStation(Static):
 
         action_list = self.query_one("#network-actions", ListView)
 
+        avail = self._actions_panel_width()
+
         def _render(spec: ActionSpec) -> Text:
             t = Text()
-            t.append(f"{spec.label}\n", style=f"bold {P.text}")
-            t.append("  ❯ ", style=f"bold {P.ok}")
+            t.append(elide(spec.label, max(avail - 2, 12)) + "\n", style=f"bold {P.text}")
+            t.append(f"  {GLYPHS['run']} ", style=f"bold {P.ok}")
             first, *rest = spec.cmd.splitlines() or [""]
-            t.append(first, style=f"bold {P.warn}")
+            t.append(elide(first, max(avail - 6, 12)), style=f"bold {P.warn}")
             for extra in rest[:6]:
-                t.append(f"\n     {extra}", style=P.text_soft)
+                t.append(f"\n     {elide(extra, max(avail - 7, 12))}", style=P.text_soft)
             if len(rest) > 6:
                 t.append(f"\n     … (+{len(rest) - 6} lines)", style=P.muted)
             return t
@@ -197,11 +225,20 @@ class NetworkStation(Static):
             sync_data_list(action_list, [], _render, placeholder_text=t)
 
         try:
-            self.query_one("#network-actions-panel").border_subtitle = (
-                f" {len(actions)} action(s) · [Enter: Copy] "
+            set_border_text(
+                self.query_one("#network-actions-panel"),
+                subtitle=f" {len(actions)} action(s) · [Enter: Copy] ",
             )
         except Exception:
             pass
+
+    def _actions_panel_width(self) -> int:
+        """Usable row width of the action list (minus padding and scrollbar)."""
+        try:
+            width = self.query_one("#network-actions", ListView).size.width - 3
+        except Exception:
+            width = 0
+        return width if width > 24 else 70
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "network-actions" and isinstance(event.item, DataListItem):

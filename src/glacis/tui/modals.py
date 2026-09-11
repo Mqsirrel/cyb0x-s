@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView, Select, Static
 
@@ -25,6 +25,22 @@ from glacis.settings import derive_guidance_enabled
 from glacis.tui.anim import run_debounced
 from glacis.tui.theme import PALETTES, S, current_palette, get_default_theme, save_default_theme
 from glacis.tui.widgets import DataListItem
+from glacis.tui.widgets.lists import keycap_line
+
+
+def required_legend() -> Text:
+    """Explain the ``*`` marker instead of leaving it to inference."""
+    P = current_palette()
+    t = Text()
+    t.append("* ", style=f"bold {P.warn}")
+    t.append("required · ", style=f"{P.muted}")
+    t.append("[Enter]", style=f"bold {P.accent}")
+    t.append(" saves · ", style=f"{P.muted}")
+    t.append("[Esc]", style=f"bold {P.accent}")
+    t.append(" cancels · ", style=f"{P.muted}")
+    t.append("[Tab]", style=f"bold {P.accent}")
+    t.append(" next field", style=f"{P.muted}")
+    return t
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -486,7 +502,7 @@ class AddTargetModal(BaseFormModal):
 
     DEFAULT_CSS = BaseFormModal.DEFAULT_CSS + """
     #add-target-container {
-        width: 74;
+        width: 75;
         height: auto;
         max-height: 92%;
         border: round $accent;
@@ -494,18 +510,9 @@ class AddTargetModal(BaseFormModal):
         padding: 1 2;
         color: $foreground;
     }
-    AddTargetModal .modal-row {
-        height: auto;
-        layout: horizontal;
-        margin-bottom: 0;
-    }
-    AddTargetModal .modal-col {
-        width: 1fr;
-        height: auto;
-        margin-right: 1;
-    }
-    AddTargetModal .modal-col:last-child {
-        margin-right: 0;
+    AddTargetModal .form-cell Input,
+    AddTargetModal .form-cell Select {
+        width: 100%;
     }
     """
 
@@ -513,16 +520,17 @@ class AddTargetModal(BaseFormModal):
         with Vertical(id="add-target-container", classes="synapse-modal-dialog"):
             yield Label("▸ ADD TARGET HOST", classes="modal-header")
 
-            with Horizontal(classes="modal-row"):
-                with Vertical(classes="modal-col"):
+            # A two-column grid: `1fr` + margin-right rounding produced a
+            # 32/33 column pair whose input boxes never lined up.
+            with Grid(classes="form-grid"):
+                with Vertical(classes="form-cell"):
                     yield Label("Target IP / Hostname *:", classes="field-label")
                     yield Input(placeholder="e.g. 10.10.11.10", id="target-ip")
-                with Vertical(classes="modal-col"):
+                with Vertical(classes="form-cell"):
                     yield Label("FQDN / NetBIOS (optional):", classes="field-label")
                     yield Input(placeholder="e.g. dc01.corp.local", id="target-host")
 
-            with Horizontal(classes="modal-row"):
-                with Vertical(classes="modal-col"):
+                with Vertical(classes="form-cell"):
                     yield Label("Operating System:", classes="field-label")
                     yield Select(
                         [
@@ -536,7 +544,7 @@ class AddTargetModal(BaseFormModal):
                         value="Linux",
                         id="target-os",
                     )
-                with Vertical(classes="modal-col"):
+                with Vertical(classes="form-cell"):
                     yield Label("Initial Ports Preset:", classes="field-label")
                     yield Select(
                         [
@@ -550,14 +558,14 @@ class AddTargetModal(BaseFormModal):
                         id="target-ports-preset",
                     )
 
-            with Horizontal(classes="modal-row"):
-                with Vertical(classes="modal-col"):
+                with Vertical(classes="form-cell"):
                     yield Label("Custom Ports (optional):", classes="field-label")
                     yield Input(placeholder="e.g. 22, 80, 445", id="target-ports-custom")
-                with Vertical(classes="modal-col"):
+                with Vertical(classes="form-cell"):
                     yield Label("Target Notes (optional):", classes="field-label")
                     yield Input(placeholder="e.g. In-scope lab machine", id="target-notes")
 
+            yield Static(required_legend(), classes="field-legend")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Save Target (Enter)", variant="primary", classes="primary-btn", id="btn-save")
                 yield Button("Cancel (Esc)", id="btn-cancel")
@@ -606,7 +614,7 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
         align: center middle;
     }
     #add-service-container {
-        width: 72;
+        width: 75;
         height: auto;
         max-height: 92%;
         border: round $accent;
@@ -623,6 +631,12 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
     }
     AddServiceModal Input:focus {
         border: round $accent;
+    }
+    AddServiceModal .form-cell Input,
+    AddServiceModal .form-cell Select,
+    AddServiceModal Input,
+    AddServiceModal Select {
+        width: 100%;
     }
     """
 
@@ -662,11 +676,11 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
                 id="svc-preset",
             )
 
-            with Horizontal():
-                with Vertical(classes="column"):
+            with Grid(classes="form-grid"):
+                with Vertical(classes="form-cell"):
                     yield Label("Port Number *:", classes="field-label")
                     yield Input(value="80", id="svc-port")
-                with Vertical(classes="column"):
+                with Vertical(classes="form-cell"):
                     yield Label("Protocol:", classes="field-label")
                     yield Select([("tcp", "tcp"), ("udp", "udp")], value="tcp", id="svc-proto")
 
@@ -691,6 +705,7 @@ class AddServiceModal(ModalScreen[Optional[dict]]):
             yield Label("Command Recipe / Note:", classes="field-label")
             yield Input(placeholder="e.g. feroxbuster, smbmap, hydra...", id="svc-next")
 
+            yield Static(required_legend(), classes="field-legend")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Save Service (Enter)", variant="primary", classes="primary-btn", id="btn-save")
                 yield Button("Cancel (Esc)", id="btn-cancel")
@@ -1008,12 +1023,21 @@ class HelpModal(ModalScreen):
         background: $surface;
         padding: 1 2;
     }
+    #help-hint {
+        height: 1;
+        color: $text-muted;
+        margin-bottom: 1;
+    }
     """
 
     def compose(self) -> ComposeResult:
         with Vertical(id="help-box"):
             P = current_palette()
             yield Label(f"[bold {P.accent}]GLACIS WORKSHEET — KEYBOARD REFERENCE[/bold {P.accent}]\n")
+            yield Static(
+                keycap_line(("↑ ↓", "scroll"), ("Esc", "close"), ("/", "search"), ("T", "theme")),
+                id="help-hint",
+            )
             with VerticalScroll():
                 text = f"""
 [bold]Key Design Principle:[/bold]
@@ -1087,7 +1111,7 @@ Pure passive recording • Local-first SQLite store • Standalone offline opera
 Press [bold]Esc[/bold] or [bold]q[/bold] to return to the worksheet.
 """
                 yield Static(text)
-            yield Button("Close", id="btn-close", variant="primary")
+            yield Button("Close  (Esc)", id="btn-close", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)
@@ -1220,7 +1244,7 @@ class ReferenceModal(ModalScreen[Optional[str]]):
         with Vertical(id="ref-box"):
             P = current_palette()
             yield Label(
-                f"[bold {P.accent}]📖 COMMAND REFERENCE & METHODOLOGY PLAYBOOK[/bold {P.accent}]"
+                f"[bold {P.accent}]COMMAND REFERENCE & METHODOLOGY PLAYBOOK[/bold {P.accent}]"
                 f" [{P.muted}](Offline Playbook)[/]"
             )
             yield Label(
@@ -1309,7 +1333,7 @@ class AddExamProofModal(ModalScreen[Optional[dict]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-proof-container"):
-            yield Label("📝 RECORD QUESTION PROOF / EVIDENCE", classes="proof-hdr")
+            yield Label("▤ RECORD QUESTION PROOF / EVIDENCE", classes="proof-hdr")
             with Horizontal(classes="modal-row"):
                 with Vertical(classes="modal-col"):
                     yield Label("Question / Item ID (e.g. Q1, Item-1):", classes="field-label")

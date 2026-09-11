@@ -22,7 +22,7 @@
 
 <br/>
 
-<img src="docs/screenshots/01-worksheet.png" alt="GLACIS Cockpit Terminal Interface" width="940">
+<img src="docs/screenshots/01-cockpit.png" alt="GLACIS Cockpit Terminal Interface" width="940">
 
 </div>
 
@@ -423,21 +423,22 @@ route; the topology math is derived solely from target IPs and your
 terminal.
 
 ```text
-┌─ DOCUMENTED NETWORK TOPOLOGY ─────┐ ┌─ TUNNEL & ROUTE ACTIONS ───────────────┐
-│ === NETWORK TOPOLOGY: LAB-01 ===  │ │ ProxyChains config — all documented hops│
-│ ┌─ Subnet: 10.10.10.0/24          │ │   strict_chain / socks5 127.0.0.1 1080  │
-│ │  • 10.10.10.20 (web01) [⇄ PIV]  │ │ Chisel server (attacker host)          │
-│ ┌─ Subnet: 192.168.50.0/24        │ │   ❯ chisel server -p 8000 --reverse     │
-│ │  • 192.168.50.10 (db)           │ │ Chisel client via 10.10.10.20 → /24    │
-│                                   │ │ SSH ProxyJump to 192.168.50.10 [Enter]  │
-└───────────────────────────────────┘ └─────────────────────────────────────────┘
+┌─ DOCUMENTED NETWORK TOPOLOGY ───────────────┐ ┌─ TUNNEL & ROUTE ACTIONS ───────────────┐
+│   ┌─ Subnet: 10.10.10.0/24 ──────────────┐ │ │ ProxyChains config — all documented hops│
+│   │   • 10.10.10.20 (web01) [⇄ PIVOT]    │ │ │   ❯ strict_chain / socks5 127.0.0.1 1080│
+│   └──────────────────────────────────────┘ │ │ Chisel server (attacker host)          │
+│   ┌─ Subnet: 192.168.50.0/24 ────────────┐ │ │   ❯ chisel server -p 8000 --reverse     │
+│   │   • 192.168.50.10 (db)               │ │ │ Chisel client via 10.10.10.20 → /24    │
+│   └──────────────────────────────────────┘ │ │ SSH ProxyJump to 192.168.50.10 [Enter]  │
+│ ⇄ dual-homed pivot · one box per subnet    │ │                                          │
+└────────────────── 2 subnets · 1 pivot ─────┘ └──────── 7 action(s) · [Enter: Copy] ─────┘
 ```
 
 ---
 
 ## 9. Themes & Glacial Aesthetic
 
-GLACIS ships with **8 carefully crafted palettes** engineered for long-session ergonomics and crystal-clear typography. Every palette strictly maintains **WCAG AAA** contrast (≥7:1) for body text and **WCAG AA** (≥4.5:1) for muted auxiliary text.
+GLACIS ships with **8 carefully crafted palettes** engineered for long-session ergonomics and crystal-clear typography. Every palette is verified **WCAG AAA** (≥7:1) for body text, secondary text, muted text and every semantic colour (accent / ok / warn / danger) against both the app background and the panel surface — `tests/test_visual_design.py` fails the build if a palette drifts below it.
 
 | Name | Aesthetic | Style Description | Command |
 |---|---|---|---|

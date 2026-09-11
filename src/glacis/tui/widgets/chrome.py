@@ -13,8 +13,25 @@ from textual.widgets import Input, Label, Static
 
 from glacis.templates import get_template_guidance_for_title
 from glacis.tui.anim import guarded_interval, guarded_timer
-from glacis.tui.theme import current_palette, mix, ramp
-from glacis.tui.widgets.lists import substitute_command_placeholders
+from glacis.tui.theme import GLYPHS, current_palette, mix, ramp
+from glacis.tui.widgets.lists import elide, substitute_command_placeholders
+
+
+def set_border_text(widget: Any, *, title: Optional[str] = None, subtitle: Optional[str] = None) -> None:
+    """Assign a border title/subtitle as Rich :class:`Text`, never as markup.
+
+    Textual parses a plain ``str`` border title through the console markup
+    parser. Any keycap-looking label — ``[/ Search]``, ``[w: Cycle Panels]`` —
+    is therefore read as a style tag, and a leading ``[/`` raises
+    ``MarkupError``. That exception happened *inside* a repaint that the
+    caller wrapped in ``try/except``, so Station 2 silently kept the previous
+    station's console copy instead of showing its own. ``Text`` objects are
+    rendered verbatim, which is exactly what chrome wants.
+    """
+    if title is not None:
+        widget.border_title = Text(title)
+    if subtitle is not None:
+        widget.border_subtitle = Text(subtitle)
 
 
 class WorksheetHeader(Static):
@@ -150,11 +167,7 @@ class MachineStatusStrip(Static):
 
     @staticmethod
     def _elide(value: str, width: int) -> str:
-        if width <= 1:
-            return ""
-        if len(value) <= width:
-            return value
-        return value[: max(width - 1, 1)] + "…"
+        return elide(value, width)
 
     def _tag(self, label: str, value: str, colour: str, t: Text) -> None:
         t.append(f" {label} ", style=f"{current_palette().muted}")
@@ -180,7 +193,7 @@ class MachineStatusStrip(Static):
 
         row1 = Text()
         if self.target:
-            row1.append("◈ ", style=f"bold {P.accent}")
+            row1.append(f"{GLYPHS['target']} ", style=f"bold {P.accent}")
             row1.append(f"{self.target.ip} ", style=f"bold {P.text}")
             if self.target.hostname:
                 row1.append(f"[ {self.target.hostname} ] ", style=f"bold {P.accent}")
@@ -207,15 +220,15 @@ class MachineStatusStrip(Static):
             if lh:
                 row1.append(f"[LHOST: {lh}:{lp}] ", style=f"bold {P.accent}")
 
-            row1.append("[USER: ✔] " if self.target.user_flag else "[USER: ◯] ",
+            row1.append(f"[USER: {GLYPHS['done']}] " if self.target.user_flag else f"[USER: {GLYPHS['untested']}] ",
                         style=f"bold {P.ok}" if self.target.user_flag else f"bold {P.muted}")
-            row1.append("[ROOT: ✔] " if self.target.root_flag else "[ROOT: ◯] ",
+            row1.append(f"[ROOT: {GLYPHS['done']}] " if self.target.root_flag else f"[ROOT: {GLYPHS['untested']}] ",
                         style=f"bold {P.ok}" if self.target.root_flag else f"bold {P.muted}")
 
             if self.target.initial_access_vuln:
                 row1.append(f"[{self._elide(self.target.initial_access_vuln, 16)}] ", style=f"bold {P.warn}")
         else:
-            row1.append("◇ TARGET ▸ ", style=f"bold {P.warn}")
+            row1.append(f"{GLYPHS['host_untouched']} TARGET ▸ ", style=f"bold {P.warn}")
             row1.append("no target selected  ·  press 't' to add one", style=f"{P.muted}")
 
         placed = False
@@ -245,8 +258,8 @@ class MachineStatusStrip(Static):
         if not placed and counts_text:
             tail2.append(counts_text + "   ", style=f"bold {P.muted}")
         blocker_text = (
-            f"🕳 {self.blockers} dead end" + ("s" if self.blockers != 1 else "")
-            if self.blockers else "no blockers"
+            f"{GLYPHS['dead_end_count']} {self.blockers} dead end" + ("s" if self.blockers != 1 else "")
+            if self.blockers else f"{GLYPHS['done']} no blockers"
         )
         tail2.append(blocker_text, style=f"bold {P.danger}" if self.blockers else f"{P.muted}")
 
@@ -397,8 +410,7 @@ class ConsoleBar(Container):
             self._paint()
             return
 
-        self.border_title = " COMMAND RUNNER "
-        self.border_subtitle = " [Enter: Run] · [Esc: Cancel] "
+        set_border_text(self, title=" COMMAND RUNNER ", subtitle=" [Enter: Run] · [Esc: Cancel] ")
 
         P = current_palette()
         inner = max(self.size.width - 4, 16)
@@ -543,8 +555,7 @@ class ConsoleBar(Container):
 
     def show_copied_feedback(self, cmd: str) -> None:
         P = current_palette()
-        self.border_title = " COMMAND COPIED "
-        self.border_subtitle = " [COPIED TO CLIPBOARD] "
+        set_border_text(self, title=" COMMAND COPIED ", subtitle=" [COPIED TO CLIPBOARD] ")
         line = Text()
         line.append("✔ COPIED ▸ ", style=f"bold {P.ok}")
         inner = max(self.size.width - 16, 20)
@@ -633,48 +644,57 @@ class ConsoleBar(Container):
 
         if self.command:
             if len(self.recipes) > 1:
-                self.border_title = f" ACTION RECIPE ({self.recipe_index + 1}/{len(self.recipes)}) "
-                self.border_subtitle = f" [Enter: Copy] · [. Next ({self.recipe_index + 1}/{len(self.recipes)})] "
+                set_border_text(
+                    self,
+                    title=f" ACTION RECIPE ({self.recipe_index + 1}/{len(self.recipes)}) ",
+                    subtitle=f" [Enter: Copy] · [. Next ({self.recipe_index + 1}/{len(self.recipes)})] ",
+                )
             else:
-                self.border_title = " ACTION RECIPE & LIVE GUIDANCE "
-                self.border_subtitle = " [Enter: Copy] "
+                set_border_text(
+                    self,
+                    title=" ACTION RECIPE & LIVE GUIDANCE ",
+                    subtitle=" [Enter: Copy] ",
+                )
             cmd_line.append("RUN ▸ ", style=f"bold {P.accent}")
             cmd_line.append(ConsoleBar._elide(self.command, inner - 8), style=f"bold {P.text}")
         else:
-            idle = {
+            # NOTE: titles/subtitles are set as Text objects (set_border_text).
+            # As plain strings these are parsed as console markup, and a
+            # leading "[/" in a keycap raises MarkupError mid-repaint — which
+            # used to leave the console showing the *previous* station's copy.
+            idle: Dict[str, tuple[str, str, str, str]] = {
                 "tab-pulse": (
                     " STATION 0 · PULSE TRIAGE ", " [Enter: Open station] ",
-                    "PULSE ▸ ", "Deterministic host phases and explainable next-focus signals · Enter jumps to a station",
+                    "PULSE ▸ ", "Host phase board left · named next-focus signals right · Enter jumps straight to a station",
                 ),
                 "tab-playbooks": (
-                    " STATION 2 · ATTACK PLAYBOOKS ", " [/ Search] · [Enter: Copy] ",
-                    "PLAYBOOKS ▸ ", "Browse offline recipes by service · [/] search · [Enter] copy command",
+                    " STATION 2 · ATTACK PLAYBOOKS ", " [Enter: Copy] · [/ Filter] ",
+                    "PLAYBOOKS ▸ ", "Pick a category, highlight a recipe, Enter copies it — then run it in your own shell",
                 ),
                 "tab-creds": (
                     " STATION 3 · CREDENTIAL VAULT ", " [Space: Status] · [Enter: Spray] ",
-                    "CREDENTIALS ▸ ", "2D lateral movement matrix · [Space] cycle status · [Enter] copy spray cmd",
+                    "CREDENTIALS ▸ ", "Rows are credentials, columns are auth services · Space cycles a cell · Enter copies the spray command",
                 ),
                 "tab-network": (
                     " STATION 5 · NETWORK TOPOLOGY ", " [Enter: Copy route] ",
-                    "NETWORK ▸ ", "Documented subnets, pivots and SOCKS hop chains · Enter copies tunnel syntax",
+                    "NETWORK ▸ ", "Documented subnets, pivots and SOCKS hop chains · Enter copies ready-to-run tunnel syntax",
                 ),
                 "tab-loot": (
                     " STATION 4 · PROOFS & FLAGS ", " [g: Flags] · [a: Proofs] ",
-                    "PROOFS & FLAGS ▸ ", "Flags, proofs, evidence files and rabbit-hole log · :snap before risky steps",
+                    "PROOFS & FLAGS ▸ ", "Flags, proofs, evidence files and the rabbit-hole log · :snap before risky steps",
+                ),
+                "tab-worksheet": (
+                    " STATION 1 · COCKPIT ", " [w: Panel] · [0-5: Station] ",
+                    "COCKPIT ▸ ", "Highlight a service or checklist step to preview its command · 0 opens the Pulse board",
                 ),
             }
-            if self.active_station in idle:
-                title, sub, tag, body = idle[self.active_station]
-                self.border_title = title
-                self.border_subtitle = sub
-                cmd_line.append(tag, style=f"bold {P.accent}")
-                cmd_line.append(body, style=f"bold {P.text}")
-            else:
-                self.border_title = " CONTEXT GUIDANCE "
-                self.border_subtitle = " [w: Cycle Panels] · [0-5: Stations] "
-                cmd_line.append("COCKPIT ▸ ", style=f"bold {P.accent}")
-                cmd_line.append("Highlight a service or step to preview & copy commands · 0 opens the Pulse board",
-                                style=f"bold {P.text}")
+            entry = idle.get(self.active_station)
+            if entry is None:
+                entry = idle["tab-worksheet"]
+            title, sub, tag, body = entry
+            set_border_text(self, title=title, subtitle=sub)
+            cmd_line.append(tag, style=f"bold {P.accent}")
+            cmd_line.append(self._elide(body, inner - 12), style=f"bold {P.text}")
 
         if self.tip:
             tip_line.append("TIP ▸ ", style=f"bold {P.muted}")
@@ -699,8 +719,4 @@ class ConsoleBar(Container):
 
     @staticmethod
     def _elide(value: str, width: int) -> str:
-        if width <= 1:
-            return ""
-        if len(value) <= width:
-            return value
-        return value[: max(width - 1, 1)] + "…"
+        return elide(value, width)

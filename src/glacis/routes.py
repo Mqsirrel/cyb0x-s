@@ -141,21 +141,25 @@ def build_network_topology(store: NotebookStore, workspace_id: Optional[int] = N
     else:
         mermaid_lines.append("    Attacker -->|Direct Network Access| Subnet_" + list(subnets.keys())[0].replace(".", "_").replace("/", "_") if subnets else "")
 
-    # Generate ASCII Map
-    ascii_lines = [
-        f"=== NETWORK TOPOLOGY: {ws_name.upper()} ===",
-        f"Total Targets: {len(targets)} | Subnets: {len(subnets)} | Documented Pivots: {len(pivots)}",
-        "",
-    ]
+    # Generate ASCII Map.  The map is drawn *closed* (every subnet is a real
+    # box) and without a banner: the station already frames it with a titled
+    # panel, so a second "=== TITLE ===" header inside the border is noise,
+    # and an unclosed ┌… box reads as a broken render rather than a container.
+    ascii_lines: List[str] = []
     for snet, ips in subnets.items():
-        ascii_lines.append(f"  ┌─ Subnet: {snet}")
-        for ip in ips:
-            target_obj = next((t for t in targets if t.ip == ip), None)
+        target_objs = [next((t for t in targets if t.ip == ip), None) for ip in ips]
+        body: List[str] = []
+        for ip, target_obj in zip(ips, target_objs):
             is_p = target_obj.is_pivot if target_obj else False
             p_mark = " [⇄ DUAL-HOMED PIVOT]" if is_p else ""
             h_mark = f" ({target_obj.hostname})" if target_obj and target_obj.hostname else ""
-            ascii_lines.append(f"  │   • {ip}{h_mark}{p_mark}")
-        ascii_lines.append("  └───────────────────────────────")
+            body.append(f"• {ip}{h_mark}{p_mark}")
+        header = f"Subnet: {snet}"
+        inner = max([len(header) + 2, *(len(line) + 4 for line in body)], default=20)
+        ascii_lines.append(f"  ┌─ {header} " + "─" * max(inner - len(header) - 3, 1) + "┐")
+        for line in body:
+            ascii_lines.append("  │   " + line.ljust(inner - 4) + " │")
+        ascii_lines.append("  └" + "─" * inner + "┘")
 
     return NetworkTopology(
         workspace_name=ws_name,

@@ -13,7 +13,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.widgets import Label, ListItem, ListView
 
-from glacis.tui.theme import S
+from glacis.tui.theme import S, current_palette
 
 
 def substitute_command_placeholders(
@@ -69,6 +69,79 @@ class DataListItem(ListItem):
             pass
 
 
+def elide(value: str, width: int, ellipsis: str = "…") -> str:
+    """Clip ``value`` to exactly ``width`` cells and *mark* the clip.
+
+    Panels that compose their own rows must elide in Python: letting the
+    widget clip a long string cuts it mid-word with no signal that anything
+    was lost (``…listing backu``), which reads as a rendering bug rather than
+    as deliberate truncation.
+    """
+    if width <= 0:
+        return ""
+    clean = " ".join(str(value).split())
+    if len(clean) <= width:
+        return clean
+    if width <= len(ellipsis):
+        return ellipsis[:width]
+    return clean[: width - len(ellipsis)].rstrip() + ellipsis
+
+
+def elide_middle(value: str, width: int, ellipsis: str = "…") -> str:
+    """Elide from the middle, keeping the discriminating tail visible.
+
+    Paths and flags are identified by their ends (``…/proof_screenshot_01.png``,
+    ``eJPT{…195ae32}``), so clipping the tail destroys the only part a reader
+    actually scans for.
+    """
+    if width <= 0:
+        return ""
+    clean = " ".join(str(value).split())
+    if len(clean) <= width:
+        return clean
+    if width <= len(ellipsis) + 1:
+        return ellipsis[:width]
+    keep_tail = max((width - len(ellipsis)) // 2, 1)
+    keep_head = width - len(ellipsis) - keep_tail
+    return clean[:keep_head].rstrip() + ellipsis + clean[-keep_tail:]
+
+
+def keycap_line(*pairs: tuple[str, str]) -> Text:
+    """``[a] add proof · [e] export`` — keycaps in accent, actions in muted.
+
+    Building this as Text (instead of a markup string) is required, not
+    cosmetic: ``[a]`` inside a markup string is parsed as a style tag and
+    silently vanishes from the rendered row.
+    """
+    P = current_palette()
+    t = Text()
+    for i, pair in enumerate(pairs):
+        key, label = pair
+        if i:
+            t.append(" · ", style=f"dim {P.muted}")
+        t.append(f"[{key}]", style=f"bold {P.accent}")
+        t.append(f" {label}", style=P.muted)
+    return t
+
+
+def legend_line(*entries: tuple[str, str]) -> Text:
+    """Render a ``glyph MEANING · glyph MEANING`` legend strip.
+
+    Legends are what make a dense board self-explanatory: without one a first
+    time reader has to reverse-engineer ``s3 k2 e1 ✖1`` from context.
+    """
+    from glacis.tui.theme import S
+
+    t = Text()
+    for i, entry in enumerate(entries):
+        glyph, meaning = entry
+        if i:
+            t.append("   ", style="")
+        t.append(f"{glyph} ", style=S("accent", bold=True))
+        t.append(meaning, style=S("muted", bold=False))
+    return t
+
+
 _PROTOCOL_BADGE_CACHE: Dict[Tuple[int, str, str], Text] = {}
 _STATUS_ICON_CACHE: Dict[Tuple[str, str], Text] = {}
 
@@ -87,20 +160,46 @@ def get_protocol_badge(port: int, protocol: str, theme_name: str = "") -> Text:
 
 def get_service_status_icon(status_val: str, theme_name: str = "") -> Text:
     """Return a pre-styled Rich Text service status icon, cached."""
+    from glacis.tui.theme import GLYPHS
+
     key = (status_val, theme_name)
     cached = _STATUS_ICON_CACHE.get(key)
     if cached is None:
         if status_val == "CHECKED":
-            t = Text("✓ ", style=S("ok"))
+            t = Text(f"{GLYPHS['done']} ", style=S("ok"))
         elif status_val == "DEFERRED":
-            t = Text("~ ", style=S("warn"))
+            t = Text(f"{GLYPHS['deferred']} ", style=S("warn"))
         elif status_val == "DEAD-END":
-            t = Text("✗ ", style=S("danger"))
+            t = Text(f"{GLYPHS['dead_end']} ", style=S("danger"))
         else:
-            t = Text("→ ", style=S("accent"))
+            t = Text(f"{GLYPHS['open']} ", style=S("accent"))
         _STATUS_ICON_CACHE[key] = t
         return t.copy()
     return cached.copy()
+
+
+#: Canonical status vocabulary. Keyed by the model value, rendered as an
+#: inverted pill so the state is legible from across the room.
+STATUS_BADGES: Dict[str, tuple[str, str]] = {
+    "TODO": ("[TODO]", "accent"),
+    "CHECKED": ("[CHECKED]", "ok"),
+    "DEFERRED": ("[~ DEFER]", "warn"),
+    "DEAD-END": ("[DEAD-END]", "danger"),
+}
+
+
+def status_badge(status_val: str, width: int = 12) -> Text:
+    """Uniform-width inverted status pill (``[CHECKED]``, ``[DEAD-END]`` …).
+
+    Fixed width keeps every column in a service row on the same raster;
+    hand-padded literals drift as soon as a label changes length.
+    """
+    P = current_palette()
+    label, token = STATUS_BADGES.get(status_val, STATUS_BADGES["TODO"])
+    colour = getattr(P, token)
+    t = Text()
+    t.append(f" {label:<{width - 2}} ", style=f"bold {P.bg} on {colour}")
+    return t
 
 
 def clear_badge_caches() -> None:

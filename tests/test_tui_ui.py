@@ -626,7 +626,11 @@ def test_badge_caches_and_clear() -> None:
 
     icon1 = get_service_status_icon("CHECKED", "slate")
     icon2 = get_service_status_icon("CHECKED", "slate")
-    assert icon1.plain == icon2.plain == "✓ "
+    # Compared against the shared taxonomy so the icon cannot drift out of
+    # sync with the glyphs the rest of the chrome uses.
+    from glacis.tui.theme import GLYPHS
+
+    assert icon1.plain == icon2.plain == f"{GLYPHS['done']} "
 
     clear_badge_caches()
 
