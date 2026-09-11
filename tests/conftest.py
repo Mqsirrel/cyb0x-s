@@ -16,6 +16,11 @@ from click.testing import CliRunner
 from glacis.db.store import NotebookStore
 from glacis.tui.widgets import clear_badge_caches
 
+# Deterministic TUI tests: the 60fps station fade schedules real timers that
+# race pytest-xdist workers. Default animations OFF in tests; individual
+# tests may override with monkeypatch.setenv("GLACIS_ANIMATE", "1").
+os.environ.setdefault("GLACIS_ANIMATE", "0")
+
 
 def _get_physical_core_count() -> int:
     """Detect physical CPU cores without external dependencies."""

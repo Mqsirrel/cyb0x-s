@@ -37,3 +37,6 @@ htmlcov/
 # Arena agent scratch (screenshots, screen dumps)
 .arena/
 .temp_shots/
+
+# runtime snapshot dir (glacis backup writes to the workspace CWD)
+backups/

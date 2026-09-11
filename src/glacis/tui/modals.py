@@ -1020,16 +1020,24 @@ The human decides and performs the security-testing actions. GLACIS records and 
 Pure passive recording • Local-first SQLite store • Standalone offline operation.
 
 [bold]Stations:[/bold]
+  [{P.accent}]0[/]  Pulse         live dashboard: momentum, coverage, scorecards, next actions
   [{P.accent}]1[/]  Cockpit       attack surface, services, methodology, notes — one screen
   [{P.accent}]2[/]  Playbooks     offline command reference (Enter copies)
   [{P.accent}]3[/]  Credentials   full vault, reveal / copy, spray targets
   [{P.accent}]4[/]  Loot & Flags  user/root flags, foothold, rabbit holes
+
+[bold]Proctored exams (INE eJPT etc.):[/bold]
+  Press [{P.accent}]E[/] for Exam Mode — a visible [{P.accent}]EXAM MODE · OFFLINE NOTES[/] badge in the header.
+  GLACIS is 100% local (no network, no AI): exactly like a permitted personal notes file.
 
 [bold]Cockpit layout:[/bold]
   The status strip under the header answers the four assessment questions at a glance:
   which box, what is captured, what to do next, what is blocking me.
   The bottom console always shows the command for the highlighted row and
   doubles as the fast-capture bar. Press [{P.accent}]?[/] any time — or [{P.accent}]T[/] to change theme.
+  First time? The loop is three beats: 1 add a target (t / :t IP) ·
+  2 copy a command (j/k, Enter, Space marks it) · 3 record findings (c, n, f).
+  Reopen the quick-start card anytime with [{P.accent}]:welcome[/].
 
 [bold]Navigation:[/bold]
   [{P.accent}]Tab / Shift+Tab[/]  : Move focus between panels
@@ -1916,3 +1924,106 @@ __all__ = [
     "ScanImportModal",
     "WorkspaceModal",
 ]
+
+
+class WelcomeModal(ModalScreen):
+    """First-run quick-start card.
+
+    Shown automatically the first time GLACIS launches with an empty
+    workspace, and anytime afterwards via ``:welcome``. Purely informative:
+    three steps, five stations, one promise — press any key to dive in.
+    """
+
+    BINDINGS = [
+        ("escape", "dismiss_welcome", "Start"),
+        ("enter", "dismiss_welcome", "Start"),
+        ("question_mark", "open_help", "Full help"),
+    ]
+
+    DEFAULT_CSS = """
+    WelcomeModal {
+        align: center middle;
+    }
+    #welcome-box {
+        width: 88%;
+        max-width: 100;
+        height: auto;
+        max-height: 80%;
+        border: round $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    #welcome-title {
+        width: 1fr;
+        text-align: center;
+        text-style: bold;
+    }
+    #welcome-sub {
+        width: 1fr;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    WelcomeModal .step {
+        margin: 0 0 0 1;
+    }
+    #welcome-footer {
+        width: 1fr;
+        text-align: center;
+        margin-top: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        P = current_palette()
+        with Vertical(id="welcome-box"):
+            yield Label(f"[bold {P.accent}]WELCOME TO GLACIS[/bold {P.accent}]", id="welcome-title")
+            yield Label(
+                f"[{P.muted}]your offline field worksheet — three steps and you're working[/]",
+                id="welcome-sub",
+            )
+            yield Label(
+                f"[bold {P.ok}] 1[/]  [bold {P.text}]Add a target[/] [{P.muted}]press[/] [bold {P.accent}]t[/]"
+                f" [{P.muted}]or type[/] [bold {P.accent}]:t 10.10.10.20[/]",
+                classes="step",
+            )
+            yield Label(
+                f"[bold {P.ok}] 2[/]  [bold {P.text}]Work the loop[/] [{P.muted}]highlight[/] [bold {P.accent}]j/k[/]"
+                f" [{P.muted}]·[/] [bold {P.accent}]Enter[/] [{P.muted}]copies[/] [{P.muted}]·[/] [bold {P.accent}]Space[/] [{P.muted}]marks[/]",
+                classes="step",
+            )
+            yield Label(
+                f"[bold {P.ok}] 3[/]  [bold {P.text}]Record everything[/] [{P.muted}]creds[/] [bold {P.accent}]c[/]"
+                f" [{P.muted}]· notes[/] [bold {P.accent}]n[/] [{P.muted}]· flags[/] [bold {P.accent}]g[/]"
+                f" [{P.muted}]· findings[/] [bold {P.accent}]f[/]",
+                classes="step",
+            )
+            yield Label(
+                f"[bold {P.ok}] +[/]  [bold {P.text}]Have an nmap scan?[/] [{P.muted}]press[/] [bold {P.accent}]I[/]"
+                f" [{P.muted}]to import · syntax lookup:[/] [bold {P.accent}]r[/]",
+                classes="step",
+            )
+            yield Label(
+                f"\n[{P.text_soft}]Stations:[/] [bold {P.accent}]0[/][{P.muted}] pulse ·[/]"
+                f"[bold {P.accent}]1[/][{P.muted}] cockpit ·[/][bold {P.accent}]2[/][{P.muted}] playbooks ·[/]"
+                f"[bold {P.accent}]3[/][{P.muted}] creds ·[/][bold {P.accent}]4[/][{P.muted}] loot[/]",
+                classes="step",
+            )
+            yield Label(
+                f"[{P.muted}]press any key to start · full help:[/] [bold {P.accent}]?[/]"
+                f" [{P.muted}]· this card again:[/] [bold {P.accent}]:welcome[/]",
+                id="welcome-footer",
+            )
+
+    def on_key(self, event: Any) -> None:
+        """Any unbound key also dismisses — nothing in this card is a dead end."""
+        if event.key in ("escape", "enter"):
+            return
+        event.stop()
+        self.action_dismiss_welcome()
+
+    def action_dismiss_welcome(self) -> None:
+        self.dismiss(True)
+
+    def action_open_help(self) -> None:
+        self.dismiss(True)
+        self.app.action_show_help()

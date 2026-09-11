@@ -6,6 +6,7 @@ Strictly passive: stores human-discovered data, provides instant offline command
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any, Dict, List, Optional, Set
 
@@ -71,12 +72,14 @@ from glacis.tui.widgets import (
     LootAndFlagsWidget,
     MachineStatusStrip,
     PlaybookBrowserWidget,
+    PulseWidget,
     ReferenceModal,
     ScanImportModal,
     SearchModal,
     TargetTreeWidget,
     TemplateSelectionModal,
     ThemePickerModal,
+    WelcomeModal,
     WorksheetHeader,
     WorkspaceModal,
     clear_badge_caches,
@@ -107,6 +110,8 @@ class GlacisApp(App):
         Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
         Binding("3", "switch_tab('tab-creds')", "Creds", show=False),
         Binding("4", "switch_tab('tab-loot')", "Loot", show=False),
+        Binding("0", "switch_tab('tab-pulse')", "Pulse", show=False),
+        Binding("E", "toggle_exam_mode", "Exam mode", show=False),
         # vim-style list movement; safe next to fast-capture because Textual
         # hands printable keys to a focused Input before app bindings.
         Binding("j", "nav_down", "Down", show=False),
@@ -163,6 +168,11 @@ class GlacisApp(App):
         self._cached_active_target: Optional[Target] = None
         self._last_cockpit_focused_id: str = "#list-services"
         self._saved_list_indices: dict[str, int] = {}
+        # Exam mode: persistent on-screen badge declaring the offline,
+        # personal-notes posture — transparency for proctored exams.
+        self.exam_mode: bool = False
+        # Fade generation counter: bumped per fade; stale frames no-op.
+        self._fade_gen: int = 0
 
     def get_current_target(self) -> Optional[Target]:
         """Return the active target from memory cache, querying SQLite only if unpopulated."""
@@ -181,6 +191,8 @@ class GlacisApp(App):
 
         with TabbedContent(initial="tab-worksheet", id="tabs"):
             # Station 1 — cockpit: everything needed for the next five minutes.
+            with TabPane("0 ◉ Pulse", id="tab-pulse"):
+                yield PulseWidget(id="pulse-view")
             with TabPane("1 ⌂ Cockpit", id="tab-worksheet"):
                 with Horizontal(id="cockpit"):
                     with Vertical(id="sidebar"):
@@ -233,6 +245,17 @@ class GlacisApp(App):
 
         self._apply_responsive_layout()
         self._sync_station_tab("tab-worksheet")
+        # Exam Mode persists across sessions (visible proctor transparency).
+        try:
+            self.exam_mode = self.store.get_setting("exam_mode") == "1"
+        except Exception:
+            self.exam_mode = False
+        try:
+            self.query_one(ConsoleBar).exam_mode = self.exam_mode
+        except Exception:
+            pass
+        # First-run welcome: greet brand-new workspaces once.
+        self.call_after_refresh(self._maybe_show_welcome)
 
     def on_resize(self, event: Any) -> None:
         """Switch to a stacked, single-column workbench on narrow terminals."""
@@ -426,10 +449,12 @@ class GlacisApp(App):
 
     def _sync_station_tab(self, tab_id: str) -> None:
         """Synchronize station widgets, breadcrumb, and contextual console guide when station changes."""
+        self._fade_in_station(tab_id)
         active = self.store.get_active_target()
         target_ip = active.ip if active else ""
 
         station_titles = {
+            "tab-pulse": "Pulse",
             "tab-worksheet": "Cockpit",
             "tab-playbooks": "Playbooks",
             "tab-creds": "Credentials",
@@ -442,6 +467,7 @@ class GlacisApp(App):
             self.query_one(WorksheetHeader).update_status(
                 workspace_name=ws_name,
                 active_station=active_title,
+                exam_mode=getattr(self, "exam_mode", False),
             )
         except Exception:
             pass
@@ -465,6 +491,8 @@ class GlacisApp(App):
                     self.query_one("#list-services", ListView).focus()
                 except Exception:
                     pass
+        elif tab_id == "tab-pulse":
+            self.refresh_pulse_widget()
         elif tab_id == "tab-playbooks":
             try:
                 self.query_one("#playbook-browser", PlaybookBrowserWidget).update_target_ip(target_ip)
@@ -895,39 +923,31 @@ class GlacisApp(App):
                 active_tab = "tab-worksheet"
 
             # 1. Services & Ports (Notion 01 format with Potential and Command Recipe)
-            svc_list = self.query_one("#list-services", ListView)
-            saved_svc_idx = svc_list.index if svc_list.index is not None else self._saved_list_indices.get("#list-services")
-            svc_list.clear()
             services = self.store.list_services(target_id=target_id) if target_id else []
             self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
-            if services:
-                for s in services:
-                    svc_list.append(DataListItem(data_obj=s, display_text=self._format_service_row(s)))
-            else:
-                P = current_palette()
-                txt = Text()
-                txt.append("  [+ ADD PORT] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 's' or type :s 80/tcp http", style=f"bold {P.text}")
-                svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            self._sync_roster_list(
+                "#list-services",
+                services,
+                self._format_service_row,
+                lambda: self._roster_placeholder("[+ ADD PORT]", "Press 's' or type :s 80/tcp http"),
+            )
+            svc_list = self.query_one("#list-services", ListView)
+            saved_svc_idx = svc_list.index if svc_list.index is not None else self._saved_list_indices.get("#list-services")
             if saved_svc_idx is not None and len(svc_list.children) > 0:
                 svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
                 self._saved_list_indices["#list-services"] = svc_list.index
 
             # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
-            c_list = self.query_one("#list-creds", ListView)
-            saved_c_idx = c_list.index if c_list.index is not None else self._saved_list_indices.get("#list-creds")
-            c_list.clear()
             creds = self.store.list_credentials(target_id=target_id)
             self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
-            if creds:
-                for c in creds:
-                    c_list.append(DataListItem(data_obj=c, display_text=self._format_credential_row(c)))
-            else:
-                P = current_palette()
-                txt = Text()
-                txt.append("  [+ ADD CRED] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 'c' or type :c admin:pass", style=f"bold {P.text}")
-                c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            self._sync_roster_list(
+                "#list-creds",
+                creds,
+                self._format_credential_row,
+                lambda: self._roster_placeholder("[+ ADD CRED]", "Press 'c' or type :c admin:pass"),
+            )
+            c_list = self.query_one("#list-creds", ListView)
+            saved_c_idx = c_list.index if c_list.index is not None else self._saved_list_indices.get("#list-creds")
             if saved_c_idx is not None and len(c_list.children) > 0:
                 c_list.index = min(saved_c_idx, len(c_list.children) - 1)
                 self._saved_list_indices["#list-creds"] = c_list.index
@@ -937,9 +957,6 @@ class GlacisApp(App):
                 self.refresh_cred_matrix()
 
             # 3. Checklist & Progress Bar
-            ck_list = self.query_one("#list-checklist", ListView)
-            saved_ck_idx = ck_list.index if ck_list.index is not None else self._saved_list_indices.get("#list-checklist")
-            ck_list.clear()
             items = self.store.list_checklist_items(target_id=target_id)
             checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
             total_items = len(items)
@@ -951,68 +968,68 @@ class GlacisApp(App):
             hdr_txt = f"{bar_str} {pct:>3d}% {checked_count}/{total_items}" if total_items else "—"
             self._set_count("cnt-checklist", hdr_txt)
 
-            if items:
-                for item in items:
-                    ck_list.append(DataListItem(data_obj=item, display_text=self._format_checklist_row(item)))
-            else:
-                P = current_palette()
-                txt = Text()
-                txt.append("  [+ TEMPLATES] ", style=f"bold {P.bg} on {P.accent}")
-                txt.append(" Press 'm' to load templates (ejpt, web, smb)", style=f"bold {P.text}")
-                ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+            self._sync_roster_list(
+                "#list-checklist",
+                items,
+                self._format_checklist_row,
+                lambda: self._roster_placeholder("[+ TEMPLATES]", "Press 'm' to load templates (ejpt, web, smb)"),
+            )
+            ck_list = self.query_one("#list-checklist", ListView)
+            saved_ck_idx = ck_list.index if ck_list.index is not None else self._saved_list_indices.get("#list-checklist")
             if saved_ck_idx is not None and len(ck_list.children) > 0:
                 ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
                 self._saved_list_indices["#list-checklist"] = ck_list.index
 
-            # 4. Combined Field Notes, Evidence & Findings
-            n_list = self.query_one("#list-notes", ListView)
-            saved_n_idx = n_list.index if n_list.index is not None else self._saved_list_indices.get("#list-notes")
-            n_list.clear()
+            # 4. Combined Field Notes, Evidence & Findings — diff-append sync
             notes = self.store.list_notes(target_id=target_id)
             findings = self.store.list_findings(target_id=target_id)
             evidences = self.store.list_evidence(target_id=target_id)
             leads = self.store.list_leads(target_id=target_id)
-            total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
-            self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
-            if notes or findings or evidences or leads:
+            merged_log = [*findings, *notes, *evidences, *leads]
+            self._set_count("cnt-notes", f"{len(merged_log)} entries" if merged_log else "—")
+
+            def _format_log_row(o: Any) -> Text:
                 P = current_palette()
-                for f in findings:
-                    txt = Text()
+                txt = Text()
+                if hasattr(o, "severity"):  # finding
                     txt.append("[VULN] ", style=f"bold {P.bg} on {P.danger}")
-                    if f.severity:
-                        sev_style = f"bold {P.bg} on {P.danger}" if f.severity.upper() in ("HIGH", "CRITICAL") else f"bold {P.bg} on {P.warn}"
-                        txt.append(f"[{f.severity}] ", style=sev_style)
-                    txt.append(f"{f.title} ", style=f"bold {P.text}")
-                    if f.description:
-                        txt.append(f"— {f.description}", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=f, display_text=txt))
-                for n in notes:
-                    txt = Text()
+                    if o.severity:
+                        sev_style = (
+                            f"bold {P.bg} on {P.danger}"
+                            if o.severity.upper() in ("HIGH", "CRITICAL")
+                            else f"bold {P.bg} on {P.warn}"
+                        )
+                        txt.append(f"[{o.severity}] ", style=sev_style)
+                    txt.append(f"{o.title} ", style=f"bold {P.text}")
+                    if o.description:
+                        txt.append(f"— {o.description}", style=f"{P.muted}")
+                elif hasattr(o, "content"):  # note
                     txt.append("[NOTE] ", style=f"bold {P.bg} on {P.warn}")
-                    txt.append(f"{n.content}", style=f"{P.text}")
-                    n_list.append(DataListItem(data_obj=n, display_text=txt))
-                for ev in evidences:
-                    txt = Text()
+                    txt.append(f"{o.content}", style=f"{P.text}")
+                elif hasattr(o, "path_or_ref"):  # evidence
                     txt.append("[EVID] ", style=f"bold {P.bg} on {P.accent}")
-                    txt.append(f"{ev.path_or_ref} ", style=f"bold {P.text}")
-                    if ev.description:
-                        txt.append(f"— {ev.description}", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=ev, display_text=txt))
-                for ld in leads:
-                    txt = Text()
+                    txt.append(f"{o.path_or_ref} ", style=f"bold {P.text}")
+                    if o.description:
+                        txt.append(f"— {o.description}", style=f"{P.muted}")
+                else:  # lead
                     txt.append("[LEAD] ", style=f"bold {P.bg} on {P.ok}")
-                    txt.append(f"{ld.title} ", style=f"bold {P.text}")
-                    if ld.notes:
-                        txt.append(f"({ld.notes})", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=ld, display_text=txt))
-            else:
+                    txt.append(f"{o.title} ", style=f"bold {P.text}")
+                    if o.notes:
+                        txt.append(f"({o.notes})", style=f"{P.muted}")
+                return txt
+
+            def _notes_placeholder() -> Text:
                 P = current_palette()
                 txt = Text()
                 txt.append("  [+ NOTE] ", style=f"bold {P.bg} on {P.accent}")
                 txt.append(" Press 'n' for note, ", style=f"bold {P.text}")
                 txt.append("[+ FINDING] ", style=f"bold {P.bg} on {P.danger}")
                 txt.append(" 'f' for finding", style=f"bold {P.text}")
-                n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
+                return txt
+
+            self._sync_roster_list("#list-notes", merged_log, _format_log_row, _notes_placeholder)
+            n_list = self.query_one("#list-notes", ListView)
+            saved_n_idx = n_list.index if n_list.index is not None else self._saved_list_indices.get("#list-notes")
             if saved_n_idx is not None and len(n_list.children) > 0:
                 n_list.index = min(saved_n_idx, len(n_list.children) - 1)
                 self._saved_list_indices["#list-notes"] = n_list.index
@@ -1040,9 +1057,219 @@ class GlacisApp(App):
             if active_tab == "tab-loot":
                 self.refresh_loot_widget(active_target, failures)
 
+            # 7. Station 0: Pulse dashboard (only if active)
+            if active_tab == "tab-pulse":
+                self.refresh_pulse_widget()
+
         # -------------------------------------------------------------------------
         # Hotkey Actions
         # -------------------------------------------------------------------------
+
+    # Opacity ramp for station fades: 8 out-cubic steps, one write per
+    # animation frame (~16 ms ≈ 60 fps, ~130 ms total). Deliberately stepped
+    # via styles (not the animator): Textual containers expose opacity
+    # through styles only, and 8 single-property writes on one region cost
+    # less than an animation timeline per frame.
+    _FADE_STEPS = (0.33, 0.578, 0.756, 0.875, 0.947, 0.984, 0.998, 1.0)
+    _FADE_STEP_MS = 16
+
+    def _fade_in_station(self, tab_id: str) -> None:
+        """Smooth 60fps fade on station switches for visual continuity.
+
+        Only the newly-visible pane animates, and only its opacity style is
+        touched — one property write per frame on one region, comfortably
+        inside the frame budget even on modest terminals. A generation
+        counter cancels the previous fade's pending frames when you flip
+        between stations quickly, so fades never stack or fight. Silently
+        skipped where opacity blending is unavailable.
+        """
+        try:
+            pane = self.query_one(f"#{tab_id}", TabPane)
+            content = pane.children[0] if pane.children else None
+            if content is None:
+                return
+            if not self._station_fade_enabled():
+                content.styles.opacity = 1.0
+                return
+            self._fade_gen = getattr(self, "_fade_gen", 0) + 1
+            gen = self._fade_gen
+            content.styles.opacity = self._FADE_STEPS[0]
+            for i, value in enumerate(self._FADE_STEPS[1:], start=1):
+                self.set_timer(
+                    self._FADE_STEP_MS * i / 1000.0,
+                    lambda w=content, v=value, g=gen: self._fade_frame(g, w, v),
+                )
+        except Exception:
+            pass
+    def _fade_frame(self, gen: int, widget: Any, value: float) -> None:
+        """Apply one fade frame unless a newer fade superseded it."""
+        if gen != getattr(self, "_fade_gen", 0):
+            return
+        self._set_opacity(widget, value)
+    @staticmethod
+    def _set_opacity(widget: Any, value: float) -> None:
+        try:
+            widget.styles.opacity = value
+        except Exception:
+            pass  # widget went away mid-fade or opacity unsupported
+
+    def _station_fade_enabled(self) -> bool:
+        """Reduced-motion guard for the station fade: env > setting > auto.
+
+        Auto defaults the fade OFF for remote sessions (SSH links make
+        full-pane opacity repaints stutter) and ON locally. Tests run with
+        GLACIS_ANIMATE=0 (conftest default) so 60fps timers never race xdist.
+        """
+        env = os.environ.get("GLACIS_ANIMATE")
+        if env is not None:
+            return env.strip().lower() not in ("0", "false", "no", "off")
+        try:
+            pref = self.store.get_setting("animations")
+        except Exception:
+            pref = None
+        if pref == "0":
+            return False
+        if pref == "1":
+            return True
+        return not (os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"))
+
+    def action_toggle_animations(self) -> None:
+        """Flip the station-fade preference (:anim / GLACIS_ANIMATE env)."""
+        self.set_animations(not self._station_fade_enabled())
+
+    def set_animations(self, on: bool) -> None:
+        """Persist the fade preference ('1' on / '0' reduced motion)."""
+        try:
+            self.store.set_setting("animations", "1" if on else "0")
+        except Exception:
+            pass
+        self.notify(f"Station fades {'on' if on else 'off (reduced motion)'}", title="Animations")
+    def refresh_pulse_widget(self) -> None:
+        """Update Station 0 Pulse dashboard on demand."""
+        try:
+            self.query_one("#pulse-view", PulseWidget).refresh_pulse()
+        except Exception:
+            pass
+
+    def _maybe_show_welcome(self) -> None:
+        """Show the quick-start card once, for brand-new workspaces only."""
+        try:
+            if self.store.get_setting("welcome_seen") == "1":
+                return
+            if self.store.list_targets():
+                self.store.set_setting("welcome_seen", "1")
+                return
+            self.push_screen(WelcomeModal(), callback=lambda _r: self.store.set_setting("welcome_seen", "1"))
+        except Exception:
+            pass
+    def action_show_welcome(self) -> None:
+        """Reopen the quick-start card (:welcome)."""
+        self.push_screen(WelcomeModal(), callback=lambda _r: self.store.set_setting("welcome_seen", "1"))
+
+    # Opacity ramp for station fades: 8 out-cubic steps, one write per
+    # animation frame (~16 ms ≈ 60 fps, ~130 ms total). Deliberately stepped
+    # via styles (not the animator): Textual containers expose opacity
+    # through styles only, and 8 single-property writes on one region cost
+    # less than an animation timeline per frame.
+    _FADE_STEPS = (0.33, 0.578, 0.756, 0.875, 0.947, 0.984, 0.998, 1.0)
+    _FADE_STEP_MS = 16
+    def action_toggle_exam_mode(self) -> None:
+        """Flip Exam Mode and persist the choice."""
+        self.set_exam_mode(not self.exam_mode)
+    def set_exam_mode(self, on: bool) -> None:
+        """Show/hide the EXAM MODE badge (visible proctor transparency)."""
+        self.exam_mode = bool(on)
+        try:
+            self.store.set_setting("exam_mode", "1" if on else "0")
+        except Exception:
+            pass
+        try:
+            self.query_one(WorksheetHeader).update_status(exam_mode=self.exam_mode)
+        except Exception:
+            pass
+        try:
+            console = self.query_one(ConsoleBar)
+            console.exam_mode = self.exam_mode
+            console._paint()
+        except Exception:
+            pass
+        if on:
+            self.notify(
+                "EXAM MODE on — the header now shows the offline-notes badge. "
+                "GLACIS stays 100% local: no network, no AI, nothing leaves this machine.",
+                title="Exam mode",
+            )
+        else:
+            self.notify("Exam mode off.", title="Exam mode")
+    @staticmethod
+    def _row_signature(obj: Any) -> tuple:
+        """Identity of a record for diffing (id + last modification)."""
+        return (getattr(obj, "id", None), str(getattr(obj, "updated_at", "")))
+
+    @staticmethod
+    def _row_signature(obj: Any) -> tuple:
+        """Identity of a record for diffing (id + last modification)."""
+        return (getattr(obj, "id", None), str(getattr(obj, "updated_at", "")))
+
+    def _roster_placeholder(self, badge: str, hint: str) -> Text:
+        """Empty-state row text, byte-identical to the legacy inline version."""
+        P = current_palette()
+        txt = Text()
+        txt.append(f"  {badge} ", style=f"bold {P.bg} on {P.accent}")
+        txt.append(f" {hint}", style=f"bold {P.text}")
+        return txt
+
+    def _sync_roster_list(
+        self,
+        list_id: str,
+        new_objs: List[Any],
+        format_row,
+        placeholder,
+    ) -> None:
+        """Refresh one roster ListView with the cheapest correct strategy.
+
+        While working, rows only get *appended* or toggled in place (status
+        flips), so three diff paths avoid the full clear+rebuild: append
+        (strict-prefix tail), in-place (same length, same id+type per
+        position — only rows whose signature changed are reformatted), and
+        full rebuild as the always-correct fallback. No flicker, scroll and
+        selection preserved, widget cost proportional to the change.
+        """
+        lv = self.query_one(list_id, ListView)
+        old_items = [
+            it for it in lv.children
+            if isinstance(it, DataListItem) and not it.is_placeholder and it.data_obj is not None
+        ]
+
+        if not new_objs:
+            lv.clear()
+            lv.append(DataListItem(data_obj=None, display_text=placeholder(), is_placeholder=True))
+            return
+
+        if old_items and len(new_objs) > len(old_items):
+            prefix_ok = all(
+                self._row_signature(a.data_obj) == self._row_signature(b)
+                for a, b in zip(old_items, new_objs[: len(old_items)])
+            )
+            if prefix_ok:
+                for o in new_objs[len(old_items):]:
+                    lv.append(DataListItem(data_obj=o, display_text=format_row(o)))
+                return  # nothing else moved — keep scroll & selection exactly
+
+        if old_items and len(new_objs) == len(old_items) and all(
+            type(a.data_obj) is type(b)
+            and getattr(a.data_obj, "id", None) == getattr(b, "id", None)
+            for a, b in zip(old_items, new_objs)
+        ):
+            for a, b in zip(old_items, new_objs):
+                if self._row_signature(a.data_obj) != self._row_signature(b):
+                    a.data_obj = b
+                    a.update_display(format_row(b))
+            return
+
+        lv.clear()
+        for o in new_objs:
+            lv.append(DataListItem(data_obj=o, display_text=format_row(o)))
 
     def action_toggle_scope(self) -> None:
         """Toggle in-scope vs out-of-scope for active target."""

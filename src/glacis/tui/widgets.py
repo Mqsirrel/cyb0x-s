@@ -206,6 +206,7 @@ class WorksheetHeader(Static):
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self.exam_mode = False
         self.workspace_name = workspace_name
         self.active_station = active_station
         self.counts: dict[str, int] = {}
@@ -217,6 +218,7 @@ class WorksheetHeader(Static):
         counts: Optional[dict[str, int]] = None,
         active_ip: str = "",
         active_station: str = "",
+        exam_mode: Optional[bool] = None,
     ) -> None:
         """Refresh the header meta information (workspace, counters, target, station)."""
         if workspace_name:
@@ -227,6 +229,8 @@ class WorksheetHeader(Static):
             self.active_ip = active_ip
         if active_station:
             self.active_station = active_station
+        if exam_mode is not None:
+            self.exam_mode = bool(exam_mode)
         self.refresh()
 
     def render(self) -> Text:
@@ -239,6 +243,9 @@ class WorksheetHeader(Static):
         if self.active_station:
             t.append("  ›  ", style=f"{P.muted}")
             t.append(f"[ {self.active_station} ]", style=f"bold {P.text}")
+        if getattr(self, "exam_mode", False):
+            t.append("  ›  ", style=f"{P.muted}")
+            t.append("[ EXAM MODE · OFFLINE NOTES ]", style=f"bold {P.warn}")
 
         if not (self.counts or self.active_ip):
             return t
@@ -588,9 +595,12 @@ class ConsoleBar(Container):
     def _build_hotkey_text(self) -> Text:
         P = current_palette()
         t = Text()
+        if getattr(self, "exam_mode", False):
+            t.append(" [E]", style=f"bold {P.warn}")
+            t.append(" exam ", style=f"{P.muted}")
         t.append(" [w]", style=f"bold {P.warn}")
         t.append(" panels ", style=f"{P.muted}")
-        t.append(" [1-4]", style=f"bold {P.warn}")
+        t.append(" [0-4]", style=f"bold {P.warn}")
         t.append(" stations ", style=f"{P.muted}")
         t.append(" [?]", style=f"bold {P.warn}")
         t.append(" help ", style=f"{P.muted}")
@@ -897,7 +907,7 @@ class ConsoleBar(Container):
                 cmd_line.append("Captured flags & question proofs · [g] flags · [a] proofs · :stuck dead-ends", style=f"bold {P.text}")
             else:
                 self.border_title = " CONTEXT GUIDANCE "
-                self.border_subtitle = " [w: Cycle Panels] · [1-4: Stations] "
+                self.border_subtitle = " [w: Cycle Panels] · [0-4: Stations] "
                 cmd_line.append("COCKPIT ▸ ", style=f"bold {P.accent}")
                 cmd_line.append("Highlight a service or checklist step to preview & copy commands", style=f"bold {P.text}")
 
@@ -1018,6 +1028,7 @@ from glacis.tui.modals import (  # noqa: E402, F401
     TemplateSelectionModal,
     ThemePickerModal,
     ThemeSwatch,
+    WelcomeModal,
     WorkspaceModal,
 )
 
@@ -1895,5 +1906,180 @@ class CredentialMatrixWidget(Static):
             self.app.notify(f"Copied spray command: {cmd}")
 
 
+class PulseWidget(Static):
+    """Station 0 — the workspace pulse: a live engagement dashboard.
+
+    Renders headline stats, a 14-day momentum sparkline, per-target
+    scorecards, the deterministic next-action triage queue, and the most
+    recent timeline events. Purely a read-only view over records the user
+    already captured — nothing is inferred, scanned or probed.
+    """
+
+    DEFAULT_CSS = """
+    PulseWidget {
+        height: 1fr;
+        padding: 0 1;
+        overflow-y: auto;
+        background: $surface;
+    }
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__("", **kwargs)
+
+    def on_mount(self) -> None:
+        self.refresh_pulse()
+
+    def refresh_pulse(self) -> None:
+        """Recompute and repaint the dashboard from the store.
+
+        Paint-skipping: the dashboard is a pure function of the workspace
+        fingerprint, the active palette and the widget size. When none of
+        those changed, the rebuild is skipped entirely — station 0 costs
+        zero repaints while you work elsewhere (no flicker, no wasted
+        frames). Palette is part of the key so a theme switch always
+        repaints, even though it never touches the data.
+        """
+        store = getattr(self.app, "store", None)
+        if store is None:
+            return
+        try:
+            from glacis.pulse import workspace_fingerprint
+
+            fp = workspace_fingerprint(store)
+        except Exception:
+            fp = None
+        palette_name = getattr(current_palette(), "name", "")
+        key = (fp, palette_name, self.size.width, self.size.height)
+        if fp is not None and getattr(self, "_last_paint_key", None) == key:
+            return
+        try:
+            self.update(self._render_dashboard(store))
+            self._last_paint_key = key
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ render
+
+    def _render_dashboard(self, store: Any) -> Any:
+        from rich.console import Group
+        from rich.table import Table as RichTable
+        from rich.text import Text as RichText
+
+        from glacis.pulse import (
+            build_timeline,
+            compute_next_actions,
+            compute_target_scorecards,
+            compute_workspace_pulse,
+            progress_bar,
+        )
+
+        P = current_palette()
+        pulse = compute_workspace_pulse(store)
+        cards = compute_target_scorecards(store)
+        actions = compute_next_actions(store, limit=6)
+        events = build_timeline(store, limit=10)
+
+        header = RichText()
+        header.append("◉ PULSE", style=f"bold {P.accent}")
+        header.append(f"  ·  {pulse.workspace_name or 'no workspace'}", style=f"bold {P.text}")
+        header.append("   offline engagement intelligence", style=P.muted)
+
+        # ---- stat cards row (six columns, one row)
+        cards_row = RichTable.grid(padding=(0, 3))
+        for _ in range(6):
+            cards_row.add_column(justify="left")
+
+        def card(title: str, value: str, sub: str, color: str) -> RichTable:
+            t = RichTable.grid()
+            t.add_column()
+            t.add_row(RichText(title, style=P.muted))
+            t.add_row(RichText(value, style=f"bold {color}"))
+            t.add_row(RichText(sub, style=P.text_soft))
+            return t
+
+        cards_row.add_row(
+            card("TARGETS", str(pulse.targets), f"{pulse.in_scope_targets} in scope", P.text),
+            card("SERVICES", str(pulse.services), f"{pulse.coverage_pct}% tested", P.accent),
+            card("FINDINGS", str(pulse.findings),
+                 f"{pulse.severity_counts.get('HIGH', 0) + pulse.severity_counts.get('CRITICAL', 0)} high+",
+                 P.danger),
+            card("CREDS", str(pulse.credentials), f"{pulse.evidence} evidence", P.warn),
+            card("METHODOLOGY", f"{pulse.checklist_pct}%",
+                 f"{pulse.checklist_checked}/{pulse.checklist_total} steps", P.ok),
+            card("MOMENTUM 7D", str(pulse.momentum_7d), f"{pulse.momentum_24h} today", P.ok),
+        )
+
+        spark = RichText()
+        spark.append("  momentum  ", style=P.muted)
+        spark.append(pulse.sparkline_blocks, style=P.accent)
+        spark.append("  ← 14 days", style=P.muted)
+
+        # ---- scorecards table
+        score_table = RichTable(pad_edge=False, expand=False)
+        score_table.add_column("target", style=P.text)
+        score_table.add_column("os", style=P.muted)
+        score_table.add_column("grade", justify="center")
+        score_table.add_column("coverage", justify="right", style=P.text_soft)
+        score_table.add_column("method", justify="right", style=P.text_soft)
+        score_table.add_column("svc", justify="right", style=P.text_soft)
+        score_table.add_column("find", justify="right", style=P.text_soft)
+        score_table.add_column("flags", justify="right", style=P.warn)
+        if not cards:
+            empty_row = RichText()
+            empty_row.append("no targets yet — press ", style=P.muted)
+            empty_row.append("t", style=f"bold {P.accent}")
+            empty_row.append(" or type ", style=P.muted)
+            empty_row.append(":t 10.10.10.20", style=f"bold {P.accent}")
+            empty_row.append(" to start your first machine", style=P.muted)
+            score_table.add_row(empty_row)
+        if cards:
+            for c in cards:
+                grade_style = {"A": P.ok, "B": P.ok, "C": P.warn, "D": P.warn}.get(c.grade, P.danger)
+                score_table.add_row(
+                    c.label, c.os,
+                    RichText(c.grade, style=f"bold {grade_style}"),
+                    f"{c.coverage_pct}% {progress_bar(c.coverage_pct, 8)}",
+                    f"{c.checklist_pct}% {progress_bar(c.checklist_pct, 8)}",
+                    str(c.services), str(c.findings), str(c.flags_captured),
+                )
 
 
+        # ---- next actions
+        queue = RichText()
+        if actions:
+            for a in actions:
+                color = {"now": P.danger, "next": P.warn, "later": P.muted}.get(a.priority.value, P.muted)
+                queue.append(f"\n  {a.priority.value.upper():<5} ", style=f"bold {color}")
+                queue.append(a.title, style=P.text)
+                if a.target_ip:
+                    queue.append(f" · {a.target_ip}", style=P.text_soft)
+                queue.append(f"  {a.reason}", style=P.muted)
+        else:
+            queue.append("\n  queue clear — record a target (t) and Pulse will line up your next steps", style=P.muted)
+
+        # ---- recent timeline
+        timeline = RichText()
+        if events:
+            for e in events:
+                timeline.append(f"\n  {e.when.strftime('%m-%d %H:%M')}  ", style=P.muted)
+                timeline.append(f"{e.icon} ", style=P.accent)
+                timeline.append(e.label[:64], style=P.text)
+                if e.target_ip:
+                    timeline.append(f" · {e.target_ip}", style=P.text_soft)
+        else:
+            timeline.append("\n  journal empty — record something with :t, :s, :n", style=P.muted)
+
+        def section(title: str, body: Any) -> Any:
+            t = RichText(f"\n{title}", style=f"bold {P.text_soft}")
+            return Group(t, body)
+
+        return Group(
+            header,
+            RichText(""),
+            cards_row,
+            spark,
+            section("TARGET SCORECARDS", score_table),
+            section("NEXT ACTIONS — from your own open items", queue),
+            section("TIMELINE — newest first (press 1-4 to work a station)", timeline),
+        )

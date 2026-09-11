@@ -6,8 +6,8 @@ contribution — human or AI-generated — must respect it.
 
 ## Context
 
-- The eJPT exam is open-book: prepared notes, command references, and personal
-  cheat sheets are permitted.
+- The eJPT exam is open-book: prepared notes and command references are
+  permitted.
 - The exam lab has no internet access; only the tools pre-installed in the
   exam environment may run against targets.
 - INE community guidance treats tools that *suggest next actions* from entered
@@ -37,6 +37,33 @@ contribution — human or AI-generated — must respect it.
 6. **The candidate is responsible.** Rules change. Verify the current INE
    candidate agreement before exam day. This file is project policy, not
    legal advice.
+
+## AI-proctored exams (eJPT v2 and similar)
+
+Newer INE practical exams may be monitored by an AI proctoring system that
+watches the candidate's screen and running applications for rule-breaking
+behaviour (unauthorized assistance, communication tools, AI assistants,
+cloud services). GLACIS is built to be unambiguous under that scrutiny:
+
+| Proctor-visible signal | GLACIS behaviour |
+|---|---|
+| "Is an AI/LLM assisting?" | **No.** GLACIS ships no AI features and calls no models. Every suggestion in `Playbooks`/`Reference` is a static, bundled text lookup. |
+| "Is anything sent over the network?" | **No.** Zero network code paths — verify with `glacis exam-check`. |
+| "Is it talking to another person/machine?" | **No.** No chat, sync, telemetry, update checks, or APIs. One local SQLite file. |
+| "Is it doing the exam for you?" | **No.** GLACIS cannot execute anything. Commands are copied; the candidate types/runs them and makes every decision. |
+| "Is it exam content?" | **No.** Templates/reference are generic public methodology. No exam answers, flags, or vendor material. |
+
+### Recommended exam posture
+
+1. Launch with **Exam Mode**: press **`E`** (or `:exam on`) — the header shows
+   a persistent `[ EXAM MODE · OFFLINE NOTES ]` badge so a reviewer can see at
+   a glance that the window is a personal-notes worksheet.
+2. Keep the default posture: derived guidance stays off, no mods.
+3. Treat it exactly like the permitted personal notes it replaces: it holds
+   only what *you* typed and generic references.
+4. If a proctor or rules text is ever stricter than this file, follow the
+   rules — close the tool or ask the vendor. The candidate is always
+   responsible for compliance (Rule 6).
 
 ## PR checklist
 
