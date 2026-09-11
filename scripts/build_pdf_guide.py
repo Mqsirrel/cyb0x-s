@@ -227,7 +227,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     story = []
 
     # =========================================================================
-    # PAGE 1: TITLE, COMPLIANCE, 4 STATIONS & STATION 1 COCKPIT
+    # PAGE 1: TITLE, COMPLIANCE, 6 STATIONS & STATION 0 PULSE
     # =========================================================================
     story.append(Paragraph("GLACIS: FIELD GUIDE & PRACTICAL WORKFLOW REFERENCE", title_style))
     story.append(Paragraph("High-Speed Offline Security Assessment Worksheet · eJPTv2 / eCPPT / OSCP Practical Companion", subtitle_style))
@@ -238,17 +238,17 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         [
             Paragraph(
                 "<b>What is GLACIS?</b><br/>"
-                "GLACIS is a fast, keyboard-driven terminal worksheet and operational cockpit designed to eliminate assessment cognitive overload. "
-                "It provides an offline state machine for host discovery, port tracking, credential reuse, syntax playbooks, and question proofs. "
+                "GLACIS is a fast, keyboard-driven terminal worksheet and operational cockpit designed to eliminate cognitive overload during timed practical security assessments. "
+                "It provides an offline state machine for host discovery, port tracking, credential reuse, syntax playbooks, network pivots, and question proofs. "
                 "<b>It does not run autonomous exploits or rely on AI.</b> You retain 100% human control while GLACIS manages your operational memory.",
                 callout_text,
             ),
             Paragraph(
                 "<b>INE & OffSec Exam Compliance</b><br/>"
-                "• <b>100% Passive & Offline:</b> Runs entirely on localhost via local SQLite database.<br/>"
-                "• <b>Zero Autonomous Action:</b> Commands are copied to your clipboard; YOU execute them.<br/>"
-                "• <b>Zero Cloud / AI Dependencies:</b> No external API calls, leaks, or prohibited LLMs.<br/>"
-                "• <b>Permitted Personal Notes:</b> Functions strictly as a local worksheet and syntax reference.",
+                "• <b>100% Passive & Offline:</b> Verified by AST self-audit (<code>glacis exam-check</code>) — zero network/socket imports.<br/>"
+                "• <b>Zero Autonomous Action:</b> Commands are copied to your clipboard; YOU execute them in your terminal.<br/>"
+                "• <b>Zero Cloud / AI Dependencies:</b> No external API calls, background telemetry, or prohibited LLM endpoints.<br/>"
+                "• <b>Permitted Personal Notes:</b> Functions strictly as an electronic field journal and methodology reference.",
                 callout_text,
             ),
         ]
@@ -269,14 +269,20 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     story.append(t_intro)
     story.append(Spacer(1, 3))
 
-    # Section 1: The 4 Stations
-    story.append(Paragraph("1. The Four Operational Stations (Switch with Keys 1, 2, 3, 4)", h1_style))
+    # Section 1: The 6 Stations
+    story.append(Paragraph("1. The Six Operational Stations (Switch with Keys 0, 1, 2, 3, 4, 5)", h1_style))
     stations_data = [
         [
             Paragraph("Station", th_style),
             Paragraph("Name & Purpose", th_style),
             Paragraph("What You See & Do Here", th_style),
             Paragraph("Hotkey", th_style),
+        ],
+        [
+            Paragraph("<b>Station 0</b>", body_bold),
+            Paragraph("<b>Pulse (Triage Board)</b>", body_style),
+            Paragraph("Kill-chain host progression (UNTOUCHED → RECON → FOOTHOLD → USER → ROOT → COMPLETE), progress arithmetic, and explainable next-focus advisories.", body_style),
+            Paragraph("<b>[0]</b>", badge_style),
         ],
         [
             Paragraph("<b>Station 1</b>", body_bold),
@@ -302,15 +308,21 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             Paragraph("Track assessment question answers (<code>:q</code>), user/root flags, disk-backed loot browser (<code>[Space]</code>), screenshot proofing (<code>[v]</code>), and Failure Logs.", body_style),
             Paragraph("<b>[4]</b>", badge_style),
         ],
+        [
+            Paragraph("<b>Station 5</b>", body_bold),
+            Paragraph("<b>Network & Pivots</b>", body_style),
+            Paragraph("ASCII network topology map of documented subnets, dual-homed pivot gateways, and copy-ready ProxyChains, Chisel, and SSH ProxyJump tunnel actions.", body_style),
+            Paragraph("<b>[5]</b>", badge_style),
+        ],
     ]
-    t_stations = Table(stations_data, colWidths=[55, 125, 325, 35])
+    t_stations = Table(stations_data, colWidths=[52, 125, 330, 33])
     t_stations.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
                 ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-                ("PADDING", (0, 0), (-1, -1), 2.2),
+                ("PADDING", (0, 0), (-1, -1), 2.0),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ]
         )
@@ -318,23 +330,34 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     story.append(t_stations)
     story.append(Spacer(1, 3))
 
-    # Section 2: Station 1 Cockpit Visual Architecture
-    story.append(Paragraph("2. Station 1 Cockpit Architecture & Real-Time Workspace", h1_style))
-    fig1 = make_screenshot_card(
-        screenshots_dir / "01-worksheet.png",
-        "Figure 1: Station 1 Cockpit — Attack Surface Tree (left), Services & Port Triage (top), Methodology Roadmap (mid), and Bottom Command Console.",
+    # Section 2: Station 0 Pulse Visual Architecture
+    story.append(Paragraph("2. Station 0 Pulse: Situation Awareness & Kill-Chain Triage", h1_style))
+    fig0 = make_screenshot_card(
+        screenshots_dir / "00-pulse.png",
+        "Figure 1: Station 0 Pulse — Kill-chain progression cards (left), explainable S1-S8 state rules & D1-D4 focus-shift advisories (right), and KPI status band.",
         width=480,
-        height=195,
+        height=185,
         caption_style=caption_style,
     )
-    story.append(fig1)
+    story.append(fig0)
 
     story.append(PageBreak())
 
     # =========================================================================
-    # PAGE 2: KEYBOARD SHORTCUTS & RAPID NAVIGATION
+    # PAGE 2: STATION 1 COCKPIT & KEYBOARD MUSCLE MEMORY MAP
     # =========================================================================
-    story.append(Paragraph("3. Keyboard Navigation Matrix (\"Muscle Memory Map\")", h1_style))
+    story.append(Paragraph("3. Station 1 Cockpit Architecture & Real-Time Workspace", h1_style))
+    fig1 = make_screenshot_card(
+        screenshots_dir / "01-cockpit.png",
+        "Figure 2: Station 1 Cockpit — Attack Surface Tree (left), Services & Port Triage (top), Methodology Roadmap (mid), and Bottom Command Console.",
+        width=480,
+        height=185,
+        caption_style=caption_style,
+    )
+    story.append(fig1)
+    story.append(Spacer(1, 2))
+
+    story.append(Paragraph("4. Keyboard Navigation Matrix (\"Muscle Memory Map\")", h1_style))
     story.append(Paragraph(
         "GLACIS is 100% operational from the keyboard. Single-letter keys trigger immediate actions unless a text input is focused:",
         body_style,
@@ -342,23 +365,22 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
 
     keys_data = [
         [Paragraph("Key", th_style), Paragraph("Category", th_style), Paragraph("Action & Operational Behavior", th_style)],
-        [Paragraph("<b>1, 2, 3, 4</b>", badge_style), Paragraph("Station", body_style), Paragraph("Switch immediately to Station 1 (Cockpit), 2 (Playbooks), 3 (Creds Matrix), or 4 (Loot & Flags).", table_body_style)],
+        [Paragraph("<b>0 – 5</b>", badge_style), Paragraph("Station", body_style), Paragraph("Switch stations: <b>[0]</b> Pulse, <b>[1]</b> Cockpit, <b>[2]</b> Playbooks, <b>[3]</b> Creds Matrix, <b>[4]</b> Loot, <b>[5]</b> Network.", table_body_style)],
         [Paragraph("<b>I</b> (Shift+i)", badge_style), Paragraph("Ingestion", body_style), Paragraph("<b>Import Scan & Enum:</b> Interactive review modal for Nmap (-oX, -oN, -oG) and Web Enum (FFUF, Ferox, Gobuster). Saves evidence to <code>scans/</code> or <code>enum/</code>.", table_body_style)],
         [Paragraph("<b>W</b> (Shift+w)", badge_style), Paragraph("Workspace", body_style), Paragraph("<b>Workspace Manager:</b> Switch between assessment workspaces or scaffold a new per-lab directory (<code>scans/</code>, <code>enum/</code>, <code>screenshots/</code>, <code>loot/</code>).", table_body_style)],
-        [Paragraph("<b>w</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Cycle Panels:</b> Sequentially rotate focus across all panels in Cockpit without Tab.", table_body_style)],
-        [Paragraph("<b>h / l</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Column Jump:</b> Press <b>h</b> for Sidebar (left); press <b>l</b> for Workbench (right).", table_body_style)],
-        [Paragraph("<b>j / k</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Vim Navigation:</b> Move highlight down (j) or up (k) in the active list or tree.", table_body_style)],
+        [Paragraph("<b>Tab / Shift+Tab</b>", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>Cycle Focus:</b> Move keyboard focus between panels in Cockpit (double-border indicates focused panel).", table_body_style)],
+        [Paragraph("<b>j / k</b> (or ↑ / ↓)", badge_style), Paragraph("Navigation", body_style), Paragraph("<b>List Navigation:</b> Move highlight down (j) or up (k) in the active list or tree.", table_body_style)],
         [Paragraph("<b>[ / ]</b>", badge_style), Paragraph("Targeting", body_style), Paragraph("<b>Target Switcher:</b> Switch immediately to previous [ or next ] target machine.", table_body_style)],
-        [Paragraph("<b>b</b>", badge_style), Paragraph("Display", body_style), Paragraph("<b>Sidebar Toggle:</b> Collapse sidebar to give 100% width to Workbench (press b again to restore).", table_body_style)],
-        [Paragraph("<b>:</b> (colon)", badge_style), Paragraph("Console", body_style), Paragraph("<b>Focus Command Bar:</b> Instantly activates the bottom console input ready to type.", table_body_style)],
+        [Paragraph("<b>:</b> (colon)", badge_style), Paragraph("Console", body_style), Paragraph("<b>Focus Command Bar:</b> Instantly activates the bottom console input ready to type commands.", table_body_style)],
         [Paragraph("<b>Esc</b>", badge_style), Paragraph("Console", body_style), Paragraph("<b>Dismiss / Blur:</b> Clears command input and returns focus directly to the active workbench.", table_body_style)],
-        [Paragraph("<b>Space</b>", badge_style), Paragraph("Triage / State", body_style), Paragraph("• <b>On Service:</b> Cycle triage status: <code>UNTESTED</code> → <code>[CHECKED]</code> → <code>[DEAD-END]</code> → <code>[DEFERRED]</code>.<br/>• <b>In Station 3 Matrix:</b> Cycle test state: <code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>.<br/>• <b>In Station 4 Loot:</b> Open <b>Loot Preview Modal</b> to inspect hashes, configs, or keys.", table_body_style)],
-        [Paragraph("<b>, / .</b>", badge_style), Paragraph("Tool Carousel", body_style), Paragraph("<b>Recipe Carousel:</b> When a service is highlighted, press <b>.</b> (next) or <b>,</b> (prev) to cycle alternative tool recipes in the console (e.g. feroxbuster → gobuster → nikto → curl).", table_body_style)],
-        [Paragraph("<b>Enter</b>", badge_style), Paragraph("Execute / Copy", body_style), Paragraph("• <b>On Service / Recipe:</b> Copies the previewed tool command to clipboard.<br/>• <b>In Station 3 Matrix:</b> Compiles & copies ready-to-run spray command for credential & port.<br/>• <b>In Station 4 Loot:</b> Copies relative file path to clipboard (e.g. <code>loot/users.txt</code>).", table_body_style)],
+        [Paragraph("<b>Space</b>", badge_style), Paragraph("Triage / State", body_style), Paragraph("• <b>On Service:</b> Cycle status: <code>UNTESTED</code> → <code>[CHECKED]</code> → <code>[DEAD-END]</code> → <code>[DEFERRED]</code>.<br/>• <b>In Station 3 Matrix:</b> Cycle test state: <code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>.<br/>• <b>In Station 4 Loot:</b> Open <b>Loot Preview Modal</b> to inspect hashes, configs, or keys.", table_body_style)],
+        [Paragraph("<b>, / .</b>", badge_style), Paragraph("Tool Carousel", body_style), Paragraph("<b>Recipe Carousel:</b> When a service is highlighted, press <b>.</b> (next) or <b>,</b> (prev) to cycle alternative tool recipes in the console.", table_body_style)],
+        [Paragraph("<b>Enter</b>", badge_style), Paragraph("Execute / Copy", body_style), Paragraph("• <b>On Service / Recipe:</b> Copies the previewed tool command to clipboard.<br/>• <b>In Station 3 Matrix:</b> Compiles & copies ready-to-run spray command for credential & port.<br/>• <b>In Station 5 Network:</b> Copies selected pivot/tunnel syntax to clipboard.<br/>• <b>In Station 0 Pulse:</b> Jumps directly to the station that owns the highlighted advisory.", table_body_style)],
         [Paragraph("<b>v</b>", badge_style), Paragraph("Evidence", body_style), Paragraph("<b>Paste Screenshot:</b> In Station 4, saves clipboard image directly to <code>screenshots/</code> and links as Evidence.", table_body_style)],
         [Paragraph("<b>y</b>", badge_style), Paragraph("Quick Copy", body_style), Paragraph("Copies selected entity's primary value (IP address, port, password, or checklist command).", table_body_style)],
         [Paragraph("<b>z</b>", badge_style), Paragraph("Layout", body_style), Paragraph("<b>Zoom:</b> Maximize the focused panel to full-screen; press <b>z</b> again to restore normal layout.", table_body_style)],
-        [Paragraph("<b>T</b> (Shift+t)", badge_style), Paragraph("Theme", body_style), Paragraph("<b>Theme Picker:</b> Open visual theme modal with 10 vibrant palettes (press <b>d</b> to set default).", table_body_style)],
+        [Paragraph("<b>T</b> (Shift+t)", badge_style), Paragraph("Theme", body_style), Paragraph("<b>Theme Picker:</b> Open theme modal with 8 WCAG AAA palettes (1-8 keys, <b>d</b> sets default).", table_body_style)],
+        [Paragraph("<b>G</b> (Shift+g)", badge_style), Paragraph("Guidance", body_style), Paragraph("<b>Toggle Guidance:</b> Enables or disables opt-in focus-shift advisories (D-rules) on Station 0.", table_body_style)],
         [Paragraph("<b>/</b> or <b>Ctrl+F</b>", badge_style), Paragraph("Search", body_style), Paragraph("<b>Global Fuzzy Search:</b> Search across targets, services, credentials, checklists, and notes.", table_body_style)],
         [Paragraph("<b>r</b>", badge_style), Paragraph("Reference", body_style), Paragraph("<b>Quick Reference Modal:</b> Open offline practical reference for instant syntax lookup.", table_body_style)],
         [Paragraph("<b>t / s / c / n</b>", badge_style), Paragraph("Fast Capture", body_style), Paragraph("Modal dialogs to quickly add Target (t), Service (s), Credential (c), or Note (n).", table_body_style)],
@@ -371,64 +393,25 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
                 ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
                 ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-                ("PADDING", (0, 0), (-1, -1), 1.2),
+                ("PADDING", (0, 0), (-1, -1), 1.1),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
     )
     story.append(t_keys)
-    story.append(Spacer(1, 2))
-
-    # Figure 2: Quick Reference & Playbook Modal
-    fig2 = make_screenshot_card(
-        screenshots_dir / "07-reference.png",
-        "Figure 2: Practical Reference & Playbook Modal (Hotkey [r]) — Instant syntax lookup for Nmap, NetExec, Hydra, Chisel, and LinPEAS.",
-        width=470,
-        height=145,
-        caption_style=caption_style,
-    )
-    story.append(fig2)
-    story.append(Spacer(1, 2))
-
-    # Pro-Tip Box
-    protip_box = [
-        [
-            Paragraph(
-                "<b>PRO-TIP: THE ZERO-MOUSE KEYBOARD FLOW</b><br/>"
-                "1. Highlight any port in <b>SERVICES & PORTS</b> with <code>j</code> / <code>k</code>.<br/>"
-                "2. Watch the bottom console display the exact syntax with the target IP already substituted.<br/>"
-                "3. Press <code>.</code> to cycle alternative tools (feroxbuster → gobuster → nikto → curl).<br/>"
-                "4. Press <code>Enter</code> to copy the command directly to your terminal clipboard, switch to your attack terminal, and run it!<br/>"
-                "5. Press <code>Space</code> to mark the port <code>[CHECKED]</code> or <code>[DEAD-END]</code>.",
-                callout_text,
-            )
-        ]
-    ]
-    t_protip = Table(protip_box, colWidths=[540])
-    t_protip.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0F9FF")),
-                ("BOX", (0, 0), (-1, -1), 0.5, C_ACCENT),
-                ("PADDING", (0, 0), (-1, -1), 3.0),
-            ]
-        )
-    )
-    story.append(t_protip)
 
     story.append(PageBreak())
 
     # =========================================================================
     # PAGE 3: DUAL-TERMINAL WORKFLOW & UNIVERSAL CLI INGESTION
     # =========================================================================
-    story.append(Paragraph("4. Dual-Terminal Operating Model & Universal CLI Ingestion", h1_style))
+    story.append(Paragraph("5. Dual-Terminal Operating Model & Universal CLI Ingestion", h1_style))
     story.append(Paragraph(
         "The standard professional workflow runs GLACIS TUI in one terminal pane while executing active scans and exploits in an adjacent shell. "
-        "Because GLACIS uses a shared SQLite store with multi-process notification, changes committed in your attack terminal update the TUI live.",
+        "Because GLACIS uses a shared SQLite store with WAL mode, changes committed in your attack terminal update the TUI live.",
         body_style,
     ))
 
-    # Section 4.1: Attack CLI Fast Capture Table
     cli_ingest_data = [
         [Paragraph("Workflow & Goal", th_style), Paragraph("Command Line Execution (In Attack Terminal)", th_style), Paragraph("Operational Result in GLACIS", th_style)],
         [
@@ -458,12 +441,22 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
         ],
         [
             Paragraph("<b>Flag & Proof Capture</b>", body_bold),
-            Paragraph("<code>glacis flag user 7f3a9e... -t 10.10.10.20</code><br/><code>glacis flag root f04b12... -t 10.10.10.20</code>", code_style),
-            Paragraph("Records objective flags with timestamps and target links in the Station 4 Loot Ledger.", table_body_style),
+            Paragraph("<code>glacis proof -t 10.10.10.20 --flag user \"eJPT{...}\"</code><br/><code>glacis proof --q-num Q7 --proof \"admin:P@ss\"</code>", code_style),
+            Paragraph("Records objective flags and exam question proofs directly into the Station 4 ledger.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Snapshot Safety Net</b>", body_bold),
+            Paragraph("<code>glacis snapshot create -m \"pre-privesc\"</code><br/><code>glacis snapshot list</code> / <code>glacis snapshot restore &lt;file&gt;</code>", code_style),
+            Paragraph("Creates byte-consistent online SQLite backup. Rotates automatically (keeps newest 5 snapshots).", table_body_style),
+        ],
+        [
+            Paragraph("<b>Offline Compliance Audit</b>", body_bold),
+            Paragraph("<code>glacis exam-check</code>", code_style),
+            Paragraph("AST static scan proving zero network/socket imports across all 38 codebase modules.", table_body_style),
         ],
     ]
-    t_cli_ingest = Table(cli_ingest_data, colWidths=[110, 240, 190])
-    t_cli_ingest.setStyle(
+    t_ingest = Table(cli_ingest_data, colWidths=[115, 195, 230])
+    t_ingest.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
@@ -474,423 +467,102 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             ]
         )
     )
-    story.append(t_cli_ingest)
+    story.append(t_ingest)
     story.append(Spacer(1, 3))
 
-    # Section 4.2: Universal Static Formats
-    story.append(Paragraph("Universal Static Ingest Formats (For Any Tool)", h1_style))
-    story.append(Paragraph(
-        "You are never locked to Nmap. Output from any tool (Masscan, Feroxbuster, Nikto, custom Python/Bash) can be converted to these standard formats and imported instantly:",
-        body_style,
-    ))
-
-    formats_data = [
-        [Paragraph("Format Type", th_style), Paragraph("File Example / Syntax", th_style), Paragraph("How to Ingest & Import", th_style)],
-        [
-            Paragraph("<b>Universal JSON</b><br/><code>import.json</code>", body_bold),
-            Paragraph(
-                "<code>[<br/>"
-                "&nbsp;&nbsp;{\"ip\": \"10.10.10.20\", \"hostname\": \"box.local\", \"os\": \"Linux\",<br/>"
-                "&nbsp;&nbsp;&nbsp;\"services\": [{\"port\": 80, \"protocol\": \"tcp\", \"service\": \"http\", \"version\": \"Apache 2.4\"}]}<br/>"
-                "]</code>",
-                code_style,
-            ),
-            Paragraph("In TUI: <code>:import import.json</code><br/>In CLI: <code>glacis import --apply import.json</code>", table_body_style),
-        ],
-        [
-            Paragraph("<b>Universal Line Text</b><br/><code>import.txt</code>", body_bold),
-            Paragraph(
-                "<code># IP &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;PORT/PROTO SERVICE VERSION<br/>"
-                "10.10.10.20 80/tcp &nbsp; &nbsp; http &nbsp; &nbsp;Apache 2.4<br/>"
-                "10.10.10.20 445/tcp &nbsp; &nbsp;smb &nbsp; &nbsp; Samba 4.3<br/>"
-                "10.10.10.30:3389:rdp:Windows RDP</code>",
-                code_style,
-            ),
-            Paragraph("Easily generated via <code>awk</code> or <code>sed</code> from any tool output. Ingest with <code>:import import.txt</code>.", table_body_style),
-        ],
-        [
-            Paragraph("<b>Web Fuzzing JSON</b><br/><code>ffuf.json</code>", body_bold),
-            Paragraph("<code>ffuf -w wordlist.txt -u http://10.10.10.20/FUZZ -of json -o web.json</code>", code_style),
-            Paragraph("Auto-detects FFUF/Feroxbuster endpoints, response codes, and sizes in the review modal.", table_body_style),
-        ],
+    # Section 6: Console Syntax Table
+    story.append(Paragraph("6. Quick Command Console Syntax (Press [:] Anywhere in TUI)", h1_style))
+    console_data = [
+        [Paragraph("Console Command", th_style), Paragraph("Description & Execution", th_style), Paragraph("Syntax Example", th_style)],
+        [Paragraph("<b>:0 – :5</b>", code_bold), Paragraph("Switch stations: <code>:0</code> Pulse, <code>:1</code> Cockpit, <code>:2</code> Playbooks, <code>:3</code> Creds, <code>:4</code> Loot, <code>:5</code> Network.", table_body_style), Paragraph("<code>:0</code> &nbsp; <code>:pulse</code> &nbsp; <code>:network</code>", code_style)],
+        [Paragraph("<b>:t &lt;ip&gt;</b>", code_bold), Paragraph("Quickly add new target host into active workspace.", table_body_style), Paragraph("<code>:t 10.10.10.20</code>", code_style)],
+        [Paragraph("<b>:s &lt;port&gt; &lt;svc&gt;</b>", code_bold), Paragraph("Add open port/service under currently selected target.", table_body_style), Paragraph("<code>:s 445/tcp smb</code> &nbsp; <code>:s 8080 http</code>", code_style)],
+        [Paragraph("<b>:c &lt;user:pass&gt;</b>", code_bold), Paragraph("Add credential pair into Vault and auto-mount to Spray Matrix.", table_body_style), Paragraph("<code>:c admin:Summer2024!</code>", code_style)],
+        [Paragraph("<b>:n / :f</b>", code_bold), Paragraph("Record field note (<code>:n</code>) or security finding (<code>:f</code>).", table_body_style), Paragraph("<code>:n backup dir found</code><br/><code>:f anonymous smb</code>", code_style)],
+        [Paragraph("<b>:uflag / :rflag</b>", code_bold), Paragraph("Record captured user flag or root flag hash.", table_body_style), Paragraph("<code>:uflag eJPT{user_hash}</code>", code_style)],
+        [Paragraph("<b>:pivot &lt;route&gt;</b>", code_bold), Paragraph("Mark active target as dual-homed gateway; updates Station 5 topology.", table_body_style), Paragraph("<code>:pivot 172.16.1.0/24 via socks5:1080</code>", code_style)],
+        [Paragraph("<b>:snap [note]</b>", code_bold), Paragraph("Take an online byte-consistent database snapshot safety net.", table_body_style), Paragraph("<code>:snap before-bruteforce</code>", code_style)],
+        [Paragraph("<b>:stuck / :clue</b>", code_bold), Paragraph("Log rabbit-hole stuck point or breakthrough clue in Failure Log.", table_body_style), Paragraph("<code>:stuck hydra lockout</code><br/><code>:clue check backup.zip</code>", code_style)],
+        [Paragraph("<b>:q &lt;num&gt; &lt;proof&gt;</b>", code_bold), Paragraph("Pin exam question answer proof (e.g. hash, flag, config path).", table_body_style), Paragraph("<code>:q 14 root:$6$hash...</code>", code_style)],
+        [Paragraph("<b>:export html</b>", code_bold), Paragraph("Generate standalone, printable HTML handover report (zero JS/CDN).", table_body_style), Paragraph("<code>:export html exam_final.html</code>", code_style)],
+        [Paragraph("<b>:export exam</b>", code_bold), Paragraph("Export exam evidence bundle to <code>exam_evidence.md</code>.", table_body_style), Paragraph("<code>:export exam</code>", code_style)],
+        [Paragraph("<b>:export wordlists</b>", code_bold), Paragraph("Harvest all discovered credentials into <code>loot/users.txt</code> and <code>loot/passwords.txt</code>.", table_body_style), Paragraph("<code>:export wordlists</code>", code_style)],
+        [Paragraph("<b>:theme &lt;name&gt;</b>", code_bold), Paragraph("Switch visual palette (slate, midnight, ember, cyber, sugary, candy, caramel, catppuccin).", table_body_style), Paragraph("<code>:theme midnight</code> &nbsp; <code>:theme cyber</code>", code_style)],
     ]
-    t_formats = Table(formats_data, colWidths=[110, 240, 190])
-    t_formats.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-                ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-                ("PADDING", (0, 0), (-1, -1), 2.0),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
-    )
-    story.append(t_formats)
-    story.append(Spacer(1, 3))
-
-    # Evidence Directory Architecture Box
-    scans_arch_box = [
-        [
-            Paragraph(
-                "<b>THE DEDICATED EVIDENCE ARCHITECTURE (<code>scans/</code>, <code>enum/</code>, <code>loot/</code>)</b><br/>"
-                "When you run <code>glacis init &lt;box_name&gt;</code>, GLACIS creates a dedicated folder with standard subdirectories: "
-                "<code>scans/</code> (Nmap, Masscan, Rustscan), <code>enum/</code> (web fuzzing logs), <code>screenshots/</code> (proof images), "
-                "and <code>loot/</code> (hashes, extracted creds). Every import command automatically archives raw tool outputs into these folders and computes SHA-256 hashes for exam submission integrity.",
-                callout_text,
-            )
-        ]
-    ]
-    t_scans_arch = Table(scans_arch_box, colWidths=[540])
-    t_scans_arch.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0FDF4")),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#10B981")),
-                ("PADDING", (0, 0), (-1, -1), 3.5),
-            ]
-        )
-    )
-    story.append(t_scans_arch)
-
-    story.append(PageBreak())
-
-    # =========================================================================
-    # PAGE 4: CONSOLE SYNTAX & THE 5-PHASE PRACTICAL BATTLE PLAN
-    # =========================================================================
-    story.append(Paragraph("5. Bottom Console Syntax & Wordlist Accelerators", h1_style))
-    console_cmd_data = [
-        [Paragraph("Console Command", th_style), Paragraph("Description & Operational Effect", th_style), Paragraph("Example Syntax", th_style)],
-        [
-            Paragraph("<b>:w &lt;alias&gt;</b>", code_bold),
-            Paragraph("<b>Wordlist Accelerator:</b> Instantly copies standard Kali / SecLists paths to clipboard.", table_body_style),
-            Paragraph("<code>:w rockyou</code> &nbsp; <code>:w common</code> &nbsp; <code>:w medium</code><br/><code>:w raft-d</code> &nbsp; <code>:w raft-f</code> &nbsp; <code>:w users</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:import &lt;path&gt;</b>", code_bold),
-            Paragraph("<b>Scan & Enum Ingestion:</b> Interactive review modal for Nmap XML/text or Web Enum. Archives raw output to <code>scans/</code> or <code>enum/</code>.", table_body_style),
-            Paragraph("<code>:import scans/nmap.xml</code><br/><code>:import enum/ffuf.json</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:ws [name|init]</b>", code_bold),
-            Paragraph("<b>Workspace Manager:</b> Switch active lab or scaffold standard folder layout.", table_body_style),
-            Paragraph("<code>:ws lab01</code> &nbsp; <code>:ws init lab02</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:lhost / :lport</b>", code_bold),
-            Paragraph("<b>Attacker IP & Port:</b> Auto-detects VPN IP (<code>tun0</code>) and substitutes into all playbooks.", table_body_style),
-            Paragraph("<code>:lhost auto</code> &nbsp; <code>:lport 4444</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:t &lt;ip&gt; [opts]</b>", code_bold),
-            Paragraph("Add target with optional host, OS, subnet, and pivot flag.", table_body_style),
-            Paragraph("<code>:t 10.10.10.5 host linux 10.10.10.0/24 pivot</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:s &lt;port&gt; &lt;svc&gt;</b>", code_bold),
-            Paragraph("Record newly discovered port & service on active target.", table_body_style),
-            Paragraph("<code>:s 445/tcp smb</code> &nbsp; <code>:s 8080 http</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:c &lt;user:pass&gt;</b>", code_bold),
-            Paragraph("Record discovered credential with optional service scope.", table_body_style),
-            Paragraph("<code>:c admin:Secret123! SMB</code> &nbsp; <code>:c root:toor SSH</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:c crack &lt;id&gt; &lt;plain&gt;</b>", code_bold),
-            Paragraph("<b>In-Place Cracking:</b> Upgrades captured hash to plaintext secret without duplicating records.", table_body_style),
-            Paragraph("<code>:c crack 1 Password123</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:export wordlists</b>", code_bold),
-            Paragraph("<b>Spray Wordlist Export:</b> Generates deduplicated <code>loot/users.txt</code> and <code>passwords.txt</code>.", table_body_style),
-            Paragraph("<code>:export wordlists</code> &nbsp; <code>:export creds</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:paste-ev / :ev latest</b>", code_bold),
-            Paragraph("<b>Screenshot Proofing:</b> Saves clipboard image to <code>screenshots/</code> or links newest OS capture.", table_body_style),
-            Paragraph("<code>:paste-ev Root proof</code><br/><code>:ev latest Question 14</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:q / :export</b>", code_bold),
-            Paragraph("Pin assessment question proof or export markdown evidence dossier.", table_body_style),
-            Paragraph("<code>:q 7 /var/www/wp-config.php</code><br/><code>:export exam</code> &nbsp; <code>:export report</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:uflag / :rflag &lt;hash&gt;</b>", code_bold),
-            Paragraph("Record user flag or root/admin flag into Station 4 Loot Ledger.", table_body_style),
-            Paragraph("<code>:uflag 7a9e...</code> &nbsp; <code>:rflag f04b...</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:st &lt;where&gt; / :cl &lt;clue&gt;</b>", code_bold),
-            Paragraph("Record stuck point (rabbit hole) and breakthrough clue.", table_body_style),
-            Paragraph("<code>:st stuck on wp-login</code> &nbsp; <code>:cl found backup.zip</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:m &lt;template&gt;</b>", code_bold),
-            Paragraph("Instantiate standard checklist template (replace or append).", table_body_style),
-            Paragraph("<code>:m ejpt</code> &nbsp; <code>:m web</code> &nbsp; <code>:m smb append</code>", code_style),
-        ],
-        [
-            Paragraph("<b>:theme &lt;name&gt;</b>", code_bold),
-            Paragraph("Switch theme live (e.g. sugary, midnight, slate, caramel, cyber).", table_body_style),
-            Paragraph("<code>:theme sugary</code> &nbsp; <code>:theme midnight</code>", code_style),
-        ],
-    ]
-    t_console = Table(console_cmd_data, colWidths=[115, 260, 165])
+    t_console = Table(console_data, colWidths=[90, 240, 210])
     t_console.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
                 ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-                ("PADDING", (0, 0), (-1, -1), 1.1),
+                ("PADDING", (0, 0), (-1, -1), 1.2),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
     )
     story.append(t_console)
-    story.append(Spacer(1, 2))
-
-    # Section 6: The 5-Phase Battle Plan
-    story.append(Paragraph("6. Step-by-Step Practical Assessment Workflow (\"The Battle Plan\")", h1_style))
-    phases_data = [
-        [
-            Paragraph(
-                "<font color='#1D63B8'><b>PHASE 1: SCOPING & HOST DISCOVERY</b></font><br/>"
-                "<b>1. Host Discovery:</b> Identify alive target IPs (<code>nmap -sn 10.10.10.0/24</code> or arp-scan).<br/>"
-                "<b>2. Fast Add to GLACIS:</b> Type <code>:t 10.10.10.20</code> into console. Assign subnets: <code>:subnet 10.10.10.20 10.10.10.0/24</code>.<br/>"
-                "<b>3. Scope & Routing:</b> Tag dual-homed pivot machines with <code>:pivot 10.10.10.20 172.16.1.0/24</code> for automatic route guidance.<br/>"
-                "<b>4. Import Scan Option:</b> Bulk scans can be imported directly: <code>glacis import --apply scans/sweep.xml</code>.",
-                table_body_style,
-            )
-        ],
-        [
-            Paragraph(
-                "<font color='#1D63B8'><b>PHASE 2: DETAILED PORT & SERVICE ENUMERATION</b></font><br/>"
-                "<b>1. Full Port Sweep:</b> <code>nmap -sS -p- --min-rate 1000 &lt;IP&gt;</code>, then version scan: <code>nmap -sV -sC -p &lt;ports&gt; &lt;IP&gt;</code>.<br/>"
-                "<b>2. Record Open Services:</b> Type <code>:s 80 http</code>, <code>:s 445 smb</code>, <code>:s 3306 mysql</code> into the console.<br/>"
-                "<b>3. Inspect Tactical Guidance:</b> Highlight each service in <code>SERVICES & PORTS</code>. Press <code>.</code> to cycle tool recipes (whatweb → feroxbuster → gobuster → nikto → curl). Press <b>[Enter]</b> to copy.<br/>"
-                "<b>4. Service Triage with [Space]:</b> Cycle status: <code>UNTESTED</code> → <code>[CHECKED]</code> → <code>[DEAD-END]</code> → <code>[DEFERRED]</code>.",
-                table_body_style,
-            )
-        ],
-        [
-            Paragraph(
-                "<font color='#1D63B8'><b>PHASE 3: WEB & LOW-HANGING FRUIT EXPLOITATION</b></font><br/>"
-                "<b>1. Inspect Anonymous / Default Access:</b> Check anonymous FTP (<code>:s 21</code>), null SMB shares (<code>:s 445</code>), and SNMP strings (<code>:s 161</code>).<br/>"
-                "<b>2. Directory Fuzzing:</b> Type <code>:w common</code> or <code>:w medium</code> to copy the SecLists directory path. Paste directly into feroxbuster or gobuster.<br/>"
-                "<b>3. Cross-Filtering:</b> Highlighting a service in <code>SERVICES & PORTS</code> auto-scrolls the <b>Methodology</b> checklist to that service's testing steps!",
-                table_body_style,
-            )
-        ],
-        [
-            Paragraph(
-                "<font color='#1D63B8'><b>PHASE 4: CREDENTIAL SPRAYING & LATERAL MOVEMENT (STATION 3)</b></font><br/>"
-                "<b>1. Record Every Credential:</b> Whenever you find creds (web configs, DB dumps, code), press <b>[c]</b> or type <code>:c user:pass scope</code>.<br/>"
-                "<b>2. Open Station 3 Matrix:</b> Press <b>[3]</b> to switch to the 2D Credential Spray Matrix.<br/>"
-                "<b>3. Instant Spray Generation:</b> Highlight any cell and press <b>[Enter]</b> to compile & copy ready-to-run spray commands (netexec, evil-winrm).<br/>"
-                "<b>4. Record Verification State:</b> Press <b>[Space]</b> on the cell to cycle: <code>[UNTESTED]</code> → <code>[VALID]</code> → <code>[PWN3D]</code> → <code>[INVALID]</code>. State persists in SQLite!",
-                table_body_style,
-            )
-        ],
-        [
-            Paragraph(
-                "<font color='#1D63B8'><b>PHASE 5: PRIVESC, PIVOTING & EVIDENCE CAPTURE (STATION 4)</b></font><br/>"
-                "<b>1. Pivoting & Route Addition:</b> Tag pivot hosts with <code>:pivot</code> to see dynamic proxy guidance in the console bar.<br/>"
-                "<b>2. Privilege Escalation:</b> Switch to Station 2 (press <b>[2]</b>) and search Linux SUID, sudo -l, Cron jobs, or Windows tokens / services.<br/>"
-                "<b>3. Capture Question Evidence & Flags:</b> Log question proofs with <code>:q &lt;num&gt; &lt;proof&gt;</code> (or press <b>[a]</b> in Station 4). Record flags with <code>:uflag</code> / <code>:rflag</code>.<br/>"
-                "<b>4. Export Assessment Submission Bundle:</b> Run <code>glacis export -o report.md</code> or <code>:export exam</code> in console!",
-                table_body_style,
-            )
-        ],
-    ]
-    t_phases = Table(phases_data, colWidths=[540])
-    t_phases.setStyle(
-        TableStyle(
-            [
-                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-                ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-                ("PADDING", (0, 0), (-1, -1), 1.6),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
-    )
-    story.append(t_phases)
-    story.append(Spacer(1, 2))
-
-    # Anti-Rabbit-Hole Box
-    rabbit_hole_box = [
-        [
-            Paragraph(
-                "<b>THE 20-MINUTE ROTATION RULE (EXAM GOLDEN RULE)</b><br/>"
-                "If you have been analyzing a single service for more than 20 minutes without a new lead: "
-                "<b>STOP</b>. Press <b>[Space]</b> on the service to mark it <code>[DEFERRED]</code>. "
-                "Type <code>:stuck &lt;service description&gt;</code> to log where you are stuck, press <b>]</b> to rotate to another machine or port, "
-                "and harvest low-hanging fruit elsewhere. Most exam failures occur because candidates spend 3 hours trapped down an unexploitable rabbit hole!",
-                callout_text,
-            )
-        ]
-    ]
-    t_rabbit = Table(rabbit_hole_box, colWidths=[540])
-    t_rabbit.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFFBEB")),
-                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#F59E0B")),
-                ("PADDING", (0, 0), (-1, -1), 3.0),
-            ]
-        )
-    )
-    story.append(t_rabbit)
 
     story.append(PageBreak())
 
     # =========================================================================
-    # PAGE 5: STATION 3 DEEP DIVE — 2D CREDENTIAL SPRAY MATRIX
+    # PAGE 4: PRACTICAL ASSESSMENT WORKFLOW ("THE BATTLE PLAN")
     # =========================================================================
-    story.append(Paragraph("7. Station 3 Deep Dive: 2D Credential Spray Matrix", h1_style))
+    story.append(Paragraph("7. Step-by-Step Practical Assessment Workflow (\"The Battle Plan\")", h1_style))
     story.append(Paragraph(
-        "In multi-machine assessments, credential reuse across SSH, SMB, WinRM, and Web portals is the primary lateral movement technique. "
-        "Station 3 prevents credential amnesia by organizing all discovered credentials (rows) against all target services (columns) in an interactive 2D grid:",
+        "Follow this battle-tested loop for each target in practical exams (eJPTv2, eCPPT, OSCP) to maintain 100% rigor and never lose progress:",
         body_style,
     ))
 
-    # Figure 3: Station 3 Creds Matrix UI
-    fig3 = make_screenshot_card(
-        screenshots_dir / "03-creds.png",
-        "Figure 3: Station 3 Credential Matrix — Interactive 2D grid of discovered accounts against authenticating services with status badges.",
-        width=480,
-        height=205,
-        caption_style=caption_style,
-    )
-    story.append(fig3)
-    story.append(Spacer(1, 3))
-
-    # Controls & State Lifecycle Table
-    matrix_controls_data = [
-        [Paragraph("Action / Key", th_style), Paragraph("Mechanism & Tactical Utility", th_style), Paragraph("Persistence & Assessment Value", th_style)],
-        [
-            Paragraph("<b>Arrow Keys / Vim</b>", badge_style),
-            Paragraph("Navigate freely across cells in the 2D grid.", table_body_style),
-            Paragraph("Instant visual overview of which accounts were tested where.", table_body_style),
-        ],
-        [
-            Paragraph("<b>[Space]</b> (Cycle State)", badge_style),
-            Paragraph("Cycles through: <code>[UNTESTED]</code> → <code>[VALID]</code> (Green) → <code>[PWN3D]</code> (Blue) → <code>[INVALID]</code> (Plum).", table_body_style),
-            Paragraph("Persisted instantly to local SQLite database. Never guess if you tried a password.", table_body_style),
-        ],
-        [
-            Paragraph("<b>[Enter]</b> (Copy Command)", badge_style),
-            Paragraph("Automatically compiles and copies the exact command line to your clipboard (e.g. <code>netexec smb 10.10.10.20 -u admin -p 'P@ssword123'</code>).", table_body_style),
-            Paragraph("Zero typos under stress; supports SSH, SMB, WinRM, RDP, MySQL, and MSSQL.", table_body_style),
-        ],
-        [
-            Paragraph("<b>[c]</b> (Fast Add)", badge_style),
-            Paragraph("Opens modal to record newly discovered credentials (or type <code>:c user:pass [scope]</code>).", table_body_style),
-            Paragraph("Automatically expands the matrix with a new row across all existing targets.", table_body_style),
-        ],
+    workflow_stages = [
+        ("Phase 1: Workspace Init & Scoping",
+         "1. Create dedicated lab directory: <code>glacis init lab_name --ip 10.10.10.20</code>.<br/>"
+         "2. Set attacker VPN IP: <code>:lhost auto</code> (or <code>:lhost 192.168.0.50</code>) and <code>:lport 4444</code>.<br/>"
+         "3. Apply exam methodology checklist: <code>:m ejpt</code> in Cockpit."),
+        ("Phase 2: Discovery & Ingestion",
+         "1. Run port scan in attack terminal: <code>nmap -sC -sV $IP -oX scans/init.xml</code>.<br/>"
+         "2. Ingest automatically: <code>glacis import --apply scans/init.xml</code> (or press <b>[I]</b> in TUI).<br/>"
+         "3. Verify Station 0 Pulse reflects attack surface: host moves from <b>UNTOUCHED</b> to <b>RECON</b>."),
+        ("Phase 3: Port Triage & Tool Recipes",
+         "1. Highlight open port in Cockpit with <code>j</code> / <code>k</code>.<br/>"
+         "2. Cycle alternative tool recipes in console with <code>.</code> (e.g. feroxbuster → nikto → curl).<br/>"
+         "3. Press <b>[Enter]</b> to copy recipe to clipboard; run in terminal.<br/>"
+         "4. Press <b>[Space]</b> on service to mark <code>[CHECKED]</code> or <code>[DEAD-END]</code>."),
+        ("Phase 4: Credential Harvest & Spray Validation",
+         "1. Record found credentials: <code>:c admin:Summer2024!</code>.<br/>"
+         "2. Switch to Station 3 (press <b>[3]</b>) to inspect the 2D Credential Spray Matrix.<br/>"
+         "3. Press <b>[Enter]</b> on any matrix cell to copy ready-to-run spray command.<br/>"
+         "4. Press <b>[Space]</b> on cell to record outcome: <code>[VALID]</code> or <code>[PWN3D]</code>.<br/>"
+         "5. Harvest discovered accounts: <code>:export wordlists</code> writes <code>loot/users.txt</code>."),
+        ("Phase 5: Foothold, Flags & Anti-Rabbit Hole",
+         "1. Record initial shell foothold: <code>:foothold php-reverse-shell</code>.<br/>"
+         "2. Capture user flag: <code>:uflag eJPT{...}</code>.<br/>"
+         "3. If stuck for >20 mins, avoid rabbit hole: log dead-end with <code>:stuck &lt;why&gt;</code> and check Station 0 Pulse for next un-checked surface.<br/>"
+         "4. When progress is made, log breakthrough: <code>:clue &lt;what_worked&gt;</code>."),
+        ("Phase 6: Internal Pivoting & Subnet Expansion",
+         "1. Discovered internal route? Mark target dual-homed: <code>:pivot 172.16.1.0/24 via socks5:1080</code>.<br/>"
+         "2. Switch to Station 5 (press <b>[5]</b>) to inspect ASCII network graph.<br/>"
+         "3. Press <b>[Enter]</b> on actions to copy ProxyChains config, Chisel server/client, or SSH ProxyJump syntax.<br/>"
+         "4. Add pivot target: <code>:t 172.16.1.50</code> and begin Phase 2 scan through proxy."),
+        ("Phase 7: PrivEsc & Final Submission Handover",
+         "1. Switch to Station 2 (press <b>[2]</b>) and search Linux / Windows PrivEsc playbooks.<br/>"
+         "2. Record root flag: <code>:rflag eJPT{...}</code> and document privesc: <code>:privesc SUID-pkexec</code>.<br/>"
+         "3. Log question proofs: <code>:q 14 /etc/shadow-hash</code> (press <b>[a]</b> in Station 4).<br/>"
+         "4. Export standalone printable HTML handover: <code>:export html final_handover.html</code>.<br/>"
+         "5. Export evidence markdown bundle: <code>:export exam</code> writes <code>exam_evidence.md</code>."),
     ]
-    t_matrix_ctrl = Table(matrix_controls_data, colWidths=[105, 235, 200])
-    t_matrix_ctrl.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-                ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
-                ("PADDING", (0, 0), (-1, -1), 2.0),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
-    )
-    story.append(t_matrix_ctrl)
-    story.append(Spacer(1, 3))
 
-    # Lateral Movement Workflow Box
-    lat_mov_box = [
-        [
-            Paragraph(
-                "<b>LATERAL MOVEMENT WORKFLOW SUMMARY:</b><br/>"
-                "1. <b>Harvest:</b> Extract credentials from web app configs (<code>wp-config.php</code>, <code>.env</code>), DB dumps, or SAM registry hive.<br/>"
-                "2. <b>Input:</b> Press <b>[c]</b> in GLACIS to add the username and password (or run <code>glacis cred user:pass</code> in your attack terminal).<br/>"
-                "3. <b>Matrix Spray:</b> Press <b>[3]</b> to open the grid. Highlight the intersection of the new credential with port 445 (SMB) or 22 (SSH).<br/>"
-                "4. <b>Execute:</b> Press <b>[Enter]</b> to copy the pre-built NetExec/SSH command, paste and run in your terminal.<br/>"
-                "5. <b>Record:</b> If admin/pwn3d, press <b>[Space]</b> twice to set <code>[PWN3D]</code>. You now have your next pivot point!",
-                callout_text,
-            )
-        ]
+    wf_table_data = [
+        [Paragraph("Assessment Stage", th_style), Paragraph("Step-by-Step Operator Action & Commands", th_style)],
     ]
-    t_lat = Table(lat_mov_box, colWidths=[540])
-    t_lat.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0F9FF")),
-                ("BOX", (0, 0), (-1, -1), 0.5, C_ACCENT),
-                ("PADDING", (0, 0), (-1, -1), 3.5),
-            ]
-        )
-    )
-    story.append(t_lat)
+    for stage_title, stage_desc in workflow_stages:
+        wf_table_data.append([
+            Paragraph(f"<b>{stage_title}</b>", body_bold),
+            Paragraph(stage_desc, table_body_style),
+        ])
 
-    story.append(PageBreak())
-
-    # =========================================================================
-    # PAGE 6: STATION 4 DEEP DIVE — QUESTION PROOFS & LOOT LEDGER
-    # =========================================================================
-    story.append(Paragraph("8. Station 4 Deep Dive: Question Proofs & Loot Ledger", h1_style))
-    story.append(Paragraph(
-        "Practical exams require concrete evidence: hashes, specific directory names, database records, usernames, or service versions. "
-        "Station 4 provides a dedicated ledger to link lab findings directly to question numbers, plus a Failure Log to manage stuck points:",
-        body_style,
-    ))
-
-    # Figure 4: Station 4 Loot & Proofs UI
-    fig4 = make_screenshot_card(
-        screenshots_dir / "04-loot.png",
-        "Figure 4: Station 4 Proofs & Loot Ledger — Question Proofs, User/Root Flags, and Failure / Rabbit Hole Logs.",
-        width=480,
-        height=205,
-        caption_style=caption_style,
-    )
-    story.append(fig4)
-    story.append(Spacer(1, 3))
-
-    # Station 4 Components & Workflow Table
-    proof_table_data = [
-        [Paragraph("Module / Feature", th_style), Paragraph("Hotkeys & CLI Syntax", th_style), Paragraph("Operational Purpose & Deliverable", th_style)],
-        [
-            Paragraph("<b>Question Proofs</b>", body_bold),
-            Paragraph("Press <b>[a]</b> (modal) or<br/><code>:q &lt;num&gt; &lt;proof&gt; [notes]</code>", code_style),
-            Paragraph("Links evidence directly to an exam question number (e.g. <code>:q 14 /etc/passwd root hash</code>). Prevents having to re-exploit targets at exam end.", table_body_style),
-        ],
-        [
-            Paragraph("<b>Disk-Backed Loot Browser</b>", body_bold),
-            Paragraph("Press <b>[Space]</b> to preview<br/>Press <b>[Enter]</b> to copy path", code_style),
-            Paragraph("Scans <code>loot/</code>, <code>screenshots/</code>, <code>enum/</code>, and <code>scans/</code>. Preview text files, hashes, and dumps with instant copy.", table_body_style),
-        ],
-        [
-            Paragraph("<b>Screenshot Proof Capture</b>", body_bold),
-            Paragraph("Press <b>[v]</b> or<br/><code>:paste-ev [desc]</code> / <code>:ev latest</code>", code_style),
-            Paragraph("Saves clipboard image directly to <code>screenshots/</code> via Wayland/X11 or auto-attaches most recent screenshot.", table_body_style),
-        ],
-        [
-            Paragraph("<b>Loot & Flags Tracker</b>", body_bold),
-            Paragraph("<code>:uflag &lt;hash&gt;</code> (user flag)<br/><code>:rflag &lt;hash&gt;</code> (root flag)", code_style),
-            Paragraph("Captures proof hashes with timestamps and associated target IP. Safely stored in local SQLite database.", table_body_style),
-        ],
-        [
-            Paragraph("<b>Failure Log (Anti-Rabbit Hole)</b>", body_bold),
-            Paragraph("<code>:st &lt;stuck_point&gt;</code><br/><code>:cl &lt;breakthrough_clue&gt;</code>", code_style),
-            Paragraph("Records dead-ends and breakthroughs so you never repeat failed brute-force or injection attempts.", table_body_style),
-        ],
-        [
-            Paragraph("<b>CLI Export Commands</b>", body_bold),
-            Paragraph("<code>glacis export -o report.md</code><br/><code>glacis export -f json -o bkp.json</code>", code_style),
-            Paragraph("Generates clean Markdown dossiers or complete JSON backups. Use <code>--reveal-creds</code> to include plaintext passwords.", table_body_style),
-        ],
-    ]
-    t_proof = Table(proof_table_data, colWidths=[120, 160, 260])
-    t_proof.setStyle(
+    t_wf = Table(wf_table_data, colWidths=[150, 390])
+    t_wf.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
@@ -901,57 +573,223 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             ]
         )
     )
-    story.append(t_proof)
+    story.append(t_wf)
     story.append(Spacer(1, 3))
 
-    # Exam Submission Dossier Callout
-    dossier_box = [
+    # Safety Net Pro-Tip
+    snap_box = [
         [
             Paragraph(
-                "<b>THE OFFLINE SUBMISSION DOSSIER (<code>glacis export -o report.md</code>):</b><br/>"
-                "At any time, or before finalizing your exam answers in the INE / OffSec portal, run <code>glacis export -o report.md</code> in your terminal. "
-                "GLACIS exports a complete, self-contained Markdown file containing: (1) Target Inventory & Subnet Map, (2) Solved Questions 1–35 with exact evidence strings, "
-                "(3) Captured User & Root Flags, (4) Discovered Credentials & Verification States, and (5) Complete Audit Trail of all tested services. "
-                "Keep this document open in your text editor while submitting exam questions for 100% verification confidence.",
+                "<b>SAFETY NET: AUTOMATIC & ON-DEMAND SNAPSHOTS (<code>:snap</code>)</b><br/>"
+                "Lab VMs reset frequently, and databases can corrupt during power drops. "
+                "GLACIS automatically creates a snapshot before scan imports. Take on-demand snapshots with <code>:snap before-pivot</code> "
+                "or <code>glacis snapshot create</code>. Restore losslessly at any time with <code>glacis snapshot restore &lt;file&gt;</code>. "
+                "Snapshots use SQLite's native backup API and keep the newest 5 copies automatically rotated.",
                 callout_text,
             )
         ]
     ]
-    t_dossier = Table(dossier_box, colWidths=[540])
-    t_dossier.setStyle(
+    t_snap = Table(snap_box, colWidths=[540])
+    t_snap.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0FDF4")),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#10B981")),
-                ("PADDING", (0, 0), (-1, -1), 3.5),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#F59E0B")),
+                ("PADDING", (0, 0), (-1, -1), 3.0),
             ]
         )
     )
-    story.append(t_dossier)
+    story.append(t_snap)
 
     story.append(PageBreak())
 
     # =========================================================================
-    # PAGE 7: STATION 2 PLAYBOOKS, METHODOLOGY & ASSESSMENT DAY READINESS
+    # PAGE 5: STATION 3 CREDENTIAL MATRIX & STATION 4 LOOT LEDGER
     # =========================================================================
-    story.append(Paragraph("9. Station 2 Playbooks & Built-In Methodology Templates", h1_style))
+    story.append(Paragraph("8. Station 3 Deep Dive: 2D Credential Spray Matrix", h1_style))
     story.append(Paragraph(
-        "Station 2 serves as an offline tactical encyclopedia. You can search playbooks for specific attack chains, inspect commands, and copy snippets with a single keystroke:",
+        "Station 3 eliminates credential amnesia by organizing all discovered credentials (rows) against all target authentication services (columns) in a live 2D grid:",
         body_style,
     ))
 
-    # Figure 5: Station 2 Playbooks UI
-    fig5 = make_screenshot_card(
-        screenshots_dir / "02-playbooks.png",
-        "Figure 5: Station 2 Playbook Browser — Tactical guides, command recipes, and methodology references with instant keyboard copy.",
+    fig3 = make_screenshot_card(
+        screenshots_dir / "03-creds.png",
+        "Figure 3: Station 3 Credential Matrix — 2D grid of discovered accounts against authenticating services. Enter copies spray command; Space cycles verification state.",
+        width=480,
+        height=195,
+        caption_style=caption_style,
+    )
+    story.append(fig3)
+    story.append(Spacer(1, 3))
+
+    creds_features = [
+        [Paragraph("Matrix Element", th_style), Paragraph("Hotkey & Action", th_style), Paragraph("Operational Impact", th_style)],
+        [
+            Paragraph("<b>Cell Status Toggle</b>", body_bold),
+            Paragraph("Press <b>[Space]</b>", code_style),
+            Paragraph("Cycles cell through <code>[UNTESTED]</code> → <code>[VALID]</code> (green) → <code>[PWN3D]</code> (magenta) → <code>[INVALID]</code> (red).", table_body_style),
+        ],
+        [
+            Paragraph("<b>Auto-Compile Spray Syntax</b>", body_bold),
+            Paragraph("Press <b>[Enter]</b> on cell", code_style),
+            Paragraph("Compiles ready-to-run NetExec, Hydra, SSH, or Evil-WinRM command for that specific user, password, target IP, and port.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Credential Vault Table</b>", body_bold),
+            Paragraph("Left Panel (navigate with <b>h / l</b>)", body_style),
+            Paragraph("Inventory of all discovered accounts, source tracking (e.g. shadow crack, wp-config, SAM dump), and validation flags.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Harvest Wordlists</b>", body_bold),
+            Paragraph("<code>:export wordlists</code>", code_style),
+            Paragraph("Exports all captured usernames to <code>loot/users.txt</code> and passwords to <code>loot/passwords.txt</code> for instant feeding to wordlist attacks.", table_body_style),
+        ],
+    ]
+    t_creds = Table(creds_features, colWidths=[120, 140, 280])
+    t_creds.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
+                ("PADDING", (0, 0), (-1, -1), 1.8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(t_creds)
+    story.append(Spacer(1, 3))
+
+    story.append(Paragraph("9. Station 4 Deep Dive: Question Proofs & Loot Ledger", h1_style))
+    fig4 = make_screenshot_card(
+        screenshots_dir / "04-loot.png",
+        "Figure 4: Station 4 Proofs & Loot Ledger — Question Proofs, User/Root Flags, Disk Loot Browser, and Anti-Rabbit Hole Failure Log.",
         width=480,
         height=190,
+        caption_style=caption_style,
+    )
+    story.append(fig4)
+
+    story.append(PageBreak())
+
+    # =========================================================================
+    # PAGE 6: STATION 5 NETWORK TOPOLOGY & STATION 2 PLAYBOOKS
+    # =========================================================================
+    story.append(Paragraph("10. Station 5 Deep Dive: Network Topology, Dual-Homed Pivots & Tunnels", h1_style))
+    story.append(Paragraph(
+        "Station 5 visualizes internal network architecture and dual-homed pivot gateways directly from your documented target IPs and <code>:pivot</code> notes:",
+        body_style,
+    ))
+
+    fig5 = make_screenshot_card(
+        screenshots_dir / "05-network.png",
+        "Figure 5: Station 5 Network — Documented ASCII Subnet Topology (left) and Copy-Ready Tunnel & Routing Actions (right). Enter copies syntax to clipboard.",
+        width=480,
+        height=195,
         caption_style=caption_style,
     )
     story.append(fig5)
     story.append(Spacer(1, 3))
 
+    net_features = [
+        [Paragraph("Feature / Capability", th_style), Paragraph("Command & Hotkey", th_style), Paragraph("Operational Purpose", th_style)],
+        [
+            Paragraph("<b>Mark Dual-Homed Pivot</b>", body_bold),
+            Paragraph("<code>:pivot &lt;route&gt;</code><br/>(e.g. <code>:pivot 172.16.1.0/24 via socks5:1080</code>)", code_style),
+            Paragraph("Registers host as pivot gateway between subnets. The ASCII topology graph draws the cross-subnet connection automatically.", table_body_style),
+        ],
+        [
+            Paragraph("<b>ProxyChains Config</b>", body_bold),
+            Paragraph("Highlight action & press <b>[Enter]</b>", body_style),
+            Paragraph("Copies complete <code>proxychains4.conf</code> snippet configured for your active SOCKS proxy port.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Chisel Tunnel Recipes</b>", body_bold),
+            Paragraph("Highlight action & press <b>[Enter]</b>", body_style),
+            Paragraph("Copies ready-to-run Chisel server command (attacker) and Chisel client reverse tunnel command (victim).", table_body_style),
+        ],
+        [
+            Paragraph("<b>SSH Dynamic Forwarding</b>", body_bold),
+            Paragraph("Highlight action & press <b>[Enter]</b>", body_style),
+            Paragraph("Copies <code>ssh -D 1080 -N -f user@pivot_ip</code> or SSH ProxyJump commands with target IP and credentials populated.", table_body_style),
+        ],
+    ]
+    t_net = Table(net_features, colWidths=[120, 160, 260])
+    t_net.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
+                ("PADDING", (0, 0), (-1, -1), 1.8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(t_net)
+    story.append(Spacer(1, 3))
+
+    story.append(Paragraph("11. Station 2 Deep Dive: Playbook Browser & Methodology Roadmaps", h1_style))
+    fig2 = make_screenshot_card(
+        screenshots_dir / "02-playbooks.png",
+        "Figure 6: Station 2 Playbooks — Categorized command encyclopedia and multi-tool recipe carousel. Enter copies recipe to clipboard.",
+        width=480,
+        height=190,
+        caption_style=caption_style,
+    )
+    story.append(fig2)
+
+    story.append(PageBreak())
+
+    # =========================================================================
+    # PAGE 7: REPORTING, THEMES & EXAM DAY PROCEDURES
+    # =========================================================================
+    story.append(Paragraph("12. Standalone HTML Handover Reports & Evidence Bundles", h1_style))
+    story.append(Paragraph(
+        "At the end of an assessment, or before finalizing answers in the exam portal, export self-contained submission dossiers:",
+        body_style,
+    ))
+
+    export_table_data = [
+        [Paragraph("Export Format", th_style), Paragraph("Command Line & Console", th_style), Paragraph("Deliverable & Features", th_style)],
+        [
+            Paragraph("<b>Standalone HTML Report</b>", body_bold),
+            Paragraph("<code>glacis export -f html -o report.html</code><br/>Console: <code>:export html</code>", code_style),
+            Paragraph("Single self-contained HTML file. <b>Zero JavaScript, zero external CDN/fonts.</b> Includes engagement overview, target dossiers, masked creds, network topology, and <code>@media print</code> stylesheet for clean PDF printout.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Unmasked HTML Report</b>", body_bold),
+            Paragraph("<code>glacis export -f html -o report.html --reveal-creds</code>", code_style),
+            Paragraph("Reveals all plaintext passwords for internal auditor review or personal grading.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Markdown Evidence Bundle</b>", body_bold),
+            Paragraph("<code>glacis export -f md -o exam.md</code><br/>Console: <code>:export exam</code>", code_style),
+            Paragraph("Generates <code>exam_evidence.md</code> with all recorded question proofs (Q1-Q35), hashes, flags, and golden reproduction commands.", table_body_style),
+        ],
+        [
+            Paragraph("<b>Lossless JSON Backup</b>", body_bold),
+            Paragraph("<code>glacis export -f json -o backup.json</code>", code_style),
+            Paragraph("Complete structured export of all database tables for archival or migration.", table_body_style),
+        ],
+    ]
+    t_export = Table(export_table_data, colWidths=[120, 160, 260])
+    t_export.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), C_PRIMARY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ("GRID", (0, 0), (-1, -1), 0.5, C_LINE),
+                ("PADDING", (0, 0), (-1, -1), 1.8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(t_export)
+    story.append(Spacer(1, 3))
+
     # Built-In Methodology Templates Table
+    story.append(Paragraph("13. Built-In Methodology Templates (Press [m] in Cockpit)", h1_style))
     tmpl_data = [
         [Paragraph("Template Alias", th_style), Paragraph("Category", th_style), Paragraph("Key Checklist Steps & Focus", th_style)],
         [Paragraph("<b>:m ejpt</b>", code_bold), Paragraph("eJPT Practical", body_style), Paragraph("Scope recon → Host discovery → Full TCP scan → Service triage → Low-hanging fruit → Web fuzzing → Cred spray → Pivoting → PrivEsc.", body_style)],
@@ -976,17 +814,47 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
     story.append(t_tmpl)
     story.append(Spacer(1, 3))
 
-    # Exam-Day Readiness & CLI Reference Box
+    # The 8 Palettes Reference
+    story.append(Paragraph("14. The Eight WCAG AAA Palettes (Press [T] to Switch)", h1_style))
+    palettes_desc = [
+        [
+            Paragraph(
+                "• <b>Slate</b> (Default): Glacial cyan accent on deep arctic granite. Clean, professional, high-contrast.<br/>"
+                "• <b>Midnight:</b> Indigo and periwinkle on deep nocturne navy. Easy on the eyes during late-night assessments.<br/>"
+                "• <b>Ember:</b> Amber CRT glow on warm dark charcoal. Classic retro phosphor terminal aesthetic.<br/>"
+                "• <b>Cyber:</b> Electric cyan and hot pink on pitch black. High energy modern Tokyo nightscape.<br/>"
+                "• <b>Sugary:</b> Soft espresso ink on unbleached vanilla cream. Soothing warm daylight mode.<br/>"
+                "• <b>Candy:</b> Deep violet on soft cotton lilac. Playful pastel with verified 7:1 contrast.<br/>"
+                "• <b>Caramel:</b> Teal instrument accent on toffee parchment. High-legibility technical document tone.<br/>"
+                "• <b>Catppuccin:</b> Sapphire and lavender on warm mocha. The beloved community dark palette.",
+                callout_text,
+            )
+        ]
+    ]
+    t_pal = Table(palettes_desc, colWidths=[540])
+    t_pal.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+                ("BOX", (0, 0), (-1, -1), 0.5, C_LINE),
+                ("PADDING", (0, 0), (-1, -1), 3.0),
+            ]
+        )
+    )
+    story.append(t_pal)
+    story.append(Spacer(1, 3))
+
+    # Exam-Day Readiness & Quick Start Box
     exam_ready_box = [
         [
             Paragraph(
-                "<b>EXAM / ASSESSMENT START PROCEDURES:</b><br/>"
-                "1. <b>Launch GLACIS:</b> Open terminal and launch <code>glacis</code> (or short alias <code>gls</code>).<br/>"
-                "2. <b>Scaffold Dedicated Workspace:</b> Run <code>glacis init target_box</code> to create a fresh directory with <code>scans/</code>, <code>enum/</code>, <code>screenshots/</code>, and <code>loot/</code>.<br/>"
-                "3. <b>Theme Selection:</b> Press <b>[T]</b>, select palette (e.g. <i>Sugary</i>, <i>Midnight</i>, <i>Slate</i>, or <i>Cyber</i>), press <b>[d]</b> to save as default.<br/>"
-                "4. <b>Dual-Terminal Ingestion:</b> Run scans in your attack terminal and auto-import: <code>glacis import --apply scans/sweep.xml</code>.<br/>"
-                "5. <b>Offline Markdown Dossier:</b> Run <code>glacis export -o report.md</code> or <code>:export exam</code> in the console at any time to verify all answers.<br/>"
-                "6. <b>Database Safety:</b> Stored locally in SQLite. 100% local, persistent, zero cloud calls, and fully compliant with exam rules.",
+                "<b>EXAM / ASSESSMENT DAY QUICK START:</b><br/>"
+                "1. <b>Verify Offline Compliance:</b> Run <code>glacis exam-check</code> in terminal (proves zero network imports for AI proctor).<br/>"
+                "2. <b>Launch GLACIS:</b> Open terminal and launch <code>glacis</code> (or short alias <code>gls</code>).<br/>"
+                "3. <b>Scaffold Dedicated Workspace:</b> Run <code>:init target_lab &lt;ip&gt;</code> to create a fresh directory with <code>scans/</code>, <code>enum/</code>, <code>screenshots/</code>, and <code>loot/</code>.<br/>"
+                "4. <b>Set VPN & Methodology:</b> Run <code>:lhost auto</code> and apply template with <code>:m ejpt</code>.<br/>"
+                "5. <b>Live Triage:</b> Use Station 0 (<b>[0]</b>) to track kill-chain progress; use Station 5 (<b>[5]</b>) when internal pivots are discovered.<br/>"
+                "6. <b>Handover Dossier:</b> Run <code>:export html</code> or <code>:export exam</code> before final submission to verify all answers.",
                 callout_text,
             )
         ]
@@ -997,7 +865,7 @@ def build_pdf(dest_path: Path, screenshots_dir: Path) -> None:
             [
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0FDF4")),
                 ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#10B981")),
-                ("PADDING", (0, 0), (-1, -1), 4.0),
+                ("PADDING", (0, 0), (-1, -1), 3.5),
             ]
         )
     )
