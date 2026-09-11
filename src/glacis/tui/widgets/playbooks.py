@@ -93,7 +93,7 @@ class PlaybookBrowserWidget(Static):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="playbook-top-bar"):
-            yield Input(placeholder="🔍 Search commands, tools, exploits (e.g. smb, winrm, mimikatz, privesc, pivot)...", id="playbook-search-input")
+            yield Input(placeholder="Search commands, tools, exploits (e.g. smb, winrm, mimikatz, privesc, pivot)...", id="playbook-search-input")
         with Horizontal(id="playbook-body"):
             with Vertical(id="playbook-cat-panel"):
                 yield ListView(id="playbook-cat-list")

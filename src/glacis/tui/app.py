@@ -53,6 +53,7 @@ from glacis.tui.anim import run_debounced
 from glacis.tui.stations import NetworkStation, PulseStation
 from glacis.tui.theme import (
     APP_CSS,
+    GLYPHS as G,
     PALETTES,
     current_palette,
     get_default_theme,
@@ -60,6 +61,8 @@ from glacis.tui.theme import (
     save_default_theme,
     set_palette,
 )
+from glacis.tui.widgets.chrome import set_border_text
+from glacis.tui.widgets.lists import elide, status_badge
 from glacis.tui.widgets import (
     AddCredentialModal,
     AddFindingModal,
@@ -86,6 +89,12 @@ from glacis.tui.widgets import (
     substitute_command_placeholders,
     sync_data_list,
 )
+
+
+#: Characters left for free text in a composed row after the fixed-width
+#: pills (status + severity + kind) are placed. Rows elide against this so a
+#: long title never pushes the row's other columns off the panel edge.
+_ROW_TEXT_WIDTH = 96
 
 
 class GlacisApp(App):
@@ -228,11 +237,11 @@ class GlacisApp(App):
 
     def on_mount(self) -> None:
         try:
-            self.query_one("#panel-surface").border_title = " ★ ATTACK SURFACE TREE "
-            self.query_one("#panel-creds").border_title = " 🔑 QUICK CREDS "
-            self.query_one("#panel-services").border_title = " ⚡ SERVICES & PORTS "
-            self.query_one("#panel-checklist").border_title = " 📋 METHODOLOGY ROADMAP "
-            self.query_one("#panel-notes").border_title = " 📝 FIELD NOTES & FINDINGS "
+            set_border_text(self.query_one("#panel-surface"), title=f" {G['surface']} ATTACK SURFACE TREE ")
+            set_border_text(self.query_one("#panel-creds"), title=f" {G['credentials']} QUICK CREDS ")
+            set_border_text(self.query_one("#panel-services"), title=f" {G['services']} SERVICES & PORTS ")
+            set_border_text(self.query_one("#panel-checklist"), title=f" {G['checklist']} METHODOLOGY ROADMAP ")
+            set_border_text(self.query_one("#panel-notes"), title=f" {G['notes']} NOTES · FINDINGS · EVIDENCE ")
         except Exception:
             pass
         self.refresh_targets()
@@ -851,21 +860,21 @@ class GlacisApp(App):
         P = current_palette()
         txt = Text()
         status_val = s.status.value if hasattr(s.status, "value") else str(s.status)
+        # One vocabulary for state everywhere: OPEN/DEFER/DROP are the verbs,
+        # the pill is the noun, and both keep a constant width so the port,
+        # service and version columns never shift between rows.
         if status_val == "CHECKED":
-            txt.append("● OPEN  ", style=f"bold {P.ok}")
-            txt.append("[CHECKED] ", style=f"bold {P.bg} on {P.ok}")
+            txt.append(f"{G['open']} OPEN  ", style=f"bold {P.ok}")
         elif status_val == "DEFERRED":
-            txt.append("○ DEFER ", style=f"bold {P.warn}")
-            txt.append("[DEFER]   ", style=f"bold {P.bg} on {P.warn}")
+            txt.append(f"{G['deferred']} DEFER ", style=f"bold {P.warn}")
         elif status_val == "DEAD-END":
-            txt.append("✕ DROP  ", style=f"bold {P.danger}")
-            txt.append("[DEAD-END]", style=f"bold {P.bg} on {P.danger}")
+            txt.append(f"{G['dead_end']} DROP  ", style=f"bold {P.danger}")
         else:
-            txt.append("● OPEN  ", style=f"bold {P.ok}")
-            txt.append("[TODO]    ", style=f"bold {P.bg} on {P.accent}")
+            txt.append(f"{G['open']} OPEN  ", style=f"bold {P.ok}")
+        txt.append_text(status_badge(status_val))
 
         port_proto = f"{s.port}/{s.protocol.lower()}"
-        txt.append(f" {port_proto:<8} ", style=f"bold {P.accent}")
+        txt.append(f"{port_proto:<8} ", style=f"bold {P.accent}")
 
         txt.append(f" {s.service.upper():<7} ", style=f"bold {P.text} on {P.raised}")
         txt.append(" ")
@@ -874,7 +883,7 @@ class GlacisApp(App):
             txt.append(f"{s.version} ", style=f"{P.text_soft}")
 
         if s.access_potential in ("HIGH", "CRITICAL"):
-            txt.append(f" [⚡ {s.access_potential}] ", style=f"bold {P.bg} on {P.danger}")
+            txt.append(f" [▲ {s.access_potential}] ", style=f"bold {P.bg} on {P.danger}")
         elif s.access_potential and s.access_potential != "LOW":
             txt.append(f" [{s.access_potential}] ", style=f"bold {P.bg} on {P.warn}")
 
@@ -904,18 +913,19 @@ class GlacisApp(App):
     def _format_checklist_row(self, item: ChecklistItem) -> Text:
         P = current_palette()
         txt = Text()
+        # Fixed-width pills keep the step text on one raster regardless of state.
         if item.status == ChecklistStatus.CHECKED:
-            txt.append("[✓ DONE] ", style=f"bold {P.bg} on {P.ok}")
-            txt.append(f" {item.title}", style="dim strike")
+            txt.append(f"[{G['done']} DONE]", style=f"bold {P.bg} on {P.ok}")
+            txt.append(f" {elide(item.title, _ROW_TEXT_WIDTH)}", style="dim strike")
         elif item.status == ChecklistStatus.DEFERRED:
-            txt.append("[⏸ DEFER] ", style=f"bold {P.bg} on {P.warn}")
-            txt.append(f" {item.title}", style=f"bold {P.warn}")
+            txt.append(f"[{G['deferred']} DEFER]", style=f"bold {P.bg} on {P.warn}")
+            txt.append(f" {elide(item.title, _ROW_TEXT_WIDTH)}", style=f"bold {P.warn}")
         elif item.status == ChecklistStatus.DEAD_END:
-            txt.append("[✖ DROP] ", style=f"bold {P.bg} on {P.danger}")
-            txt.append(f" {item.title}", style=f"{P.muted}")
+            txt.append(f"[{G['dead_end']} DROP]", style=f"bold {P.bg} on {P.danger}")
+            txt.append(f" {elide(item.title, _ROW_TEXT_WIDTH)}", style=f"{P.muted}")
         else:
-            txt.append("[⏳ TODO] ", style=f"bold {P.bg} on {P.accent}")
-            txt.append(f" {item.title}", style=f"bold {P.text}")
+            txt.append(f"[{G['next']} TODO]", style=f"bold {P.bg} on {P.accent}")
+            txt.append(f" {elide(item.title, _ROW_TEXT_WIDTH)}", style=f"bold {P.text}")
         return txt
 
     def _update_checklist_progress(self) -> None:

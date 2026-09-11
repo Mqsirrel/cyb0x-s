@@ -13,8 +13,9 @@ from textual.widgets import DataTable, Label, ListView, Static
 from glacis.models import Credential, Service, Target
 from glacis.services_meta import AUTH_SERVICE_NAMES, AUTH_SERVICE_PORTS
 from glacis.tui import widgets as _pkg
-from glacis.tui.theme import current_palette
-from glacis.tui.widgets.lists import DataListItem
+from glacis.tui.theme import GLYPHS as G, current_palette
+from glacis.tui.widgets.chrome import set_border_text
+from glacis.tui.widgets.lists import DataListItem, elide, keycap_line
 
 __all__ = [
     "AUTH_SERVICE_NAMES",
@@ -86,8 +87,14 @@ class LootAndFlagsWidget(Static):
     .loot-title {
         display: none;
     }
+    /* The per-panel hint line used to be composed and then hidden, which left
+       three tall panels with no explanation of what belongs in them. Pinned to
+       the panel floor it doubles as the legend and the empty-state guide. */
     .loot-sub {
-        display: none;
+        height: 2;
+        padding: 0 1;
+        color: $text-muted;
+        border-top: solid $border;
     }
     """
 
@@ -98,18 +105,19 @@ class LootAndFlagsWidget(Static):
     def on_mount(self) -> None:
         """Ensure Loot & Flags data is populated as soon as the station is mounted."""
         try:
-            self.query_one("#loot-flags-box", Vertical).border_title = " ★ OBJECTIVES & CAPTURED FLAGS "
-            self.query_one("#loot-flags-box", Vertical).border_subtitle = " [g: Flags] "
-            self.query_one("#loot-foothold-box", Vertical).border_title = " ▸ INITIAL FOOTHOLD & EXPLOIT "
-            self.query_one("#loot-foothold-box", Vertical).border_subtitle = " [:foothold] "
-            self.query_one("#loot-privesc-box", Vertical).border_title = " ★ PRIVILEGE ESCALATION & ROOT "
-            self.query_one("#loot-privesc-box", Vertical).border_subtitle = " [:privesc] "
-            self.query_one("#loot-evidence-box", Vertical).border_title = " ◆ QUESTION & EVIDENCE PROOFS "
-            self.query_one("#loot-evidence-box", Vertical).border_subtitle = " [a: Add · e: Export] "
-            self.query_one("#loot-files-box", Vertical).border_title = " ■ DISK LOOT & EVIDENCE FILES "
-            self.query_one("#loot-files-box", Vertical).border_subtitle = " [Space: View · v: Paste] "
-            self.query_one("#loot-failure-box", Vertical).border_title = " ▲ RABBIT HOLES & BREAKTHROUGHS "
-            self.query_one("#loot-failure-box", Vertical).border_subtitle = " [:stuck · :clue] "
+            # One glyph per concept: ★ is "flag captured", ▲ is "escalation",
+            # ▼ is "rabbit hole". Re-using ★ for two different cards (as it
+            # did) forces the reader to disambiguate by text alone.
+            _titles = {
+                "#loot-flags-box": (f" {G['loot']} OBJECTIVES & CAPTURED FLAGS ", " [g: Flags] "),
+                "#loot-foothold-box": (f" {G['host_foothold']} INITIAL FOOTHOLD & EXPLOIT ", " [:foothold] "),
+                "#loot-privesc-box": (f" {G['warn']} PRIVILEGE ESCALATION & ROOT ", " [:privesc] "),
+                "#loot-evidence-box": (f" {G['credentials']} QUESTION & EVIDENCE PROOFS ", " [a: Add · e: Export] "),
+                "#loot-files-box": (f" {G['notes']} DISK LOOT & EVIDENCE FILES ", " [Space: View · v: Paste] "),
+                "#loot-failure-box": (f" ▼ RABBIT HOLES & BREAKTHROUGHS ", " [:stuck · :clue] "),
+            }
+            for selector, (title, sub) in _titles.items():
+                set_border_text(self.query_one(selector, Vertical), title=title, subtitle=sub)
         except Exception:
             pass
 
@@ -136,16 +144,20 @@ class LootAndFlagsWidget(Static):
         with Horizontal(id="loot-lower-container"):
             with Vertical(id="loot-evidence-box", classes="loot-lower-box"):
                 yield Label("QUESTION & EVIDENCE PROOFS", classes="loot-title")
-                yield Label("Press 'a' / :q <num> <proof> • Enter=Copy", classes="loot-sub")
                 yield ListView(id="loot-evidence-list")
+                yield Static(keycap_line(("a", "add proof"), ("e", "export"), ("Enter", "copy")),
+                             classes="loot-sub")
             with Vertical(id="loot-files-box", classes="loot-lower-box"):
                 yield Label("DISK LOOT & EVIDENCE FILES", classes="loot-title")
-                yield Label("Enter=Copy Path • Space=Preview • v=Paste Screenshot", classes="loot-sub")
                 yield ListView(id="loot-files-list")
+                yield Static(keycap_line(("Enter", "copy path"), ("Space", "preview"), ("v", "paste")),
+                             classes="loot-sub")
             with Vertical(id="loot-failure-box", classes="loot-lower-box"):
                 yield Label("RABBIT HOLES & BREAKTHROUGHS", classes="loot-title")
-                yield Label("Type :stuck <where> / :clue <breakthrough>", classes="loot-sub")
                 yield ListView(id="loot-failure-list")
+                yield Static(keycap_line(("Space", "cycle"), (":stuck <where>", "log it"),
+                                        (":clue <breakthrough>", "log it")),
+                             classes="loot-sub")
 
     def update_data(
         self,
@@ -164,7 +176,7 @@ class LootAndFlagsWidget(Static):
                 f_txt.append(" USER FLAG:\n", style=f"bold {P.text}")
                 f_txt.append(f" ❯ {target.user_flag}\n\n", style=f"bold {P.ok}")
             else:
-                f_txt.append(" [⏳ PENDING]  ", style=f"bold {P.bg} on {P.muted}")
+                f_txt.append(" [· PENDING]  ", style=f"bold {P.bg} on {P.muted}")
                 f_txt.append(" USER FLAG:\n", style=f"bold {P.text}")
                 f_txt.append(" ❯ <NOT CAPTURED YET>\n\n", style="dim italic")
 
@@ -173,7 +185,7 @@ class LootAndFlagsWidget(Static):
                 f_txt.append(" ROOT FLAG:\n", style=f"bold {P.text}")
                 f_txt.append(f" ❯ {target.root_flag}\n", style=f"bold {P.accent}")
             else:
-                f_txt.append(" [⏳ PENDING]  ", style=f"bold {P.bg} on {P.muted}")
+                f_txt.append(" [· PENDING]  ", style=f"bold {P.bg} on {P.muted}")
                 f_txt.append(" ROOT FLAG:\n", style=f"bold {P.text}")
                 f_txt.append(" ❯ <NOT CAPTURED YET>\n", style="dim italic")
         else:
@@ -193,7 +205,7 @@ class LootAndFlagsWidget(Static):
                 fh_txt.append(" [CMD]  ", style=f"bold {P.bg} on {P.warn}")
                 fh_txt.append(f" ❯ {target.foothold_cmd}", style=f"bold {P.warn}")
         else:
-            fh_txt.append("\n  • No foothold recorded yet.\n  • Type :foothold <vuln> or :foot <cmd> to record.", style="dim italic")
+            fh_txt.append("\n  • No foothold recorded yet.\n  • :foothold <vuln> records it.", style="dim italic")
         self.query_one("#loot-foothold-content", Static).update(fh_txt)
 
         # PrivEsc Card
@@ -206,7 +218,7 @@ class LootAndFlagsWidget(Static):
             pe_txt.append(" [ROOT] ", style=f"bold {P.bg} on {P.ok}")
             pe_txt.append(f" ❯ {proof}", style=f"bold {P.accent}")
         else:
-            pe_txt.append("\n  • No PrivEsc recorded yet.\n  • Type :privesc <vector> to record root proof.", style="dim italic")
+            pe_txt.append("\n  • No PrivEsc recorded yet.\n  • :privesc <vector> records it.", style="dim italic")
         self.query_one("#loot-privesc-content", Static).update(pe_txt)
 
         # Question Proofs List
@@ -274,7 +286,7 @@ class LootAndFlagsWidget(Static):
             txt.append("  [LOOT DIR] ", style=f"bold {P.bg} on {P.accent}")
             txt.append("No files in loot/ or screenshots/\n", style=f"bold {P.text}")
             txt.append("  [▸ PASTE]  ", style=f"bold {P.bg} on {P.ok}")
-            txt.append("Press 'v' or :paste-ev from clipboard", style=f"{P.muted}")
+            txt.append("Press 'v' to paste from clipboard", style=f"{P.muted}")
             f_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
 
         # Failure Log List
@@ -419,7 +431,7 @@ class CredentialMatrixWidget(Static):
         color: $text-muted;
         text-align: right;
     }
-    #cred-matrix-table {
+    #cred-matrix-panel {
         height: 1fr;
         border: solid $border;
         border-title-color: $text-soft;
@@ -428,10 +440,15 @@ class CredentialMatrixWidget(Static):
         border-subtitle-align: right;
         background: $surface;
     }
-    #cred-matrix-table:focus {
+    #cred-matrix-panel:focus-within {
         border: double $accent;
         border-title-color: $accent;
         border-subtitle-color: $accent;
+    }
+    #cred-matrix-table {
+        height: 1fr;
+        border: none;
+        background: transparent;
     }
     #cred-matrix-empty {
         height: 1fr;
@@ -444,7 +461,7 @@ class CredentialMatrixWidget(Static):
     }
     """
 
-    CELL_CYCLE = ["○ UNTESTED", "✔ VALID", "👑 PWN3D", "✗ INVALID"]
+    CELL_CYCLE = ["○ UNTESTED", "✔ VALID", "★ PWN3D", "✗ INVALID"]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -456,9 +473,11 @@ class CredentialMatrixWidget(Static):
     def on_mount(self) -> None:
         """Ensure Credential Matrix data is populated as soon as mounted."""
         try:
-            table = self.query_one("#cred-matrix-table", DataTable)
-            table.border_title = " CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX "
-            table.border_subtitle = " [Space: Cycle Status] · [Enter: Copy Spray Cmd] "
+            set_border_text(
+                self.query_one("#cred-matrix-panel"),
+                title=" CREDENTIAL VAULT & LATERAL MOVEMENT MATRIX ",
+                subtitle=" [Space: Cycle] · [Enter: Copy Spray Cmd] ",
+            )
         except Exception:
             pass
         if hasattr(self.app, "store"):
@@ -475,15 +494,17 @@ class CredentialMatrixWidget(Static):
             yield Label("", id="cred-matrix-hdr")
             yield Label("", id="cred-matrix-sub")
         yield Static(id="cred-matrix-empty")
-        table = DataTable(id="cred-matrix-table", cursor_type="cell")
-        table.zebra_stripes = True
-        yield table
+        with Vertical(id="cred-matrix-panel"):
+            table = DataTable(id="cred-matrix-table", cursor_type="cell")
+            table.zebra_stripes = True
+            yield table
+            yield Static(id="cred-matrix-legend", classes="panel-legend")
 
     def _render_empty_guide(self) -> Text:
         P = current_palette()
         t = Text()
         t.append("\n")
-        t.append("  🔑 CREDENTIAL SPRAY & LATERAL MOVEMENT MATRIX\n", style=f"bold {P.accent}")
+        t.append("  ◆ CREDENTIAL SPRAY & LATERAL MOVEMENT MATRIX\n", style=f"bold {P.accent}")
         t.append("  ──────────────────────────────────────────────────────────────────────────────────────────\n", style=f"{P.border}")
         t.append("  This 2D matrix automatically maps discovered credentials against authenticating services\n", style=f"{P.text}")
         t.append("  across all in-scope target machines (SSH, SMB, RDP, WinRM, FTP, databases).\n\n", style=f"{P.text_soft}")
@@ -498,7 +519,7 @@ class CredentialMatrixWidget(Static):
         t.append("  3. Test & Track Lateral Movement:\n", style=f"bold {P.text}")
         t.append("     • Move between cells using Arrow keys or j / k / h / l.\n", style=f"{P.text_soft}")
         t.append("     • Press [Space] on any cell to cycle verification state:\n", style=f"{P.text_soft}")
-        t.append("       ○ UNTESTED  →  ✔ VALID  →  👑 PWN3D  →  ✗ INVALID\n", style=f"bold {P.ok}")
+        t.append("       ○ UNTESTED  →  ✔ VALID  →  ★ PWN3D  →  ✗ INVALID\n", style=f"bold {P.ok}")
         t.append("     • Press [Enter] on any cell to compile & copy ready-to-run spray command (netexec, hydra).\n\n", style=f"bold {P.accent}")
         t.append("  [Press 'c' now to record a credential, or press '1' to return to Cockpit]", style="dim italic")
         return t
@@ -558,40 +579,45 @@ class CredentialMatrixWidget(Static):
 
         # KPI Badges
         hdr_txt = Text()
-        hdr_txt.append(f" [ ★ {len(credentials)} CREDS ] ", style=f"bold {P.bg} on {P.accent}")
+        hdr_txt.append(f" [ ◆ {len(credentials)} CREDS ] ", style=f"bold {P.bg} on {P.accent}")
         hdr_txt.append(" ")
         hdr_txt.append(f" [ ✔ {tested} VALIDATED ] ", style=f"bold {P.bg} on {P.ok}")
         if pwned:
             hdr_txt.append(" ")
-            hdr_txt.append(f" [ ★ {pwned} PWNED ] ", style=f"bold {P.bg} on {P.warn}")
+            hdr_txt.append(f" [ ★ {pwned} PWN3D ] ", style=f"bold {P.bg} on {P.warn}")
         if auth_pairs:
             hdr_txt.append(" ")
             hdr_txt.append(f" [ ▸ {len(auth_pairs)} SPRAY TARGETS ] ", style=f"bold {P.bg} on {P.raised}")
         hdr_label.update(hdr_txt)
 
-        # Action shortcuts
+        # The same four keys were printed here, in the panel subtitle and in
+        # the console bar. Two of the three go: the panel subtitle and the
+        # console are standard furniture on every station, so the matrix keeps
+        # only the coverage figure that exists nowhere else.
+        covered = sum(
+            1
+            for c in credentials
+            for _, s in auth_pairs
+            if self.cell_states.get((c.id, s.id), "○ UNTESTED") != "○ UNTESTED"
+        )
+        cells = max(len(credentials) * len(auth_pairs), 1)
         sub_text = Text()
-        sub_text.append("[Space]", style=f"bold {P.accent}")
-        sub_text.append(" Cycle Status  ")
-        sub_text.append("[Enter]", style=f"bold {P.accent}")
-        sub_text.append(" Copy Spray  ")
-        sub_text.append("[c]", style=f"bold {P.accent}")
-        sub_text.append(" Add Cred  ")
-        sub_text.append("[x]", style=f"bold {P.accent}")
-        sub_text.append(" Reveal")
+        sub_text.append(f"{covered}/{cells} cells tested", style=f"bold {P.text_soft}")
         subtitle.update(sub_text)
 
-        # Setup Table Columns
-        table.add_column("CREDENTIAL (USER : SECRET)", key="cred")
+        # Setup Table Columns — fixed widths, centred state cells. AutoSized
+        # columns let a 9-char "[✔ VALID]" and a 12-char "[○ UNTESTED]" shift
+        # every following column, so the header never sat above its data.
+        table.add_column("CREDENTIAL (USER : SECRET)", key="cred", width=32)
         if auth_pairs:
             for t, s in auth_pairs:
-                col_title = f"{t.ip}:{s.port} ({s.service.upper()})"
-                table.add_column(col_title, key=f"svc_{s.id}")
+                col_title = f"{t.ip}:{s.port} {s.service.upper()}"
+                table.add_column(elide(col_title, 20), key=f"svc_{s.id}", width=20)
         else:
-            table.add_column("SCOPE", key="scope")
-            table.add_column("STATUS", key="status")
-            table.add_column("SOURCE", key="source")
-            table.add_column("LATERAL TARGETS", key="note")
+            table.add_column("SCOPE", key="scope", width=12)
+            table.add_column("STATUS", key="status", width=14)
+            table.add_column("SOURCE", key="source", width=18)
+            table.add_column("LATERAL TARGETS", key="note", width=34)
 
         # Setup Table Rows
         for c in credentials:
@@ -624,17 +650,46 @@ class CredentialMatrixWidget(Static):
             else:
                 table.add_row(cred_txt, c.service_scope or "GLOBAL", c.status.upper(), c.source or "-", "Add SSH/SMB/RDP in Cockpit to spray", key=f"cred_{c.id}")
 
+        self._paint_legend(auth_pairs)
+
+    def _paint_legend(self, auth_pairs: List[tuple[Target, Service]]) -> None:
+        """Pin the cell-state key to the floor of the matrix.
+
+        Without it the reader has to learn four states and two keys by
+        trial and error; with it the station explains itself in one line.
+        """
+        P = current_palette()
+        try:
+            legend = self.query_one("#cred-matrix-legend", Static)
+        except Exception:
+            return
+        t = Text()
+        t.append("CELL ▸ ", style=f"bold {P.accent}")
+        for i, state in enumerate(self.CELL_CYCLE):
+            if i:
+                t.append(" → ", style=f"dim {P.muted}")
+            t.append(state, style=f"bold {P.text_soft}")
+        t.append("   ", style="")
+        t.append_text(keycap_line(("Space", "cycle"), ("Enter", "copy spray"), ("x", "reveal"), ("c", "add cred")))
+        if not auth_pairs:
+            t.append("\n", style="")
+            t.append("No authenticating services recorded yet — add SSH / SMB / RDP / WinRM "
+                     "ports in Cockpit to turn this into a spray matrix.", style=f"{P.muted}")
+        legend.update(t)
+
     def _format_state(self, state: str) -> Text:
         P = current_palette()
+        # Every pill is padded to the same width: a 9-char [✔ VALID] next to a
+        # 12-char [○ UNTESTED] shifts the whole column and breaks the raster.
         txt = Text()
         if "VALID" in state or "✔" in state:
-            txt.append(" [✔ VALID] ", style=f"bold {P.bg} on {P.ok}")
-        elif "PWN" in state or "👑" in state:
-            txt.append(" [★ PWN3D] ", style=f"bold {P.bg} on {P.accent}")
+            txt.append(" [✔ VALID]".ljust(14), style=f"bold {P.bg} on {P.ok}")
+        elif "PWN" in state or "★" in state:
+            txt.append(" [★ PWN3D]".ljust(14), style=f"bold {P.bg} on {P.accent}")
         elif "INVALID" in state or "✗" in state:
-            txt.append(" [✗ FAIL] ", style=f"bold {P.bg} on {P.danger}")
+            txt.append(" [✗ FAIL]".ljust(14), style=f"bold {P.bg} on {P.danger}")
         else:
-            txt.append(" [○ UNTESTED] ", style=f"dim {P.muted}")
+            txt.append(" [○ UNTESTED]".ljust(14), style=f"dim {P.muted}")
         return txt
 
     def on_key(self, event: Any) -> None:

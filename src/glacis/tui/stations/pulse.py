@@ -26,23 +26,24 @@ from glacis.triage import (
     TriageReport,
     phase_counts,
 )
-from glacis.tui.theme import current_palette
-from glacis.tui.widgets.lists import DataListItem, sync_data_list
+from glacis.tui.theme import GLYPHS, current_palette
+from glacis.tui.widgets.chrome import set_border_text
+from glacis.tui.widgets.lists import DataListItem, elide, sync_data_list
 
 _PHASE_STYLE = {
-    HostPhase.UNTOUCHED: ("◇", "warn"),
-    HostPhase.RECON: ("◐", "accent"),
-    HostPhase.FOOTHOLD: ("▸", "warn"),
-    HostPhase.USER: ("◆", "ok"),
-    HostPhase.ROOT: ("★", "ok"),
-    HostPhase.COMPLETE: ("✔", "ok"),
+    HostPhase.UNTOUCHED: (GLYPHS["host_untouched"], "warn"),
+    HostPhase.RECON: (GLYPHS["host_recon"], "accent"),
+    HostPhase.FOOTHOLD: (GLYPHS["host_foothold"], "warn"),
+    HostPhase.USER: (GLYPHS["host_user"], "ok"),
+    HostPhase.ROOT: (GLYPHS["host_root"], "ok"),
+    HostPhase.COMPLETE: (GLYPHS["host_complete"], "ok"),
 }
 
 _SEV_STYLE = {
-    AdvisorySeverity.CRIT: ("✖", "danger"),
-    AdvisorySeverity.WARN: ("▲", "warn"),
-    AdvisorySeverity.HINT: ("•", "accent"),
-    AdvisorySeverity.INFO: ("·", "muted"),
+    AdvisorySeverity.CRIT: (GLYPHS["dead_end"], "danger"),
+    AdvisorySeverity.WARN: (GLYPHS["warn"], "warn"),
+    AdvisorySeverity.HINT: (GLYPHS["hint"], "accent"),
+    AdvisorySeverity.INFO: (GLYPHS["info"], "muted"),
 }
 
 
@@ -70,6 +71,7 @@ class PulseStation(Static):
     #pulse-mode {
         width: auto;
         height: 3;
+        margin-left: 1;
         border: solid $border;
         background: $surface;
         padding: 0 1;
@@ -80,11 +82,11 @@ class PulseStation(Static):
         layout: horizontal;
     }
     #pulse-hosts-panel {
-        width: 46%;
+        width: 48%;
         height: 100%;
     }
     #pulse-advisories-panel {
-        width: 54%;
+        width: 52%;
         height: 100%;
         margin-left: 1;
     }
@@ -119,46 +121,113 @@ class PulseStation(Static):
         with Horizontal(id="pulse-body"):
             with Vertical(id="pulse-hosts-panel", classes="panel-box"):
                 yield ListView(id="pulse-hosts", classes="panel-list")
+                yield Static(id="pulse-hosts-legend", classes="panel-legend")
             with Vertical(id="pulse-advisories-panel", classes="panel-box"):
                 yield ListView(id="pulse-advisories", classes="panel-list")
+                yield Static(id="pulse-advisories-legend", classes="panel-legend")
 
     def on_mount(self) -> None:
+        P_ = current_palette()
         try:
-            self.query_one("#pulse-hosts-panel").border_title = " HOST TRIAGE BOARD "
-            self.query_one("#pulse-advisories-panel").border_title = " EXPLAINABLE NEXT-FOCUS SIGNALS "
-            self.query_one("#pulse-hosts-panel").border_subtitle = " [Enter: Focus host] "
-            self.query_one("#pulse-advisories-panel").border_subtitle = " [Enter: Jump] "
+            set_border_text(
+                self.query_one("#pulse-hosts-panel"),
+                title=" HOST TRIAGE BOARD ",
+                subtitle=" [Enter: Focus host] ",
+            )
+            set_border_text(
+                self.query_one("#pulse-advisories-panel"),
+                title=" EXPLAINABLE NEXT-FOCUS SIGNALS ",
+                subtitle=" [Enter: Jump] ",
+            )
+            self.query_one("#pulse-hosts-legend", Static).update(
+                Text.assemble(
+                    (f"{GLYPHS['host_untouched']} UNTOUCHED   ", "bold " + P_.accent),
+                    (f"{GLYPHS['host_recon']} RECON   ", "bold " + P_.accent),
+                    (f"{GLYPHS['host_foothold']} FOOTHOLD   ", "bold " + P_.accent),
+                    (f"{GLYPHS['host_user']} USER   ", "bold " + P_.accent),
+                    (f"{GLYPHS['host_root']} ROOT   ", "bold " + P_.accent),
+                    (f"{GLYPHS['host_complete']} COMPLETE\n", "bold " + P_.accent),
+                    ("svc services · todo untested · cred creds · ev evidence · ", P_.muted),
+                    (f"{GLYPHS['dead_end_count']} dead ends", P_.muted),
+                )
+            )
+            self.query_one("#pulse-advisories-legend", Static).update(
+                Text.assemble(
+                    (f"{GLYPHS['dead_end']} CRITICAL   ", "bold " + P_.danger),
+                    (f"{GLYPHS['warn']} ATTENTION   ", "bold " + P_.warn),
+                    (f"{GLYPHS['hint']} HINT   ", "bold " + P_.accent),
+                    (f"{GLYPHS['info']} INFO      ", P_.muted),
+                    ("Enter opens the station the signal points at", P_.muted),
+                )
+            )
         except Exception:
             pass
 
     # ------------------------------------------------------------------
+    def _hosts_panel_width(self) -> int:
+        """Usable row width of the host board (minus padding and scrollbar)."""
+        try:
+            width = self.query_one("#pulse-hosts", ListView).size.width - 3
+        except Exception:
+            width = 0
+        return width if width > 24 else 70
+
     def _host_row(self, h: Any) -> Text:
+        """One host, answerable in one glance.
+
+        Order is deliberate: identity → progress → phase → *what is left*.
+        ``s1/u1`` needed the manual; ``todo 1`` does not, and the untested
+        count is the only number that changes what you do next, so it is the
+        only one painted in warning colour.
+        """
         P = current_palette()
-        icon, colour = _PHASE_STYLE.get(h.phase, ("◇", "muted"))
+        icon, colour = _PHASE_STYLE.get(h.phase, (GLYPHS["host_untouched"], "muted"))
+
+        # Budgets are derived from the *panel* width, not the station width, so
+        # the row stays inside its frame on a 100-column terminal as well as a
+        # 250-column one.  Everything after the identity block is optional and
+        # dropped in priority order when there is no room.
+        panel_width = self._hosts_panel_width()
+        host_budget = max(min(panel_width // 4, 18), 8)
+        fixed = 2 + 15 + 2 + host_budget + 2 + 10 + 1 + 4 + 1 + 10
+
         t = Text()
         t.append(f"{icon} ", style=f"bold {getattr(P, colour)}")
         t.append(f"{h.ip:<15}", style="bold " + P.text)
         if h.hostname:
-            host = h.hostname if len(h.hostname) <= 12 else h.hostname[:11] + "…"
-            t.append(f" {host:<12}", style=P.text_soft)
-        t.append(" ")
+            t.append(f"  {elide(h.hostname, host_budget):<{host_budget}}", style=P.text_soft)
+        t.append("  ")
         t.append(h.progress_bar, style=f"bold {P.ok}")
-        t.append(f" {h.completion_pct:5.1f}% ", style=P.text_soft)
-        t.append(f"[{h.phase.value:<9}]", style=f"bold {getattr(P, colour)}")
-        t.append(f" s{h.services_total}", style=P.muted)
-        if h.services_untested:
-            t.append(f"/u{h.services_untested}", style=f"bold {P.warn}")
-        if h.creds_count:
-            t.append(f" k{h.creds_count}", style=P.accent)
-        if h.evidence_count:
-            t.append(f" e{h.evidence_count}", style=P.ok)
+        t.append(f" {h.completion_pct:3.0f}% ", style=P.text_soft)
+        t.append(f"[{h.phase.value:<8}]", style=f"bold {getattr(P, colour)}")
+
         dead = h.services_dead_end + h.failure_count
+        # Line 2 is the *inventory*: it is what turns a phase badge into a
+        # decision, and it is also what stops a two-host board from being 25
+        # rows of dead space.
+        t.append("\n  ")
+        t.append(h.progress_bar, style=f"bold {P.ok}")
+        t.append("  ", style="")
+        counters = [
+            (f"svc {h.services_total}", P.muted if h.services_total else f"dim {P.muted}"),
+            (f"todo {h.services_untested}", f"bold {P.warn}" if h.services_untested else f"dim {P.muted}"),
+            (f"cred {h.creds_count}", P.accent if h.creds_count else f"dim {P.muted}"),
+            (f"ev {h.evidence_count}", P.ok if h.evidence_count else f"dim {P.muted}"),
+        ]
         if dead:
-            t.append(f" ✖{dead}", style=f"bold {P.danger}")
+            counters.append((f"{GLYPHS['dead_end']}{dead} dead", f"bold {P.danger}"))
+        used = 2 + 10 + 2
+        for i, (label, style) in enumerate(counters):
+            if used + len(label) + 3 > panel_width:
+                break
+            if i:
+                t.append(" · ", style=f"dim {P.muted}")
+            t.append(label, style=style)
+            used += len(label) + 3
         if not h.is_in_scope:
-            t.append(" OUT-OF-SCOPE", style=f"bold {P.danger}")
+            t.append("  OUT-OF-SCOPE", style=f"bold {P.danger}")
         if h.is_pivot:
-            t.append(" ⇄", style=f"bold {P.warn}")
+            t.append(f" {GLYPHS['pivot']}", style=f"bold {P.warn}")
         return t
 
     def _advisory_row(self, a: TriageAdvisory) -> Text:
@@ -171,7 +240,7 @@ class PulseStation(Static):
         if a.detail:
             t.append(f"\n    {a.detail}", style=P.text_soft)
         if a.action_text:
-            t.append(f"\n    ▸ {a.action_text}", style=f"bold {getattr(P, colour)}")
+            t.append(f"\n    {GLYPHS['next']} {a.action_text}", style=f"bold {getattr(P, colour)}")
         if a.kind == AdvisoryKind.DIRECTION:
             t.append("  (opt-in)", style=f"dim {P.muted}")
         return t
@@ -217,7 +286,11 @@ class PulseStation(Static):
             host_list.clear()
             empty = Text()
             empty.append("  [+ ADD TARGET] ", style=f"bold {P.bg} on {P.accent}")
-            empty.append(" Press 't' or :t 10.10.10.10", style=f"bold {P.text}")
+            empty.append(" press ", style=f"bold {P.text}")
+            empty.append("t", style=f"bold {P.bg} on {P.accent}")
+            empty.append(" and name the first box you are attacking", style=f"bold {P.text}")
+            empty.append("\n  Nothing else on this station means anything until a target exists.",
+                        style=f"{P.muted}")
             host_list.append(DataListItem(data_obj=None, display_text=empty, is_placeholder=True))
 
         adv_list = self.query_one("#pulse-advisories", ListView)
@@ -227,19 +300,34 @@ class PulseStation(Static):
             self._advisory_row,
             key_fn=lambda a: ("TriageAdvisory",) + a.key(),
         )
+        if report.advisories:
+            # A short list that simply stops reads as a rendering bug. One
+            # terminal marker says "that is everything" without inventing data.
+            P = current_palette()
+            tail = Text()
+            tail.append(f" {GLYPHS['info']} end of signals", style=f"dim {P.muted}")
+            adv_list.append(DataListItem(data_obj=None, display_text=tail, is_placeholder=True))
         if not report.advisories:
             P = current_palette()
             adv_list.clear()
             calm = Text()
-            calm.append("  ✔ NOTHING OUTSTANDING ", style=f"bold {P.bg} on {P.ok}")
+            calm.append(f"  {GLYPHS['done']} NOTHING OUTSTANDING ", style=f"bold {P.bg} on {P.ok}")
             calm.append("\n  Every host is mapped with no open state gaps. Keep recording.",
                         style=f"bold {P.text}")
             adv_list.append(DataListItem(data_obj=None, display_text=calm, is_placeholder=True))
 
         try:
-            self.query_one("#pulse-hosts-panel").border_subtitle = f" {len(report.hosts)} hosts "
-            self.query_one("#pulse-advisories-panel").border_subtitle = (
-                f" {len(report.advisories)} signals "
+            untested = sum(h.services_untested for h in report.hosts)
+            stuck = sum(h.services_dead_end + h.failure_count for h in report.hosts)
+            hosts_sub = f" {len(report.hosts)} hosts "
+            if untested:
+                hosts_sub += f"· {untested} untested "
+            if stuck:
+                hosts_sub += f"· {stuck} dead "
+            set_border_text(self.query_one("#pulse-hosts-panel"), subtitle=hosts_sub)
+            set_border_text(
+                self.query_one("#pulse-advisories-panel"),
+                subtitle=f" {len(report.advisories)} signals · [Enter: Jump] ",
             )
         except Exception:
             pass

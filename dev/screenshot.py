@@ -137,17 +137,20 @@ async def capture(
             print(f"wrote {path}  ({note})")
 
 
+# One render per station plus every modal, named after the design-audit
+# manifest so docs and review notes always refer to the same file.
 SHOTS = [
-    ("01-worksheet", [], "tab 1 default view"),
-    ("02-playbooks", ["2"], "tab 2 playbooks"),
-    ("03-creds", ["3"], "tab 3 credential matrix"),
-    ("04-loot", ["4"], "tab 4 flags & failure log"),
-    ("05-help", ["1", "question_mark"], "help modal"),
-    ("06-search", ["escape", "slash"], "search modal"),
-    ("07-reference", ["escape", "r"], "cheat sheet modal"),
-    ("08-add-target", ["escape", "t"], "add target modal"),
-    ("09-add-service", ["escape", "s"], "add service modal"),
-    ("10-templates", ["escape", "m"], "template picker"),
+    ("00-pulse", ["0"], "station 0 · pulse triage board"),
+    ("01-cockpit", ["1"], "station 1 · cockpit (attack surface + workbench)"),
+    ("02-playbooks", ["2"], "station 2 · playbook browser"),
+    ("03-creds", ["3"], "station 3 · credential spray matrix"),
+    ("04-loot", ["4"], "station 4 · loot, flags & rabbit holes"),
+    ("05-network", ["5"], "station 5 · documented network topology"),
+    ("06-help", ["1", "question_mark"], "help & keybindings modal"),
+    ("07-reference", ["escape", "r"], "reference playbook modal"),
+    ("08-add-target", ["escape", "t"], "add target dialog"),
+    ("09-add-service", ["escape", "s"], "add service dialog"),
+    ("10-templates", ["escape", "m"], "methodology template picker"),
 ]
 
 
