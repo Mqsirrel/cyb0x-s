@@ -18,15 +18,19 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
+from glacis import snapshot as snapshot_mod
 from glacis.clipboard import copy_to_clipboard
 from glacis.db.store import NotebookStore
 from glacis.export import export_json, export_markdown, export_txt, import_json
+from glacis.exporter_html import export_html
 from glacis.extractor import CandidateType, extract_candidates, stage_and_commit_candidate
 from glacis.models import ChecklistStatus
+from glacis.offline_audit import scan_tree
 from glacis.routes import build_network_topology, generate_proxychains_config, resolve_pivot_route
 from glacis.scan_import import check_scan_already_imported, commit_scan_results, inspect_scan_file
 from glacis.search import search_notebook
 from glacis.templates import apply_template_to_store
+from glacis.triage import evaluate_workspace, phase_counts
 
 console = Console()
 err_console = Console(stderr=True)
@@ -533,18 +537,24 @@ def search_cmd(ctx: click.Context, query: str) -> None:
 # -----------------------------------------------------------------------------
 
 @cli.command("export")
-@click.option("--format", "-f", "fmt", type=click.Choice(["md", "json", "txt"]), default="md", help="Export format")
+@click.option(
+    "--format", "-f", "fmt",
+    type=click.Choice(["md", "json", "txt", "html"]), default="md",
+    help="Export format (html is a single self-contained, printable document)",
+)
 @click.option("--output", "-o", type=click.Path(), default=None, help="Save to file (prints to stdout if omitted)")
 @click.option("--reveal-creds", is_flag=True, help="Include unmasked passwords in export")
 @click.pass_context
 def export_cmd(ctx: click.Context, fmt: str, output: Optional[str], reveal_creds: bool) -> None:
-    """Export the workspace to standalone Markdown, JSON, or TXT."""
+    """Export the workspace to standalone Markdown, HTML, JSON, or TXT."""
     store = _get_store(ctx)
 
     if fmt == "md":
         content = export_markdown(store, reveal_creds=reveal_creds)
     elif fmt == "json":
         content = export_json(store)
+    elif fmt == "html":
+        content = export_html(store, reveal_creds=reveal_creds)
     else:
         content = export_txt(store)
 
@@ -1029,6 +1039,210 @@ def audit_cmd(ctx: click.Context, target: Optional[str], audit_all: bool) -> Non
             console.print(f"[bold green]✓ {res['verdict']} ({score_str})[/bold green]\n")
         else:
             console.print(f"[bold red]⚠️  {res['verdict']} ({score_str})[/bold red]\n")
+
+
+@cli.command("exam-check")
+@click.option("--strict-socket/--no-strict-socket", default=True, help="Also forbid the stdlib socket module")
+@click.pass_context
+def exam_check_cmd(ctx: click.Context, strict_socket: bool) -> None:
+    """Offline-by-construction compliance scan of the GLACIS source tree.
+
+    Parses every Python file under the package (nothing is imported/executed)
+    and fails if a network or telemetry library is imported. Safe to run
+    immediately before an exam as proof the notebook cannot phone home.
+    """
+    import glacis as _glacis_pkg
+
+    package_root = Path(_glacis_pkg.__file__).parent
+    report = scan_tree(package_root)
+
+    if not strict_socket:
+        report.violations = [v for v in report.violations if v.offender.split(".")[0] != "socket"]
+
+    console.print(
+        f"[bold cyan]GLACIS exam-check[/bold cyan] — scanned "
+        f"[bold]{report.files_scanned}[/bold] source file(s) under {package_root}"
+    )
+    if report.clean:
+        console.print(
+            "[green]✓ PASS[/green] — zero network/telemetry imports; the tool is fully offline by construction."
+        )
+        console.print("[dim]No sockets, HTTP clients, update checks, analytics or cloud sync present.[/dim]")
+        return
+
+    console.print(f"[bold red]✗ FAIL[/bold red] — {len(report.violations)} forbidden reference(s):")
+    for v in report.violations:
+        rel = Path(v.path)
+        try:
+            rel = rel.relative_to(package_root.parent)
+        except ValueError:
+            pass
+        console.print(f"  [red]{v.kind}[/red]  {rel}:{v.lineno}  [bold]{escape(v.offender)}[/bold]  {v.detail}")
+    sys.exit(1)
+
+
+@cli.command("triage")
+@click.option("--direction/--state-only", default=False, help="Include opt-in focus-shift suggestions")
+@click.option("--all", "show_all", is_flag=True, help="List every host even when complete")
+@click.pass_context
+def triage_cmd(ctx: click.Context, direction: bool, show_all: bool) -> None:
+    """Print the deterministic Pulse triage report for the active workspace."""
+    store = _get_store(ctx)
+    report = evaluate_workspace(store, include_direction=True if direction else False)
+
+    table = Table(title=f"Pulse — {report.workspace_name} ({report.overall_pct:.0f}% complete)")
+    table.add_column("Host", style="bold cyan")
+    table.add_column("Phase", justify="center")
+    table.add_column("Progress")
+    table.add_column("Svc", justify="right")
+    table.add_column("Untest.", justify="right")
+    table.add_column("Dead", justify="right")
+    table.add_column("Note", style="dim")
+    for h in report.hosts:
+        if not show_all and h.phase.value == "COMPLETE":
+            continue
+        table.add_row(
+            h.ip,
+            h.phase.value,
+            f"{h.progress_bar} {h.completion_pct:.0f}%",
+            str(h.services_total),
+            str(h.services_untested),
+            str(h.services_dead_end + h.failure_count),
+            h.phase_reason,
+        )
+    console.print(table)
+
+    counts = phase_counts(report)
+    console.print(
+        "[bold]Totals:[/bold] "
+        + "  ".join(f"{k.lower()}: [bold]{v}[/bold]" for k, v in counts.items() if v)
+        + f"  |  credentials: {report.totals.get('credentials', 0)}"
+        + f"  proofs: {report.totals.get('proofs', 0)}"
+    )
+
+    if report.advisories:
+        sig = Table(title="Explainable next-focus signals")
+        sig.add_column("Severity", width=6)
+        sig.add_column("Rule", width=22)
+        sig.add_column("Signal")
+        for a in report.advisories:
+            colour = {"CRIT": "red", "WARN": "yellow", "HINT": "cyan", "INFO": "dim"}[a.severity.value]
+            detail = f"\n[dim]{a.detail}[/dim]" if a.detail else ""
+            sig.add_row(f"[{colour}]{a.severity.value}[/{colour}]", a.rule_id, a.title + detail)
+        console.print(sig)
+    else:
+        console.print("[green]✓ No outstanding state gaps recorded.[/green]")
+
+    if not report.direction_enabled:
+        console.print(
+            "[dim]Focus-shift (directional) hints are opt-in and currently off; "
+            "use --direction or press G in the TUI.[/dim]"
+        )
+
+
+@cli.group("snapshot")
+def snapshot_group() -> None:
+    """Local database snapshot safety net (online SQLite backups with rotation)."""
+    pass
+
+
+@snapshot_group.command("create")
+@click.option("--note", "-n", default="", help="Short reminder stored with the snapshot")
+@click.option("--keep", default=5, show_default=True, help="Rotated snapshots to retain")
+@click.pass_context
+def snapshot_create_cmd(ctx: click.Context, note: str, keep: int) -> None:
+    """Create a consistent backup of the notebook database and rotate older ones."""
+    store = _get_store(ctx)
+    try:
+        info = snapshot_mod.create_snapshot(store, note=note, keep=keep)
+    except ValueError as exc:
+        err_console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+    directory = snapshot_mod.snapshots_dir_for(store)
+    console.print(f"[green]✓ Snapshot created:[/green] [bold]{info.file_name}[/bold]")
+    console.print(f"  Location: {directory}")
+    console.print(f"  Size:     {max(info.size_bytes // 1024, 1)} KB")
+    if note:
+        console.print(f"  Note:     {note}")
+
+
+@snapshot_group.command("list")
+@click.pass_context
+def snapshot_list_cmd(ctx: click.Context) -> None:
+    """List available snapshots (newest first)."""
+    store = _get_store(ctx)
+    entries = snapshot_mod.list_snapshots(store)
+    if not entries:
+        console.print("[yellow]No snapshots yet — run 'glacis snapshot create' or :snap in the TUI.[/yellow]")
+        return
+    table = Table(title=f"Snapshots in {snapshot_mod.snapshots_dir_for(store)}")
+    table.add_column("#", justify="right")
+    table.add_column("Snapshot")
+    table.add_column("Size", justify="right")
+    table.add_column("Note")
+    for i, entry in enumerate(entries, start=1):
+        table.add_row(str(i), entry.file_name, f"{max(entry.size_bytes // 1024, 1)} KB", entry.note or "-")
+    console.print(table)
+
+
+@snapshot_group.command("restore")
+@click.argument("reference")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+@click.pass_context
+def snapshot_restore_cmd(ctx: click.Context, reference: str, yes: bool) -> None:
+    """Restore a snapshot by 1-based index, file name, or path."""
+    store = _get_store(ctx)
+    db_path = Path(store.db_path)
+    try:
+        snap_path = snapshot_mod.resolve_snapshot(reference, store)
+    except (IndexError, FileNotFoundError) as exc:
+        err_console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    console.print(f"[yellow]About to replace[/yellow] {db_path} [yellow]with[/yellow] {snap_path}")
+    if not yes and not click.confirm("Restore this snapshot?", default=False):
+        console.print("[dim]Cancelled.[/dim]")
+        return
+    # Safety snapshot of the current database before overwriting.
+    try:
+        snapshot_mod.create_snapshot(store, note="pre-restore auto safety net")
+    except Exception:
+        pass
+    store.close()
+    snapshot_mod.restore_snapshot(snap_path, db_path)
+    console.print(f"[green]✓ Restored {snap_path.name} → {db_path}[/green]")
+
+
+@cli.command("pivot")
+@click.argument("ip", required=False)
+@click.argument("route_note", required=False, default="")
+@click.option("--unmark", is_flag=True, help="Clear the pivot flag on the host")
+@click.pass_context
+def pivot_cmd(ctx: click.Context, ip: Optional[str], route_note: str, unmark: bool) -> None:
+    """Document (or clear) a dual-homed pivot host and its route note.
+
+    Nothing is probed: GLACIS only records your observation, e.g.
+
+      glacis pivot 10.10.10.20 "192.168.50.0/24 via socks5:1080"
+    """
+    store = _get_store(ctx)
+    if not ip:
+        pivots = [t for t in store.list_targets() if t.is_pivot]
+        if not pivots:
+            console.print("[yellow]No pivots documented yet.[/yellow]")
+        for t in pivots:
+            console.print(f"  [bold cyan]⇄ {t.ip}[/bold cyan] {t.hostname} — {t.pivot_route}")
+        return
+    target = store.get_target_by_ip(ip)
+    if target is None:
+        err_console.print(f"[red]Unknown target {ip} — add it with 'glacis target {ip}' first.[/red]")
+        sys.exit(1)
+    if unmark:
+        store.update_target_details(target.id, is_pivot=False, pivot_route="")
+        console.print(f"[green]✓ {ip} is no longer marked as a pivot.[/green]")
+    else:
+        store.update_target_details(target.id, is_pivot=True, pivot_route=route_note)
+        console.print(f"[green]✓ Marked {ip} as pivot[/green] — {route_note or 'dual-homed (note pending)'}")
 
 
 @cli.command("route")

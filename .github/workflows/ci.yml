@@ -25,6 +25,9 @@ jobs:
       - name: Lint and code style
         run: uv run ruff check src/ tests/ scripts/ dev/
 
+      - name: Offline-by-construction compliance
+        run: uv run glacis exam-check
+
       - name: Fast tier (pull requests)
         if: github.event_name == 'pull_request'
         run: uv run pytest -m fast -n auto

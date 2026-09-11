@@ -22,6 +22,7 @@ from glacis.scan_import import (
 )
 from glacis.search import SearchMatch, search_notebook
 from glacis.settings import derive_guidance_enabled
+from glacis.tui.anim import run_debounced
 from glacis.tui.theme import PALETTES, S, current_palette, get_default_theme, save_default_theme
 from glacis.tui.widgets import DataListItem
 
@@ -416,10 +417,10 @@ class SearchModal(ModalScreen):
                 self._copy(match)
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        if self._debounce_timer is not None:
-            self._debounce_timer.stop()
         query = event.value.strip()
-        self._debounce_timer = self.set_timer(0.05, lambda: self._perform_search(query))
+        # Headless-safe debounce: fires synchronously under pytest (no timer
+        # races under -n auto), coalesces keystrokes in a real terminal.
+        run_debounced(self, "_debounce_timer", 0.05, lambda: self._perform_search(query))
 
     def _perform_search(self, query: str) -> None:
         self._debounce_timer = None
@@ -1020,10 +1021,12 @@ The human decides and performs the security-testing actions. GLACIS records and 
 Pure passive recording • Local-first SQLite store • Standalone offline operation.
 
 [bold]Stations:[/bold]
+  [{P.accent}]0[/]  Pulse         host triage board + explainable next-focus signals (G: state/focus mode)
   [{P.accent}]1[/]  Cockpit       attack surface, services, methodology, notes — one screen
   [{P.accent}]2[/]  Playbooks     offline command reference (Enter copies)
   [{P.accent}]3[/]  Credentials   full vault, reveal / copy, spray targets
   [{P.accent}]4[/]  Loot & Flags  user/root flags, foothold, rabbit holes
+  [{P.accent}]5[/]  Network       documented subnets, pivots, SOCKS/ProxyChains actions
 
 [bold]Cockpit layout:[/bold]
   The status strip under the header answers the four assessment questions at a glance:
@@ -1065,14 +1068,21 @@ Pure passive recording • Local-first SQLite store • Standalone offline opera
   :uflag <hash>           record user flag
   :rflag <hash>           record root flag
   :stuck <why> / :clue    log a rabbit hole or the breakthrough clue
-  :ref <term>             offline reference         :1 :2 :3 :4  stations
+  :pivot <route note>     mark active host dual-homed (e.g. :pivot 192.168.1.0/24 via socks5:1080)
+  :snap [note]            snapshot the notebook DB (rotated, kept newest 5)
+  :export html [file]     self-contained printable handover HTML
+  :export exam            exam evidence bundle            :0 :1 :2 :3 :4 :5  stations
 
 [bold]Shell equivalents:[/bold]
   glacis target 10.10.10.20
   glacis service 10.10.10.20 445/tcp SMB --version "Samba 4.3"
   glacis finding "SMB anonymous access enabled" --severity HIGH
   glacis cred admin:password --source backup.zip
-  glacis export --format md -o notes.md
+  glacis triage                 # Pulse report from the shell
+  glacis pivot 10.10.10.20 "192.168.1.0/24 via socks5:1080"
+  glacis snapshot create -n "before import"
+  glacis export -f html -o report.html
+  glacis exam-check             # prove zero network/telemetry imports
 
 Press [bold]Esc[/bold] or [bold]q[/bold] to return to the worksheet.
 """

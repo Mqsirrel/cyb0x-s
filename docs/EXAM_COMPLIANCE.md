@@ -38,10 +38,35 @@ contribution — human or AI-generated — must respect it.
    candidate agreement before exam day. This file is project policy, not
    legal advice.
 
+## Verifiable offline posture
+
+`glacis exam-check` (implemented in `glacis/offline_audit.py`, covered by
+`tests/test_offline_audit.py`) parses the package AST without executing it and
+fails if any of the following is imported or called: `socket`, `requests`,
+`httpx`, `urllib.*`, `http.client`, `ftplib`, `telnetlib`, `smtplib`,
+`poplib`, `imaplib`, `xmlrpc`, `websockets`, `sentry_sdk`, analytics SDKs, etc.
+The shipped source tree must always pass; CI runs the check. HTML exports
+inline all styling and contain no external URLs; snapshots are local files.
+
+## Determinism in the test lane
+
+- UI timers/animations must go through `glacis/tui/anim.py`. Under pytest
+  (and with `GLACIS_NO_ANIM=1`) cosmetic timers are never scheduled and
+  debounces fire synchronously, keeping `pytest -n auto` race-free.
+- Triage (`glacis/triage.py`) is deterministic: fixed rule ordering, stable
+  IDs, no wall-clock or network inputs. State rules (`S1`–`S8`) always run;
+  focus-shift/directional rules (`D1`–`D4`) only when explicitly enabled.
+
 ## PR checklist
 
+- [ ] `glacis exam-check` passes locally and in CI (static scan, zero
+      network/telemetry imports)
 - [ ] No new network calls (grep the diff for `requests`, `httpx`, `urllib`,
       `socket`, `urlopen`)
 - [ ] Any suggestive/guidance feature is opt-in and off by default
+- [ ] Any new timer uses `tui/anim.py` (headless-safe); no raw `set_timer`
+- [ ] List refreshes reconcile differentially — no full clears that drop
+      cursor/scroll
 - [ ] Scope-safety tests pass untouched
 - [ ] No exam-specific content added
+- [ ] `pytest -n auto` is 100% green when run repeatedly (zero flakes)

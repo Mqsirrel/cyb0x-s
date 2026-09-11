@@ -48,6 +48,9 @@ from glacis.templates import (
     get_guidance_for_service,
     get_template_guidance_for_title,
 )
+from glacis.triage import evaluate_workspace
+from glacis.tui.anim import run_debounced
+from glacis.tui.stations import NetworkStation, PulseStation
 from glacis.tui.theme import (
     APP_CSS,
     PALETTES,
@@ -81,6 +84,7 @@ from glacis.tui.widgets import (
     WorkspaceModal,
     clear_badge_caches,
     substitute_command_placeholders,
+    sync_data_list,
 )
 
 
@@ -103,10 +107,12 @@ class GlacisApp(App):
         Binding("g", "record_flags", "Flags", show=False),
         Binding("r", "show_reference", "Reference", show=False),
         Binding("o", "toggle_scope", "Scope", show=False),
+        Binding("0", "switch_tab('tab-pulse')", "Pulse", show=False),
         Binding("1", "switch_tab('tab-worksheet')", "Worksheet", show=False),
         Binding("2", "switch_tab('tab-playbooks')", "Playbooks", show=False),
         Binding("3", "switch_tab('tab-creds')", "Creds", show=False),
         Binding("4", "switch_tab('tab-loot')", "Loot", show=False),
+        Binding("5", "switch_tab('tab-network')", "Network", show=False),
         # vim-style list movement; safe next to fast-capture because Textual
         # hands printable keys to a focused Input before app bindings.
         Binding("j", "nav_down", "Down", show=False),
@@ -180,6 +186,10 @@ class GlacisApp(App):
         yield MachineStatusStrip(id="target-info")
 
         with TabbedContent(initial="tab-worksheet", id="tabs"):
+            # Station 0 — Pulse: deterministic triage and next-focus board.
+            with TabPane("0 ◎ Pulse", id="tab-pulse"):
+                yield PulseStation(id="pulse-station")
+
             # Station 1 — cockpit: everything needed for the next five minutes.
             with TabPane("1 ⌂ Cockpit", id="tab-worksheet"):
                 with Horizontal(id="cockpit"):
@@ -206,8 +216,12 @@ class GlacisApp(App):
                 yield CredentialMatrixWidget(id="cred-matrix-widget")
 
             # Station 4: Flags, Foothold & Failure Log
-            with TabPane("4 ▸ Loot & Flags", id="tab-loot"):
+            with TabPane("4 ★ Loot & Flags", id="tab-loot"):
                 yield LootAndFlagsWidget(id="loot-flags-widget")
+
+            # Station 5: documented network topology, pivots and SOCKS hops
+            with TabPane("5 ◈ Network", id="tab-network"):
+                yield NetworkStation(id="network-station")
 
         yield ConsoleBar(id="guidance-box")
         yield Footer()
@@ -430,9 +444,11 @@ class GlacisApp(App):
         target_ip = active.ip if active else ""
 
         station_titles = {
+            "tab-pulse": "Pulse",
             "tab-worksheet": "Cockpit",
             "tab-playbooks": "Playbooks",
             "tab-creds": "Credentials",
+            "tab-network": "Network",
             "tab-loot": "Loot & Flags",
         }
         active_title = station_titles.get(tab_id, "Cockpit")
@@ -472,8 +488,12 @@ class GlacisApp(App):
                 pass
         elif tab_id == "tab-creds":
             self.refresh_cred_matrix()
+        elif tab_id == "tab-network":
+            self.refresh_network()
         elif tab_id == "tab-loot":
             self.refresh_loot_widget(active)
+        elif tab_id == "tab-pulse":
+            self.refresh_pulse()
 
     def refresh_cred_matrix(self) -> None:
         """Update Station 3 Credential Vault & Matrix on demand."""
@@ -495,6 +515,49 @@ class GlacisApp(App):
                 failures = self.store.list_failure_logs(target_id=active.id if active else None)
             proofs = self.store.list_exam_proofs()
             self.query_one("#loot-flags-widget", LootAndFlagsWidget).update_data(active, failures, proofs=proofs)
+        except Exception:
+            pass
+
+    def refresh_pulse(self) -> None:
+        """Recompute the deterministic triage report and paint Station 0."""
+        try:
+            report = evaluate_workspace(
+                self.store, include_direction=derive_guidance_enabled()
+            )
+            self.query_one("#pulse-station", PulseStation).update_report(report)
+        except Exception:
+            pass
+
+    def refresh_network(self) -> None:
+        """Rebuild the documented network topology station from records."""
+        try:
+            self.query_one("#network-station", NetworkStation).update_topology(self.store)
+        except Exception:
+            pass
+
+    def focus_triage_host(self, host: Any) -> None:
+        """Enter from a Pulse host row: select it in the tree and open Cockpit."""
+        try:
+            self.store.set_active_target(host.target_id)
+            active = self.store.get_target(host.target_id)
+            self.invalidate_target_cache(active)
+            self.refresh_targets()
+            self.refresh_all()
+            self.action_switch_tab("tab-worksheet")
+            self.notify(f"Focus on {host.ip} — phase {host.phase.value}")
+        except Exception:
+            pass
+
+    def focus_advisory(self, advisory: Any) -> None:
+        """Jump from a Pulse advisory to the host/station it references."""
+        try:
+            if advisory.target_id is not None:
+                self.store.set_active_target(advisory.target_id)
+                active = self.store.get_target(advisory.target_id)
+                self.invalidate_target_cache(active)
+                self.refresh_targets()
+                self.refresh_all()
+            self.action_switch_tab(advisory.station)
         except Exception:
             pass
 
@@ -757,10 +820,8 @@ class GlacisApp(App):
                 pass
         elif event.list_view.id == "list-services" and isinstance(obj, Service):
             self._guidance_for_service(obj, target_ip)
-            # Debounce secondary list alignment during rapid scrolling (40ms settle window)
-            if hasattr(self, "_cross_filter_timer") and self._cross_filter_timer is not None:
-                self._cross_filter_timer.stop()
-            self._cross_filter_timer = self.set_timer(0.04, lambda: self._cross_filter_for_service(obj))
+            # Coalesce rapid scrolling; runs synchronously under headless tests.
+            run_debounced(self, "_cross_filter_timer", 0.04, lambda: self._cross_filter_for_service(obj))
 
     # -------------------------------------------------------------------------
     # List Population with Clear Formatting
@@ -881,8 +942,44 @@ class GlacisApp(App):
         except Exception:
             pass
 
+    def _format_notes_row(self, obj: Any) -> Text:
+        """Render a finding, note, evidence item or lead for the Cockpit stream."""
+        P = current_palette()
+        txt = Text()
+        if isinstance(obj, Finding):
+            txt.append("[VULN] ", style=f"bold {P.bg} on {P.danger}")
+            if obj.severity:
+                sev_style = (
+                    f"bold {P.bg} on {P.danger}"
+                    if obj.severity.upper() in ("HIGH", "CRITICAL")
+                    else f"bold {P.bg} on {P.warn}"
+                )
+                txt.append(f"[{obj.severity}] ", style=sev_style)
+            txt.append(f"{obj.title} ", style=f"bold {P.text}")
+            if obj.description:
+                txt.append(f"— {obj.description}", style=f"{P.muted}")
+        elif isinstance(obj, Note):
+            txt.append("[NOTE] ", style=f"bold {P.bg} on {P.warn}")
+            txt.append(obj.content, style=f"{P.text}")
+        elif isinstance(obj, Evidence):
+            txt.append("[EVID] ", style=f"bold {P.bg} on {P.accent}")
+            txt.append(f"{obj.path_or_ref} ", style=f"bold {P.text}")
+            if obj.description:
+                txt.append(f"— {obj.description}", style=f"{P.muted}")
+        elif isinstance(obj, Lead):
+            txt.append("[LEAD] ", style=f"bold {P.bg} on {P.ok}")
+            txt.append(f"{obj.title} ", style=f"bold {P.text}")
+            if obj.notes:
+                txt.append(f"({obj.notes})", style=f"{P.muted}")
+        else:
+            txt.append(str(getattr(obj, "title", obj)), style=f"{P.text}")
+        return txt
+
     def refresh_all(self) -> None:
-        """Refresh all data lists from the database."""
+        """Refresh all data lists from the database (differential, cursor-safe)."""
+        # Palette switches must re-render every styled row, not just changed text.
+        force = bool(getattr(self, "_force_row_render", False))
+        self._force_row_render = False
         with self.batch_update():
             active_target = self.get_current_target()
             target_id = active_target.id if active_target else None
@@ -894,52 +991,48 @@ class GlacisApp(App):
             except Exception:
                 active_tab = "tab-worksheet"
 
-            # 1. Services & Ports (Notion 01 format with Potential and Command Recipe)
+            # 1. Services & Ports — differential sync keeps cursor/scroll intact.
             svc_list = self.query_one("#list-services", ListView)
-            saved_svc_idx = svc_list.index if svc_list.index is not None else self._saved_list_indices.get("#list-services")
-            svc_list.clear()
             services = self.store.list_services(target_id=target_id) if target_id else []
             self._set_count("cnt-services", f"{len(services)} ports" if services else "—")
             if services:
-                for s in services:
-                    svc_list.append(DataListItem(data_obj=s, display_text=self._format_service_row(s)))
+                sync_data_list(
+                    svc_list, services, self._format_service_row,
+                    key_fn=lambda s: ("Service", s.id), force=force,
+                )
             else:
                 P = current_palette()
                 txt = Text()
                 txt.append("  [+ ADD PORT] ", style=f"bold {P.bg} on {P.accent}")
                 txt.append(" Press 's' or type :s 80/tcp http", style=f"bold {P.text}")
-                svc_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-            if saved_svc_idx is not None and len(svc_list.children) > 0:
-                svc_list.index = min(saved_svc_idx, len(svc_list.children) - 1)
+                sync_data_list(svc_list, [], self._format_service_row, placeholder_text=txt)
+            if svc_list.index is not None:
                 self._saved_list_indices["#list-services"] = svc_list.index
 
-            # 2. Credentials (Compact Preview in Tab 1 + Full List in Tab 3)
+            # 2. Credentials (Compact preview in Cockpit, full matrix in Station 3)
             c_list = self.query_one("#list-creds", ListView)
-            saved_c_idx = c_list.index if c_list.index is not None else self._saved_list_indices.get("#list-creds")
-            c_list.clear()
             creds = self.store.list_credentials(target_id=target_id)
             self._set_count("cnt-creds", f"{len(creds)} saved" if creds else "—")
             if creds:
-                for c in creds:
-                    c_list.append(DataListItem(data_obj=c, display_text=self._format_credential_row(c)))
+                sync_data_list(
+                    c_list, creds, self._format_credential_row,
+                    key_fn=lambda c: ("Credential", c.id), force=force,
+                )
             else:
                 P = current_palette()
                 txt = Text()
                 txt.append("  [+ ADD CRED] ", style=f"bold {P.bg} on {P.accent}")
                 txt.append(" Press 'c' or type :c admin:pass", style=f"bold {P.text}")
-                c_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-            if saved_c_idx is not None and len(c_list.children) > 0:
-                c_list.index = min(saved_c_idx, len(c_list.children) - 1)
+                sync_data_list(c_list, [], self._format_credential_row, placeholder_text=txt)
+            if c_list.index is not None:
                 self._saved_list_indices["#list-creds"] = c_list.index
 
             # Tab 3 Credential Matrix: only update if user is looking at Tab 3
             if active_tab == "tab-creds":
                 self.refresh_cred_matrix()
 
-            # 3. Checklist & Progress Bar
+            # 3. Checklist & Progress Bar — differential sync.
             ck_list = self.query_one("#list-checklist", ListView)
-            saved_ck_idx = ck_list.index if ck_list.index is not None else self._saved_list_indices.get("#list-checklist")
-            ck_list.clear()
             items = self.store.list_checklist_items(target_id=target_id)
             checked_count = sum(1 for i in items if i.status == ChecklistStatus.CHECKED)
             total_items = len(items)
@@ -952,59 +1045,34 @@ class GlacisApp(App):
             self._set_count("cnt-checklist", hdr_txt)
 
             if items:
-                for item in items:
-                    ck_list.append(DataListItem(data_obj=item, display_text=self._format_checklist_row(item)))
+                sync_data_list(
+                    ck_list, items, self._format_checklist_row,
+                    key_fn=lambda i: ("ChecklistItem", i.id), force=force,
+                )
             else:
                 P = current_palette()
                 txt = Text()
                 txt.append("  [+ TEMPLATES] ", style=f"bold {P.bg} on {P.accent}")
                 txt.append(" Press 'm' to load templates (ejpt, web, smb)", style=f"bold {P.text}")
-                ck_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-            if saved_ck_idx is not None and len(ck_list.children) > 0:
-                ck_list.index = min(saved_ck_idx, len(ck_list.children) - 1)
+                sync_data_list(ck_list, [], self._format_checklist_row, placeholder_text=txt)
+            if ck_list.index is not None:
                 self._saved_list_indices["#list-checklist"] = ck_list.index
 
-            # 4. Combined Field Notes, Evidence & Findings
+            # 4. Combined Field Notes, Evidence & Findings (differential sync).
             n_list = self.query_one("#list-notes", ListView)
-            saved_n_idx = n_list.index if n_list.index is not None else self._saved_list_indices.get("#list-notes")
-            n_list.clear()
             notes = self.store.list_notes(target_id=target_id)
             findings = self.store.list_findings(target_id=target_id)
             evidences = self.store.list_evidence(target_id=target_id)
             leads = self.store.list_leads(target_id=target_id)
-            total_notes_ev = len(notes) + len(findings) + len(evidences) + len(leads)
+            stream: List[Any] = [*findings, *notes, *evidences, *leads]
+            total_notes_ev = len(stream)
             self._set_count("cnt-notes", f"{total_notes_ev} entries" if total_notes_ev else "—")
-            if notes or findings or evidences or leads:
-                P = current_palette()
-                for f in findings:
-                    txt = Text()
-                    txt.append("[VULN] ", style=f"bold {P.bg} on {P.danger}")
-                    if f.severity:
-                        sev_style = f"bold {P.bg} on {P.danger}" if f.severity.upper() in ("HIGH", "CRITICAL") else f"bold {P.bg} on {P.warn}"
-                        txt.append(f"[{f.severity}] ", style=sev_style)
-                    txt.append(f"{f.title} ", style=f"bold {P.text}")
-                    if f.description:
-                        txt.append(f"— {f.description}", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=f, display_text=txt))
-                for n in notes:
-                    txt = Text()
-                    txt.append("[NOTE] ", style=f"bold {P.bg} on {P.warn}")
-                    txt.append(f"{n.content}", style=f"{P.text}")
-                    n_list.append(DataListItem(data_obj=n, display_text=txt))
-                for ev in evidences:
-                    txt = Text()
-                    txt.append("[EVID] ", style=f"bold {P.bg} on {P.accent}")
-                    txt.append(f"{ev.path_or_ref} ", style=f"bold {P.text}")
-                    if ev.description:
-                        txt.append(f"— {ev.description}", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=ev, display_text=txt))
-                for ld in leads:
-                    txt = Text()
-                    txt.append("[LEAD] ", style=f"bold {P.bg} on {P.ok}")
-                    txt.append(f"{ld.title} ", style=f"bold {P.text}")
-                    if ld.notes:
-                        txt.append(f"({ld.notes})", style=f"{P.muted}")
-                    n_list.append(DataListItem(data_obj=ld, display_text=txt))
+            if stream:
+                sync_data_list(
+                    n_list, stream, self._format_notes_row,
+                    key_fn=lambda o: (type(o).__name__, getattr(o, "id", None)),
+                    force=force,
+                )
             else:
                 P = current_palette()
                 txt = Text()
@@ -1012,9 +1080,8 @@ class GlacisApp(App):
                 txt.append(" Press 'n' for note, ", style=f"bold {P.text}")
                 txt.append("[+ FINDING] ", style=f"bold {P.bg} on {P.danger}")
                 txt.append(" 'f' for finding", style=f"bold {P.text}")
-                n_list.append(DataListItem(data_obj=None, display_text=txt, is_placeholder=True))
-            if saved_n_idx is not None and len(n_list.children) > 0:
-                n_list.index = min(saved_n_idx, len(n_list.children) - 1)
+                sync_data_list(n_list, [], self._format_notes_row, placeholder_text=txt)
+            if n_list.index is not None:
                 self._saved_list_indices["#list-notes"] = n_list.index
 
             # 5. Fast Header and Status Strip update (reusing already-queried lists!)
@@ -1036,9 +1103,13 @@ class GlacisApp(App):
                 failure_count=len(failures),
             )
 
-            # 6. Tab 4: Loot & Flags Widget update (only if active)
+            # 6. Other stations only re-render while the operator is looking.
             if active_tab == "tab-loot":
                 self.refresh_loot_widget(active_target, failures)
+            elif active_tab == "tab-pulse":
+                self.refresh_pulse()
+            elif active_tab == "tab-network":
+                self.refresh_network()
 
         # -------------------------------------------------------------------------
         # Hotkey Actions
@@ -1254,8 +1325,15 @@ class GlacisApp(App):
         palette = set_palette(resolved)
         clear_badge_caches()
         self.theme = palette.textual_theme().name
+        # Row colors are baked into Rich Text at render time; force a restyle.
+        self._force_row_render = True
         self.refresh_targets()
         self.refresh_all()
+        try:
+            self.refresh_pulse()
+            self.refresh_network()
+        except Exception:
+            pass
         if not quiet:
             self.notify(f"Theme: {palette.label}")
 
@@ -1602,6 +1680,14 @@ class GlacisApp(App):
 
     def action_import_scan(self, initial_file: str = "") -> None:
         """Launch the offline scan ingestion & review modal."""
+        # Safety net: rotate a snapshot before bulk ingestion mutates records.
+        try:
+            from glacis.snapshot import create_snapshot
+
+            create_snapshot(self.store, note="auto safety net before scan import")
+        except Exception:
+            pass  # :memory: stores and unwritable locations simply skip snapshots
+
         def on_scan_imported(result: Optional[dict]) -> None:
             if result:
                 self.invalidate_target_cache()
