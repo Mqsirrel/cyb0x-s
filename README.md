@@ -61,6 +61,8 @@ Candidates often ask whether GLACIS is permitted during practical certification 
 * **Human-in-the-Loop**: All commands must be executed manually by the candidate in their own terminal. GLACIS does not execute commands on your behalf.
 * **Zero Unauthorized Assistance**: Does not communicate with outside parties, mentors, or generative AI models.
 * **Zero Compromised Content**: Does not ship with or reference any actual exam machines, answers, past-attempt data, or walkthroughs.
+* **Verifiable**: `glacis exam-check` audits the installed build and proves zero network code paths; `docs/EXAM_COMPLIANCE.md` maps each AI-proctor signal to GLACIS's behaviour; `docs/INE_EJPT_GUIDE.md` covers the eJPT v2 workflow.
+* **Visible transparency**: press `E` for Exam Mode — a persistent `EXAM MODE · OFFLINE NOTES` header badge (persisted across sessions) makes the window's purpose obvious to any screen reviewer.
 
 > [!NOTE]
 > **No Need to Cripple the Tool**: Compliance does not require disabling the core TUI, offline playbooks, or checklist features. As long as you maintain the exam-safe posture (keeping `derive_guidance` in its default `OFF` state and avoiding storing prohibited or NDA exam content), GLACIS functions strictly as an individual candidate's electronic field journal.

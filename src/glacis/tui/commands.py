@@ -487,6 +487,26 @@ def execute_command(app: Any, raw: str) -> None:
     elif val in (":m", ":template", ":methodology"):
         app.action_apply_template()
         return
+    elif val in (":welcome", ":start", ":onboarding"):
+        if hasattr(app, "action_show_welcome"):
+            app.action_show_welcome()
+        return
+    elif val in (":exam on", "exam on"):
+        if hasattr(app, "set_exam_mode"):
+            app.set_exam_mode(True)
+        return
+    elif val in (":exam off", "exam off"):
+        if hasattr(app, "set_exam_mode"):
+            app.set_exam_mode(False)
+        return
+    elif val in (":exam", "exam"):
+        if hasattr(app, "set_exam_mode"):
+            app.set_exam_mode(not getattr(app, "exam_mode", False))
+        return
+    elif val in (":anim", ":animations"):
+        if hasattr(app, "action_toggle_animations"):
+            app.action_toggle_animations()
+        return
     elif val.startswith(":w"):
         alias = val[2:].strip().lower()
         if not alias:
