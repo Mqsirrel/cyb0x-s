@@ -141,18 +141,41 @@ def execute_command(app: Any, raw: str) -> None:
             app.exit()
         return
 
-    # Tab switching via command: :1, :2, :3, :4
-    if val == ":1":
-        app.action_switch_tab("tab-worksheet")
+    # Tab switching via command: :0 Pulse, :1 Cockpit, :2 Playbooks,
+    # :3 Credentials, :4 Loot, :5 Network
+    station_map = {
+        ":0": "tab-pulse",
+        ":1": "tab-worksheet",
+        ":2": "tab-playbooks",
+        ":3": "tab-creds",
+        ":4": "tab-loot",
+        ":5": "tab-network",
+    }
+    if val in station_map:
+        app.action_switch_tab(station_map[val])
         return
-    elif val == ":2":
-        app.action_switch_tab("tab-playbooks")
+    if val in ("pulse", ":pulse"):
+        app.action_switch_tab("tab-pulse")
         return
-    elif val == ":3":
-        app.action_switch_tab("tab-creds")
+    if val in ("network", ":network", ":net", "topology"):
+        app.action_switch_tab("tab-network")
         return
-    elif val == ":4":
-        app.action_switch_tab("tab-loot")
+
+    # Snapshot safety net: :snap [note] — online SQLite backup with rotation
+    if val == ":snap" or val.startswith(":snap "):
+        note = val.split(maxsplit=1)[1].strip() if len(val.split(maxsplit=1)) > 1 else ""
+        try:
+            from glacis.snapshot import create_snapshot
+
+            info = create_snapshot(app.store, note=note)
+            app.notify(
+                f"Snapshot saved: {info.file_name} ({max(info.size_bytes // 1024, 1)} KB); "
+                "kept the newest 5"
+            )
+        except ValueError as exc:
+            app.notify(f"Snapshot unavailable: {exc}", severity="warning")
+        except Exception as exc:  # never let safety-net IO interrupt the exam
+            app.notify(f"Snapshot failed: {exc}", severity="error")
         return
 
     # Import command (:import [file])
@@ -332,6 +355,31 @@ def execute_command(app: Any, raw: str) -> None:
         out_file = Path("exam_evidence.md")
         out_file.write_text(md, encoding="utf-8")
         app.notify(f"Exported exam evidence to {out_file.resolve()}")
+    elif val == ":export html" or val.startswith(":export html "):
+        from pathlib import Path
+
+        from glacis.exporter_html import export_html
+
+        arg = val.split(maxsplit=2)[2].strip() if len(val.split(maxsplit=2)) > 2 else ""
+        out_file = Path(arg) if arg else Path("glacis_report.html")
+        if out_file.is_dir():
+            out_file = out_file / "glacis_report.html"
+        out_file.write_text(export_html(app.store), encoding="utf-8")
+        app.notify(f"Offline HTML handover written to {out_file.resolve()}")
+    elif val == ":pivot" or val.startswith(":pivot "):
+        arg = val.split(maxsplit=1)[1].strip() if len(val.split(maxsplit=1)) > 1 else ""
+        if not active:
+            app.notify("Select a target before documenting a pivot.", severity="error")
+            return
+        if arg.lower() in ("off", "clear", "none", "-"):
+            app.store.update_target_details(active.id, is_pivot=False, pivot_route="")
+            app.notify(f"{active.ip} no longer marked as a pivot")
+        else:
+            route = arg or "dual-homed (route note pending)"
+            app.store.update_target_details(active.id, is_pivot=True, pivot_route=route)
+            app.notify(f"Marked {active.ip} as pivot — {route}; see Station 5 (press 5)")
+        app.refresh_targets()
+        app.refresh_all()
     elif val.startswith(":stuck ") or val.startswith(":dead "):
         stuck_txt = val.split(maxsplit=1)[1].strip()
         app.store.add_failure_log(target_id=target_id, where_stuck=stuck_txt)

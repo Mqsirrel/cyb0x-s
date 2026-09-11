@@ -45,6 +45,11 @@ target.env
 scans/
 loot/
 
+# Local GLACIS snapshots and generated handover files
+snapshots/
+glacis_report.html
+exam_evidence.md
+
 # Editor and OS scratch
 .DS_Store
 *.swp

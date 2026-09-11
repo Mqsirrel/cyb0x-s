@@ -74,7 +74,8 @@ GLACIS is a local, human-controlled field notebook and methodology worksheet. It
 Candidates frequently inquire whether GLACIS is permitted during practical certification exams like the **INE eJPT / eCPPT**, **OffSec OSCP**, **HackTheBox CPTS**, or **TCM Security PNPT**.
 
 ### How GLACIS Aligns with Certification Policies:
-* **Local & Offline**: Zero cloud dependencies, zero external network traffic, and no telemetry.
+* **Local & Offline**: Zero cloud dependencies, zero external network traffic, and no telemetry. The posture is *machine-verifiable*: `glacis exam-check` statically parses every source file (without executing it) and fails the build if a socket, HTTP client, update check or analytics library is imported anywhere.
+* **Local Snapshots, Local Exports**: Database snapshots (`glacis snapshot …` / `:snap`) and HTML handovers are plain local files; the HTML export inlines its CSS and references **no** external URLs, scripts or fonts.
 * **Personal Worksheet Model**: Practical exams permit candidates to maintain their own notes, command references, and methodology checklists. GLACIS is simply a fast terminal-based alternative to Obsidian, CherryTree, or a local markdown file.
 * **Human-in-the-Loop**: All commands must be executed manually by the candidate in their own terminal. GLACIS does not execute commands on your behalf.
 * **Zero Unauthorized Assistance**: Does not communicate with outside parties, mentors, or generative AI models.
@@ -265,6 +266,9 @@ glacis search "backup"
 # Clean standalone Markdown notebook:
 glacis export --format md -o notes.md
 
+# Self-contained printable HTML handover (embedded CSS, zero external URLs):
+glacis export --format html -o report.html
+
 # Full lossless JSON backup:
 glacis export --format json -o workspace_backup.json
 
@@ -272,11 +276,87 @@ glacis export --format json -o workspace_backup.json
 glacis export --format txt
 ```
 
+### Pulse Triage (deterministic, explainable)
+```bash
+# Host kill-chain phases + state-gap advisories (S1–S8), computed from
+# your own records. No heuristics in the cloud, nothing ever runs.
+glacis triage
+
+# Add --direction for the opt-in focus-shift hints (D1–D4), such as
+# credential-reuse surfaces or rabbit-hole switches. Off by default.
+glacis triage --direction
+```
+
+### Snapshot Safety Net
+Before a destructive bulk action (e.g. scan import), rotate a consistent
+online backup of the SQLite database. Newest 5 are kept by default.
+```bash
+glacis snapshot create -n "before scan import"
+glacis snapshot list
+glacis snapshot restore 1 --yes     # 1 = newest; a pre-restore snapshot is taken automatically
+```
+Inside the TUI: `:snap [note]`. Scan imports trigger an automatic snapshot.
+
+### Offline Compliance Proof
+```bash
+glacis exam-check      # static AST scan of the package: exits 1 on any network/telemetry import
+```
+
+### Documented Pivots
+```bash
+glacis pivot 10.10.10.20 "192.168.50.0/24 via socks5:1080"
+glacis route 192.168.50.10          # renders hop chain + ProxyChains/Chisel/SSH-Jump syntax
+glacis pivot 10.10.10.20 --unmark
+```
+The TUI equivalent is `:pivot <route note>`; open Station **`5`** for the
+topology map and copy-ready tunnel actions.
+
 ---
 
 ## 8. Terminal User Interface (TUI) Architecture
 
-GLACIS features 4 dedicated mission stations accessible via digits **`1`**, **`2`**, **`3`**, and **`4`**:
+GLACIS features **6 dedicated mission stations** accessible via digits
+**`0`**–**`5`**. The code is split into a `tui/stations/` package
+(station-level screens) and a `tui/widgets/` package (reusable panels,
+lists and modals), each staying well under the size of the former monolith.
+
+```text
+┌─ GLACIS · station architecture ─────────────────────────────────────────────┐
+│ 0 ◎ Pulse       situation board: host phases, transparent progress, signals │
+│ 1 ⌂ Cockpit     surface tree · services · methodology · notes (one screen)  │
+│ 2 ▸ Playbooks   offline command reference (Enter copies)                    │
+│ 3 ▸ Credentials vault + spray matrix                                        │
+│ 4 ★ Loot        flags, proofs, foothold ledger, rabbit holes                │
+│ 5 ◈ Network      documented subnets, pivots, SOCKS/ProxyChains actions      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+Lists reconcile **differentially**: rows are matched by stable model keys, so
+adding or editing a record never clears the list — scroll position, cursor and
+focus survive every refresh (a hard requirement during timed exams).
+
+### Station 0: Pulse (`0`)
+
+A deterministic situation-awareness board recomputed purely from recorded
+data. The left panel shows one row per host — its kill-chain phase,
+transparent progress arithmetic (`recon → foothold → user → root → complete`)
+and dead-end heat. The right panel lists **explainable advisories**: every
+signal carries a stable rule id (`S1`–`S8` state rules always visible;
+`D1`–`D4` focus-shift rules only after pressing **`G`**, mirroring the
+opt-in derived-guidance posture). Enter on a host focuses it in the Cockpit;
+Enter on an advisory jumps to the station that owns the gap. No timers, no
+background work, no network — the report is pure arithmetic over your notes.
+
+```text
+┌ OVERALL 27.5%  RECON 1  FOOTHOLD 1 │ svc 4 creds 1 proofs 0 dead 0 ┐ ┌ STATE ONLY ┐
+┌─ HOST TRIAGE BOARD ───────────────┐ ┌─ EXPLAINABLE NEXT-FOCUS SIGNALS ─────────┐
+│ ▸ 10.10.10.20 web01 ███░░░░░ 40%  │ │ ▲ [S6-foothold-no-golden] foothold saved  │
+│   [FOOTHOLD] s3 k1 ⇄              │ │   without a golden reproduction command   │
+│ ◐ 192.168.50.10 db  █░░░░░░░ 15%  │ │ · [S3-checklist-next] next: SMB enum (0/2)│
+│   [RECON] s1                      │ │ • [D1-cred-reuse] 'admin' untried on :22  │
+└───────────────────────────────────┘ │   (opt-in focus hints — press G)          │
+                                      └───────────────────────────────────────────┘
+```
 
 ### Station 1: The Cockpit (`1`)
 
@@ -333,6 +413,26 @@ Structured ledger for user flags, root flags, exam question proofs, loot paths, 
   <img src="docs/screenshots/04-loot.png" alt="Station 4: Loot & Flags" width="920">
 </p>
 
+### Station 5: Network (`5`)
+
+A passive map of the subnets and pivots **you documented**, plus copy-ready
+tunnel syntax (ProxyChains config, Chisel server/client, SSH ProxyJump, SOCKS
+dynamic forwarding, proxied TCP scan hint). GLACIS never pings or traces a
+route; the topology math is derived solely from target IPs and your
+`:pivot` notes, and every action is copied for you to run in your own
+terminal.
+
+```text
+┌─ DOCUMENTED NETWORK TOPOLOGY ─────┐ ┌─ TUNNEL & ROUTE ACTIONS ───────────────┐
+│ === NETWORK TOPOLOGY: LAB-01 ===  │ │ ProxyChains config — all documented hops│
+│ ┌─ Subnet: 10.10.10.0/24          │ │   strict_chain / socks5 127.0.0.1 1080  │
+│ │  • 10.10.10.20 (web01) [⇄ PIV]  │ │ Chisel server (attacker host)          │
+│ ┌─ Subnet: 192.168.50.0/24        │ │   ❯ chisel server -p 8000 --reverse     │
+│ │  • 192.168.50.10 (db)           │ │ Chisel client via 10.10.10.20 → /24    │
+│                                   │ │ SSH ProxyJump to 192.168.50.10 [Enter]  │
+└───────────────────────────────────┘ └─────────────────────────────────────────┘
+```
+
 ---
 
 ## 9. Themes & Glacial Aesthetic
@@ -369,10 +469,12 @@ python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png
 
 | Key | Action | Scope |
 |---|---|---|
+| `0` | **Pulse Station** — host triage board & explainable next-focus signals | Global |
 | `1` | **Cockpit Station** — attack surface, services, methodology, notes | Global |
 | `2` | **Playbooks Station** — full-screen interactive playbook browser | Global |
 | `3` | **Credentials Station** — credential vault & service spray matrix | Global |
 | `4` | **Loot & Flags Station** — flags, foothold proof, rabbit-hole log | Global |
+| `5` | **Network Station** — documented subnets, pivots & tunnel actions | Global |
 | `Tab` / `Shift+Tab` | Cycle focus between visible panels | Cockpit |
 | `j` / `k` (or `↑` / `↓`) | Move down / up inside active list or tree | Lists |
 | `Enter` | **Copy command** from bottom runner to clipboard | Focused item |
@@ -392,7 +494,7 @@ python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png
 | `m` | Methodology template picker modal | Cockpit |
 | `d` | Delete highlighted item (with safety confirmation) | Lists |
 | `T` | Open theme picker modal with live preview | Global |
-| `G` | Toggle static derive guidance on/off | Global |
+| `G` | Toggle derived guidance (Pulse `D1`–`D4` focus-shift hints); **off by default** | Global |
 | `?` | Interactive help and cheat sheet | Global |
 | `q` | Exit GLACIS | Global |
 
@@ -402,7 +504,7 @@ python dev/theme_gallery.py    # writes dev/previews/theme-gallery.png
 
 Type directly into the bottom console input to execute rapid actions:
 
-* `:1` … `:4` — Instant station switching
+* `:0` … `:5` — Instant station switching (or `:pulse` / `:network`)
 * `:t <ip>` — Quick target addition
 * `:s <port/proto> <service>` — Quick service addition (e.g. `:s 445/tcp smb`)
 * `:c <user:pass>` — Quick credential addition
@@ -411,10 +513,14 @@ Type directly into the bottom console input to execute rapid actions:
 * `:uflag <hash>` / `:rflag <hash>` — Save captured exam flags
 * `:foothold <vuln>` — Record initial access foothold
 * `:privesc <vector>` — Record privilege escalation vector
+* `:pivot <route>` — Mark active host dual-homed (e.g. `:pivot 192.168.1.0/24 via socks5:1080`); `:pivot off` clears
+* `:snap [note]` — Snapshot the notebook database (newest 5 kept; auto-runs before scan imports)
 * `:stuck <why>` — Log a rabbit hole dead end
 * `:clue <breakthrough>` — Log the breakthrough clue that unlocked progress
 * `:ev <path>` — Log evidence file path
 * `:ref <term>` — Pop up offline command reference (e.g. `:ref winrm`)
+* `:export exam` — Write the exam evidence bundle (`exam_evidence.md`)
+* `:export html [file]` — Write a self-contained, printable HTML handover
 * `:theme <name>` — Switch palette (`slate`, `midnight`, `ember`, `cyber`, `sugary`, `candy`, `caramel`, `catppuccin`); `:theme` alone cycles
 * `:q` — Quit
 

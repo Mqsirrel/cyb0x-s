@@ -113,6 +113,18 @@ $ glacis
 * Press `Space` on checklist items to advance their state (`TODO` → `CHECKED` → `DEFERRED` → `DEAD-END`).
 * Press `Space` on the credential to briefly inspect the unmasked password.
 * Press `Ctrl+F` to search for `"backup"` across all your notes.
+* Press **`0`** for **Pulse**: a host-by-host kill-chain board plus
+  explainable state-gap signals (e.g. `S6-foothold-no-golden`,
+  `S4-flag-without-evidence`). Pressing **`G`** additionally reveals the
+  opt-in focus-shift hints (`D1`–`D4`); the default `STATE ONLY` mode never
+  suggests where to go next.
+* Press **`5`** for **Network**: once you document a dual-homed host
+  (`:pivot 192.168.50.0/24 via socks5:1080` or `glacis pivot …`), Station 5
+  renders the subnet map and copies ProxyChains / Chisel / SSH-ProxyJump
+  syntax for you to run yourself.
+* Before ingesting a scan file, `:snap "pre-import"` rotates a local DB
+  snapshot (the TUI also auto-snapshots before scan imports). `glacis
+  snapshot restore 1` rolls back if an import mangles your notes.
 
 ### Step 8: Generating Standalone Deliverable / Report
 When you finish your assessment or lab session, export everything to a standalone Markdown notebook:
@@ -148,6 +160,19 @@ Your Markdown export is completely readable and structured:
 
 ## Evidence
 - [screenshot] `screenshots/proof_user_flag.png` — User flag retrieved via web shell
+```
+
+For a polished, printable handover use the self-contained HTML report
+(embedded CSS, no external URLs, scripts or fonts):
+```bash
+$ glacis export --format html -o report.html
+# inside the TUI: :export html report.html
+```
+
+Before exam day, verify the tool's offline posture yourself:
+```bash
+$ glacis exam-check
+✓ PASS — zero network/telemetry imports; the tool is fully offline by construction.
 ```
 
 ---

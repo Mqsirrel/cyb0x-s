@@ -38,8 +38,61 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _rank_interface_ip(iface: str, ip: str) -> tuple[int, str]:
+    """Sort key preferring VPN/tunnel interfaces, then private address space."""
+    if any(iface.startswith(p) for p in ("tun", "wg", "tap")):
+        return (0, ip)
+    if ip.startswith("10."):
+        return (1, ip)
+    if ip.startswith(("192.168.", "172.")):
+        return (2, ip)
+    return (3, ip)
+
+
+def _parse_ip_addr_output(text: str) -> Optional[str]:
+    """Parse ``ip -4 -o addr show`` output without importing socket."""
+    candidates: list[tuple[tuple[int, str], str]] = []
+    for line in text.strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 4:
+            iface = parts[1]
+            addr = parts[3].split("/")[0]
+            if iface != "lo" and not addr.startswith(("127.", "169.254.")):
+                candidates.append((_rank_interface_ip(iface, addr), addr))
+    if candidates:
+        candidates.sort(key=lambda item: item[0])
+        return candidates[0][1]
+    return None
+
+
+def _detect_ip_from_proc() -> Optional[str]:
+    """Best-effort local-IP detection from /proc (no sockets, no subprocess)."""
+    try:
+        # /proc/net/fib_trie lists /32 host LOCAL addresses per interface.
+        text = Path("/proc/net/fib_trie").read_text(encoding="utf-8", errors="ignore")
+        found: list[str] = []
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if "/32 host LOCAL" in line:
+                addr_line = lines[i - 1] if i > 0 else ""
+                addr = addr_line.split("--", 1)[-1].strip()
+                if addr and addr.count(".") == 3 and not addr.startswith(("127.", "169.254.")):
+                    found.append(addr)
+        for preferred in ("10.", "192.168.", "172."):
+            for addr in found:
+                if addr.startswith(preferred):
+                    return addr
+        return found[0] if found else None
+    except OSError:
+        return None
+
+
 def detect_local_vpn_ip() -> Optional[str]:
-    """Detect local local VPN IP (prioritizing tun*, wg*, tap* interfaces)."""
+    """Detect the local VPN IP (prioritizing tun*, wg*, tap* interfaces).
+
+    Strictly offline and socket-free: we read ``ip`` CLI output, then fall back
+    to ``/proc/net/fib_trie``. No packets are ever sent.
+    """
     try:
         import subprocess
 
@@ -50,40 +103,13 @@ def detect_local_vpn_ip() -> Optional[str]:
             timeout=2,
         )
         if res.returncode == 0:
-            lines = res.stdout.strip().splitlines()
-            # 1. First priority: VPN / tunnel interfaces
-            for line in lines:
-                parts = line.split()
-                if len(parts) >= 4:
-                    iface = parts[1]
-                    ip = parts[3].split("/")[0]
-                    if any(iface.startswith(p) for p in ("tun", "wg", "tap")):
-                        return ip
-            # 2. Second priority: any non-loopback global interface
-            for line in lines:
-                parts = line.split()
-                if len(parts) >= 4:
-                    iface = parts[1]
-                    ip = parts[3].split("/")[0]
-                    if iface != "lo" and not ip.startswith("127."):
-                        return ip
+            detected = _parse_ip_addr_output(res.stdout)
+            if detected:
+                return detected
     except Exception:
         pass
 
-    # Fallback to UDP socket trick
-    try:
-        import socket
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("10.255.255.255", 1))
-        ip = s.getsockname()[0]
-        s.close()
-        if ip and not ip.startswith("127."):
-            return ip
-    except Exception:
-        pass
-
-    return None
+    return _detect_ip_from_proc()
 
 
 def get_default_db_path() -> Path:
