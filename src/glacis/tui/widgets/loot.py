@@ -13,7 +13,8 @@ from textual.widgets import DataTable, Label, ListView, Static
 from glacis.models import Credential, Service, Target
 from glacis.services_meta import AUTH_SERVICE_NAMES, AUTH_SERVICE_PORTS
 from glacis.tui import widgets as _pkg
-from glacis.tui.theme import GLYPHS as G, current_palette
+from glacis.tui.theme import GLYPHS as G
+from glacis.tui.theme import current_palette
 from glacis.tui.widgets.chrome import set_border_text
 from glacis.tui.widgets.lists import DataListItem, elide, keycap_line
 
@@ -114,7 +115,7 @@ class LootAndFlagsWidget(Static):
                 "#loot-privesc-box": (f" {G['warn']} PRIVILEGE ESCALATION & ROOT ", " [:privesc] "),
                 "#loot-evidence-box": (f" {G['credentials']} QUESTION & EVIDENCE PROOFS ", " [a: Add · e: Export] "),
                 "#loot-files-box": (f" {G['notes']} DISK LOOT & EVIDENCE FILES ", " [Space: View · v: Paste] "),
-                "#loot-failure-box": (f" ▼ RABBIT HOLES & BREAKTHROUGHS ", " [:stuck · :clue] "),
+                "#loot-failure-box": (" ▼ RABBIT HOLES & BREAKTHROUGHS ", " [:stuck · :clue] "),
             }
             for selector, (title, sub) in _titles.items():
                 set_border_text(self.query_one(selector, Vertical), title=title, subtitle=sub)

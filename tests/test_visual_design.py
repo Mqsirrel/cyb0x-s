@@ -25,7 +25,6 @@ from glacis.tui.theme import (
 )
 from glacis.tui.widgets.lists import elide, elide_middle, keycap_line, status_badge
 
-
 # ---------------------------------------------------------------------------
 # Colour
 # ---------------------------------------------------------------------------
@@ -125,7 +124,6 @@ def test_keycap_border_titles_do_not_raise_markup_errors() -> None:
     repaint the caller had wrapped in ``try/except``, so Station 2 silently
     kept the *previous* station's console copy.
     """
-    from textual.app import ComposeResult
     from textual.widgets import Static
 
     from glacis.tui.widgets.chrome import set_border_text

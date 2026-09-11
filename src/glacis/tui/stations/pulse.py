@@ -189,7 +189,6 @@ class PulseStation(Static):
         # dropped in priority order when there is no room.
         panel_width = self._hosts_panel_width()
         host_budget = max(min(panel_width // 4, 18), 8)
-        fixed = 2 + 15 + 2 + host_budget + 2 + 10 + 1 + 4 + 1 + 10
 
         t = Text()
         t.append(f"{icon} ", style=f"bold {getattr(P, colour)}")

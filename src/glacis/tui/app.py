@@ -53,7 +53,6 @@ from glacis.tui.anim import run_debounced
 from glacis.tui.stations import NetworkStation, PulseStation
 from glacis.tui.theme import (
     APP_CSS,
-    GLYPHS as G,
     PALETTES,
     current_palette,
     get_default_theme,
@@ -61,8 +60,9 @@ from glacis.tui.theme import (
     save_default_theme,
     set_palette,
 )
-from glacis.tui.widgets.chrome import set_border_text
-from glacis.tui.widgets.lists import elide, status_badge
+from glacis.tui.theme import (
+    GLYPHS as G,
+)
 from glacis.tui.widgets import (
     AddCredentialModal,
     AddFindingModal,
@@ -89,7 +89,8 @@ from glacis.tui.widgets import (
     substitute_command_placeholders,
     sync_data_list,
 )
-
+from glacis.tui.widgets.chrome import set_border_text
+from glacis.tui.widgets.lists import elide, status_badge
 
 #: Characters left for free text in a composed row after the fixed-width
 #: pills (status + severity + kind) are placed. Rows elide against this so a
